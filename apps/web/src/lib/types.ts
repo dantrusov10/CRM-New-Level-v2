@@ -41,17 +41,18 @@ export type Deal = {
 
 export type TimelineItem = {
   id: Id;
-  entity_type: "deal" | "company";
-  entity_id: Id;
+  deal_id: Id;
+  user_id: Id;
   action: string;
-  message?: string;
-  by?: Id;
+  comment?: string;
+  payload?: any;
+  timestamp?: string;
   created?: string;
 };
 
 export type AiInsight = {
   id: Id;
-  deal: Id;
+  deal_id: Id;
   score_percent?: number;
   summary?: string;
   recommendations?: string;

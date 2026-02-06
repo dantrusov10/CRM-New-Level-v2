@@ -41,26 +41,16 @@ export function DealDetailPage() {
       margin_percent: margin ? Number(margin) : null,
     };
     await upd.mutateAsync({ id, data });
-    await pb.collection("timeline").create({
-      entity_type: "deal",
-      entity_id: id,
-      action: "update",
-      message: "Изменены поля сделки",
-    }).catch(() => {});
+    await pb.collection("timeline").create({ deal_id: id, user_id: (pb.authStore.model as any)?.id, action: "update", comment: "Изменены поля сделки", payload: patch, timestamp: new Date().toISOString() }).catch(() => {});
     tlQ.refetch();
-  }
+}
 
   async function changeStage(stageId: string) {
     if (!id) return;
-    const prevName = deal?.expand?.stage?.name ?? "";
+    const prevName = deal?.expand?.stage?.stage_name ?? "";
     const nextName = stages.find((s) => s.id === stageId)?.name ?? "";
     await pb.collection("deals").update(id, { stage: stageId });
-    await pb.collection("timeline").create({
-      entity_type: "deal",
-      entity_id: id,
-      action: "stage_change",
-      message: `Смена этапа: ${prevName} → ${nextName}`,
-    }).catch(() => {});
+    await pb.collection("timeline").create({ deal_id: id, user_id: (pb.authStore.model as any)?.id, action: "stage_change", comment: `Этап изменён: ${prevName} → ${nextName}`, payload: { from: prevName, to: nextName }, timestamp: new Date().toISOString() }).catch(() => {});
     await dealQ.refetch();
     tlQ.refetch();
   }
@@ -82,7 +72,7 @@ export function DealDetailPage() {
               >
                 <option value="" disabled>Этап</option>
                 {stages.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
+                  <option key={s.id} value={s.id}>{s.stage_name}</option>
                 ))}
               </select>
               <Button onClick={save} disabled={upd.isPending}>Сохранить</Button>

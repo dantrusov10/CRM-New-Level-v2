@@ -8,7 +8,7 @@ import { useNavigate } from "react-router-dom";
 export function CreateCompanyModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [name, setName] = React.useState("");
   const [inn, setInn] = React.useState("");
-  const [site, setSite] = React.useState("");
+  const [website, setWebsite] = React.useState("");
   const [city, setCity] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const nav = useNavigate();
@@ -17,7 +17,7 @@ export function CreateCompanyModal({ open, onClose }: { open: boolean; onClose: 
     if (open) {
       setName("");
       setInn("");
-      setSite("");
+      setWebsite("");
       setCity("");
     }
   }, [open]);
@@ -26,14 +26,8 @@ export function CreateCompanyModal({ open, onClose }: { open: boolean; onClose: 
     if (!name.trim()) return;
     setSaving(true);
     try {
-      const rec = await pb.collection("companies").create({ name, inn: inn || undefined, site: site || undefined, city: city || undefined });
-      await pb.collection("timeline").create({
-        entity_type: "company",
-        entity_id: rec.id,
-        action: "create",
-        message: "Компания создана",
-      }).catch(() => {});
-      onClose();
+      const rec = await pb.collection("companies").create({ name, inn: inn || undefined, website: website || undefined, city: city || undefined });
+onClose();
       nav(`/companies/${rec.id}`);
     } finally {
       setSaving(false);
@@ -59,7 +53,7 @@ export function CreateCompanyModal({ open, onClose }: { open: boolean; onClose: 
         </div>
         <div>
           <div className="text-xs text-text2 mb-1">Сайт</div>
-          <Input value={site} onChange={(e) => setSite(e.target.value)} placeholder="https://..." />
+          <Input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://..." />
         </div>
 
         <div className="flex justify-end gap-2 pt-2">

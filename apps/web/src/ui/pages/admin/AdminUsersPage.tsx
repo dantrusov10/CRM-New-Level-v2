@@ -7,7 +7,14 @@ import { pb } from "../../../lib/pb";
 
 export function AdminUsersPage() {
   const [users, setUsers] = React.useState<any[]>([]);
-  const [roles, setRoles] = React.useState<any[]>([]);
+  // MVP: роли храним как enum в auth-коллекции `users.role_name`.
+  // settings_roles остаётся для матрицы прав и лейблов.
+  const ROLE_FALLBACK = [
+    { value: "admin", label: "Админ" },
+    { value: "manager", label: "Менеджер" },
+    { value: "viewer", label: "Вьюер" },
+  ];
+  const [roles, setRoles] = React.useState<Array<{ value: string; label: string }>>(ROLE_FALLBACK);
   const [open, setOpen] = React.useState(false);
 
   const [name, setName] = React.useState("");
@@ -17,9 +24,13 @@ export function AdminUsersPage() {
 
   async function load() {
     const u = await pb.collection("users").getList(1, 200, { sort: "email" });
-    const r = await pb.collection("settings_roles").getFullList({ sort: "name" }).catch(() => []);
+    const r = await pb.collection("settings_roles").getFullList({ sort: "role_name" }).catch(() => []);
     setUsers(u.items);
-    setRoles(r as any);
+    // If settings_roles exists and filled - use it; else fallback.
+    const mapped = (r as any[])
+      .map((x) => ({ value: x.role_name, label: x.label ?? x.role_name }))
+      .filter((x) => !!x.value);
+    setRoles(mapped.length ? mapped : ROLE_FALLBACK);
   }
 
   React.useEffect(() => { load(); }, []);
@@ -31,7 +42,7 @@ export function AdminUsersPage() {
       password,
       passwordConfirm: password,
       name: name || undefined,
-      role: role || undefined,
+      role_name: role || undefined,
     });
     setOpen(false);
     setName(""); setEmail(""); setPassword(""); setRole("");
@@ -67,15 +78,15 @@ export function AdminUsersPage() {
                   <td className="px-3">
                     <select
                       className="h-9 rounded-card border border-[#9CA3AF] bg-white px-2 text-sm"
-                      value={u.role ?? ""}
+                      value={u.role_name ?? ""}
                       onChange={async (e) => {
-                        await pb.collection("users").update(u.id, { role: e.target.value || null });
+                        await pb.collection("users").update(u.id, { role_name: e.target.value || null });
                         load();
                       }}
                     >
                       <option value="">—</option>
                       {roles.map((r) => (
-                        <option key={r.id} value={r.id}>{r.name}</option>
+                        <option key={r.value} value={r.value}>{r.label}</option>
                       ))}
                     </select>
                   </td>
@@ -105,7 +116,7 @@ export function AdminUsersPage() {
             <div className="text-xs text-text2 mb-1">Роль</div>
             <select className="h-10 w-full rounded-card border border-[#9CA3AF] bg-white px-3 text-sm" value={role} onChange={(e) => setRole(e.target.value)}>
               <option value="">—</option>
-              {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+              {roles.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
           </div>
 

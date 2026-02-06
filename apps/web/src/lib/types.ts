@@ -14,8 +14,8 @@ export type Company = {
 
 export type FunnelStage = {
   id: Id;
-  name: string;
-  order: number;
+  stage_name: string;
+  position: number;
   color: string;
   is_final?: boolean;
   final_type?: "win" | "loss" | null;
@@ -23,15 +23,15 @@ export type FunnelStage = {
 
 export type Deal = {
   id: Id;
-  name: string;
-  company?: Id;
-  owner?: Id;
-  stage?: Id;
+  title: string;
+  company_id?: Id;
+  responsible_id?: Id;
+  stage_id?: Id;
   budget?: number;
   turnover?: number;
   margin_percent?: number;
   discount_percent?: number;
-  channel?: string; // direct/partner or settings_channels
+  sales_channel?: string; // "прямой" | "партнёр"
   partner?: string;
   distributor?: string;
   procurement_format?: string;

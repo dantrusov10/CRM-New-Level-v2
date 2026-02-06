@@ -15,9 +15,10 @@ export function DealsKanbanPage() {
 
   const stagesQ = useFunnelStages();
   const filter = [
-    owner ? `owner="${owner}"` : "",
-    channel ? `channel~"${channel.replace(/\"/g, "\\\"")}"` : "",
-    stageOnly ? `stage="${stageOnly}"` : "",
+    // PocketBase schema
+    owner ? `responsible_id="${owner}"` : "",
+    channel ? `sales_channel="${channel.replace(/\"/g, "\\\"")}"` : "",
+    stageOnly ? `stage_id="${stageOnly}"` : "",
   ].filter(Boolean).join(" && ");
 
   const dealsQ = useDeals({ filter });
@@ -29,7 +30,7 @@ export function DealsKanbanPage() {
     const m: Record<string, any[]> = {};
     for (const s of stages) m[s.id] = [];
     for (const d of deals as any[]) {
-      const sid = d.stage ?? d.expand?.stage?.id;
+      const sid = d.stage_id ?? d.expand?.stage_id?.id;
       if (sid && m[sid]) m[sid].push(d);
     }
     return m;
@@ -42,13 +43,16 @@ export function DealsKanbanPage() {
     // overId is stageId (drop zone)
     const newStageId = overId;
     const deal = (deals as any[]).find((x) => x.id === dealId);
-    if (!deal || deal.stage === newStageId) return;
-    await pb.collection("deals").update(dealId, { stage: newStageId });
+    if (!deal || deal.stage_id === newStageId) return;
+    await pb.collection("deals").update(dealId, { stage_id: newStageId });
+    // Timeline schema: deal_id + comment + payload + timestamp
     await pb.collection("timeline").create({
-      entity_type: "deal",
-      entity_id: dealId,
+      deal_id: dealId,
+      user_id: pb.authStore.model?.id ?? null,
       action: "stage_change",
-      message: `Смена этапа: ${deal.expand?.stage?.name ?? ""} → ${stages.find((s) => s.id === newStageId)?.name ?? ""}`,
+      comment: `Смена этапа: ${(deal.expand?.stage_id?.stage_name ?? "").trim()} → ${(stages.find((s) => s.id === newStageId) as any)?.stage_name ?? ""}`,
+      payload: { from: deal.stage_id, to: newStageId },
+      timestamp: new Date().toISOString(),
     }).catch(() => {});
     await dealsQ.refetch();
   }

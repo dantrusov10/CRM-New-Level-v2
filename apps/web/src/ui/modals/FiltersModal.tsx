@@ -51,9 +51,12 @@ export function FiltersModal({
   const [savingPreset, setSavingPreset] = React.useState(false);
 
   const loadStages = React.useCallback(async (q: string) => {
-    const filter = q?.trim() ? `name~"${safeText(q)}"` : "";
-    const res = await pb.collection("settings_funnel_stages").getList(1, 20, { filter: filter || undefined, sort: "order" });
-    return res.items.map((s: any) => ({ value: s.id, label: s.name, meta: s }));
+    // PocketBase schema: stage_name + position
+    const filter = q?.trim() ? `stage_name~"${safeText(q)}"` : "";
+    const res = await pb
+      .collection("settings_funnel_stages")
+      .getList(1, 20, { filter: filter || undefined, sort: "position" });
+    return res.items.map((s: any) => ({ value: s.id, label: s.stage_name, meta: s }));
   }, []);
 
   const loadUsers = React.useCallback(async (q: string) => {
@@ -77,7 +80,7 @@ export function FiltersModal({
       if (entityType === "deal") {
         if (stageId0) {
           const s = await pb.collection("settings_funnel_stages").getOne(stageId0).catch(() => null);
-          setStage(s ? { value: s.id, label: s.name, meta: s } : null);
+          setStage(s ? { value: s.id, label: (s as any).stage_name ?? (s as any).name ?? "", meta: s } : null);
         } else setStage(null);
         if (ownerId0) {
           const u = await pb.collection("users").getOne(ownerId0).catch(() => null);

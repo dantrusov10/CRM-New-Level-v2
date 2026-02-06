@@ -67,13 +67,17 @@ export function useDeals(params?: { search?: string; filter?: string; sort?: str
     queryKey: ["deals", f, sort],
     queryFn: async (): Promise<Deal[]> => {
       // Relations in PB: company_id, stage_id, responsible_id
-      const res = await pb
-        .collection("deals")
-        .getList(1, 200, { filter: f || undefined, sort: sort ?? "-updated", expand: "company_id,stage_id,responsible_id" });
+      const options: Record<string, any> = {
+        sort: sort ?? "-updated",
+        expand: "company_id,stage_id,responsible_id",
+      };
+      // IMPORTANT: do not send filter=undefined (PocketBase returns 400)
+      if (f && String(f).trim().length) options.filter = f;
+
+      const res = await pb.collection("deals").getList(1, 200, options);
       return res.items as any;
     },
-  });
-}
+  });}
 
 export function useDeal(id: string) {
   return useQuery({
@@ -92,11 +96,14 @@ export function useCompanies(params?: { search?: string; filter?: string }) {
   return useQuery({
     queryKey: ["companies", f],
     queryFn: async (): Promise<Company[]> => {
-      const res = await pb.collection("companies").getList(1, 200, { filter: f || undefined, sort: "name" });
+      const options: Record<string, any> = { sort: "name" };
+      // IMPORTANT: do not send filter=undefined (PocketBase returns 400)
+      if (f && String(f).trim().length) options.filter = f;
+
+      const res = await pb.collection("companies").getList(1, 200, options);
       return res.items as any;
     },
-  });
-}
+  });}
 
 export function useCompany(id: string) {
   return useQuery({

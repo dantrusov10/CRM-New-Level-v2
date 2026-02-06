@@ -60,7 +60,15 @@ export function Header({
             <Filter size={18} />
           </button>
 
-          <button className="h-10 w-10 rounded-card border border-border bg-white hover:bg-rowHover flex items-center justify-center" title="Настройки">
+          <button
+            className="h-10 w-10 rounded-card border border-border bg-white hover:bg-rowHover flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+            title={can(perms, "admin", "read") ? "Настройки" : "Настройки (нет доступа)"}
+            onClick={() => {
+              if (!can(perms, "admin", "read")) return;
+              nav("/admin/users");
+            }}
+            disabled={!can(perms, "admin", "read")}
+          >
             <Settings2 size={18} />
           </button>
         </div>

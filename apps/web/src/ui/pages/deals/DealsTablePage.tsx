@@ -15,9 +15,10 @@ export function DealsTablePage() {
   const channel = sp.get("channel") ?? "";
 
   const filter = [
-    stage ? `stage="${stage}"` : "",
-    owner ? `owner="${owner}"` : "",
-    channel ? `channel~"${channel.replace(/\"/g, "\\\"")}"` : "",
+    // PocketBase schema
+    stage ? `stage_id="${stage}"` : "",
+    owner ? `responsible_id="${owner}"` : "",
+    channel ? `sales_channel="${channel.replace(/\"/g, "\\\"")}"` : "",
   ].filter(Boolean).join(" && ");
 
   const dealsQ = useDeals({ search, filter });
@@ -67,19 +68,19 @@ export function DealsTablePage() {
                     className="h-11 border-b border-border hover:bg-rowHover cursor-pointer"
                     onClick={() => nav(`/deals/${d.id}`)}
                   >
-                    <td className="px-3 font-medium">{d.name}</td>
-                    <td className="px-3 text-text2">{d.expand?.company?.name ?? "—"}</td>
-                    <td className="px-3 text-text2">{d.expand?.owner?.name ?? d.expand?.owner?.email ?? "—"}</td>
+                    <td className="px-3 font-medium">{d.title}</td>
+                    <td className="px-3 text-text2">{d.expand?.company_id?.name ?? "—"}</td>
+                    <td className="px-3 text-text2">{d.expand?.responsible_id?.full_name ?? d.expand?.responsible_id?.email ?? "—"}</td>
                     <td className="px-3">
                       <span className="inline-flex items-center gap-2">
-                        <span className="inline-block h-2 w-2 rounded-full" style={{ background: d.expand?.stage?.color ?? "#9CA3AF" }} />
-                        <span className="text-text2">{d.expand?.stage?.name ?? "—"}</span>
+                        <span className="inline-block h-2 w-2 rounded-full" style={{ background: d.expand?.stage_id?.color ?? "#9CA3AF" }} />
+                        <span className="text-text2">{d.expand?.stage_id?.stage_name ?? "—"}</span>
                       </span>
                     </td>
                     <td className="px-3 text-right tabular-nums">{d.budget ? d.budget.toLocaleString("ru-RU") : "—"}</td>
                     <td className="px-3 text-right tabular-nums">{d.turnover ? d.turnover.toLocaleString("ru-RU") : "—"}</td>
                     <td className="px-3 text-right tabular-nums">{typeof d.margin_percent === "number" ? `${d.margin_percent}%` : "—"}</td>
-                    <td className="px-3 text-text2">{d.channel ?? "—"}</td>
+                    <td className="px-3 text-text2">{d.sales_channel ?? "—"}</td>
                     <td className="px-3 text-text2">{d.updated ? dayjs(d.updated).format("DD.MM.YYYY HH:mm") : "—"}</td>
                   </tr>
                 ))}

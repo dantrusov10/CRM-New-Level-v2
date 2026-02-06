@@ -51,7 +51,8 @@ export function useFunnelStages() {
   return useQuery({
     queryKey: ["funnelStages"],
     queryFn: async (): Promise<FunnelStage[]> => {
-      const res = await pb.collection("settings_funnel_stages").getFullList({ sort: "order" });
+      // PocketBase schema: stage_name + position
+      const res = await pb.collection("settings_funnel_stages").getFullList({ sort: "position" });
       return res as any;
     },
   });
@@ -59,12 +60,16 @@ export function useFunnelStages() {
 
 export function useDeals(params?: { search?: string; filter?: string; sort?: string }) {
   const { search, filter, sort } = params ?? {};
-  const q = search ? `name~"${search}"` : "";
+  // PocketBase schema: title (not name)
+  const q = search ? `title~"${search.replace(/\"/g, "\\\"")}"` : "";
   const f = [filter, q].filter(Boolean).join(" && ");
   return useQuery({
     queryKey: ["deals", f, sort],
     queryFn: async (): Promise<Deal[]> => {
-      const res = await pb.collection("deals").getList(1, 200, { filter: f || undefined, sort: sort ?? "-updated", expand: "company,stage,owner" });
+      // Relations in PB: company_id, stage_id, responsible_id
+      const res = await pb
+        .collection("deals")
+        .getList(1, 200, { filter: f || undefined, sort: sort ?? "-updated", expand: "company_id,stage_id,responsible_id" });
       return res.items as any;
     },
   });
@@ -74,7 +79,7 @@ export function useDeal(id: string) {
   return useQuery({
     queryKey: ["deal", id],
     queryFn: async (): Promise<any> => {
-      const rec = await pb.collection("deals").getOne(id, { expand: "company,stage,owner" });
+      const rec = await pb.collection("deals").getOne(id, { expand: "company_id,stage_id,responsible_id" });
       return rec;
     },
     enabled: !!id,

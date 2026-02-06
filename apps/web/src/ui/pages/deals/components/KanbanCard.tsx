@@ -25,8 +25,8 @@ export function KanbanCard({ deal, stageColor }: { deal: any; stageColor: string
     >
       <div className="h-1 w-full rounded-t-card" style={{ background: stageColor }} />
       <div className="p-3">
-        <div className="text-sm font-medium">{deal.name}</div>
-        <div className="text-xs text-text2 mt-1">{deal.expand?.company?.name ?? "—"}</div>
+        <div className="text-sm font-medium">{deal.title}</div>
+        <div className="text-xs text-text2 mt-1">{deal.expand?.company_id?.name ?? "—"}</div>
         <div className="mt-2 text-xs text-text2 tabular-nums">
           {deal.turnover ? `Оборот: ${deal.turnover.toLocaleString("ru-RU")}` : "Оборот: —"}
         </div>

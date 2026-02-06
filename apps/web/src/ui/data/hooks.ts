@@ -128,7 +128,7 @@ export function useAiInsights(dealId: string) {
   return useQuery({
     queryKey: ["ai_insights", dealId],
     queryFn: async (): Promise<AiInsight[]> => {
-      const res = await pb.collection("ai_insights").getList(1, 50, { filter: `deal="${dealId}"`, sort: "-created" });
+      const res = await pb.collection("ai_insights").getList(1, 50, { filter: `deal_id="${dealId}"`, sort: "-created" });
       return res.items as any;
     },
     enabled: !!dealId,

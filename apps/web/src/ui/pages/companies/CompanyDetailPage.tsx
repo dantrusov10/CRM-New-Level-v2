@@ -9,7 +9,7 @@ export function CompanyDetailPage() {
   const { id } = useParams();
   const nav = useNavigate();
   const companyQ = useCompany(id!);
-  const dealsQ = useDeals({ filter: `company="${id}"` });
+  const dealsQ = useDeals({ filter: `company_id="${id}"` });
   const tlQ = useTimeline("company", id!);
 
   const c = companyQ.data as any;

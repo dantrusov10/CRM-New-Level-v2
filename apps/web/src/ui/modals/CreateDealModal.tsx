@@ -29,37 +29,59 @@ export function CreateDealModal({ open, onClose }: { open: boolean; onClose: () 
   }, []);
 
   async function submit() {
-    if (!name.trim()) return;
+    if (!name.trim() || !company) return;
     setSaving(true);
     try {
-      const stage = await pb.collection("settings_funnel_stages").getFirstListItem("order>=0", { sort: "order" }).catch(() => null);
-      const rec = await pb.collection("deals").create({ name, company: company?.value || undefined, stage: stage?.id });
+      const stage = await pb
+        .collection("settings_funnel_stages")
+        .getFirstListItem("position>=0", { sort: "position" })
+        .catch(() => null);
+
+      const rec = await pb.collection("deals").create({
+        title: name.trim(),
+        company_id: company.value,
+        stage_id: stage?.id || null,
+        responsible_id: (pb.authStore.model as any)?.id || null,
+      });
+
+      // log timeline (deal only)
       await pb.collection("timeline").create({
-        entity_type: "deal",
-        entity_id: rec.id,
+        deal_id: rec.id,
+        user_id: (pb.authStore.model as any)?.id,
         action: "create",
-        message: "Сделка создана",
+        comment: "Сделка создана",
+        payload: {},
+        timestamp: new Date().toISOString(),
       }).catch(() => {});
+
       if (enrich) {
-        await pb.collection("parser_runs").create({
-          entity_type: "deal",
-          entity_id: rec.id,
-          kind: "enrich_6m",
-          status: "queued",
-        }).catch(() => {});
+        await pb
+          .collection("parser_runs")
+          .create({
+            entity_type: "deal",
+            entity_id: rec.id,
+            kind: "enrich_6m",
+            status: "queued",
+          })
+          .catch(() => {});
+
         await pb.collection("timeline").create({
-          entity_type: "deal",
-          entity_id: rec.id,
+          deal_id: rec.id,
+          user_id: (pb.authStore.model as any)?.id,
           action: "enrich",
-          message: "Запущено обогащение за последние 6 месяцев (контакты/медиа/тендеры)",
+          comment: "Запущено обогащение за последние 6 месяцев (контакты/медиа/тендеры)",
+          payload: { kind: "enrich_6m" },
+          timestamp: new Date().toISOString(),
         }).catch(() => {});
       }
+
       onClose();
       nav(`/deals/${rec.id}`);
     } finally {
       setSaving(false);
     }
   }
+
 
   return (
     <Modal open={open} title="Создать сделку" onClose={onClose}>

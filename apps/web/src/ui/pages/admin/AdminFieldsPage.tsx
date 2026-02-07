@@ -2,7 +2,82 @@ import React from "react";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
-import { pb } from "../../../lib/pb";
+import { pb, ensureCollectionField } from "../../../lib/pb";
+
+
+const BASE_FIELDS: Record<string, { name: string; type: string }[]> = {
+  companies: [
+    { name: "name", type: "text" },
+    { name: "responsible_id", type: "text" },
+    { name: "phone", type: "text" },
+    { name: "email", type: "email" },
+    { name: "city", type: "text" },
+    { name: "website", type: "text" },
+    { name: "address", type: "text" },
+    { name: "inn", type: "text" },
+    { name: "legal_entity", type: "text" },
+  ],
+  deals: [
+    { name: "title", type: "text" },
+    { name: "company_id", type: "text" },
+    { name: "responsible_id", type: "text" },
+    { name: "stage_id", type: "text" },
+    { name: "budget", type: "number" },
+    { name: "turnover", type: "number" },
+    { name: "margin_percent", type: "number" },
+    { name: "discount_percent", type: "number" },
+    { name: "sales_channel", type: "text" },
+    { name: "partner", type: "text" },
+    { name: "distributor", type: "text" },
+    { name: "purchase_format", type: "text" },
+    { name: "activity_type", type: "text" },
+    { name: "endpoints", type: "number" },
+    { name: "infrastructure_size", type: "text" },
+    { name: "presale", type: "text" },
+    { name: "attraction_channel", type: "text" },
+    { name: "attraction_date", type: "date" },
+    { name: "registration_deadline", type: "date" },
+    { name: "test_start", type: "date" },
+    { name: "test_end", type: "date" },
+    { name: "delivery_date", type: "date" },
+    { name: "expected_payment_date", type: "date" },
+    { name: "payment_received_date", type: "date" },
+    { name: "project_map_link", type: "text" },
+    { name: "kaiten_link", type: "text" },
+    { name: "current_score", type: "number" },
+    { name: "current_recommendations", type: "text" },
+  ],
+};
+
+function humanize(s: string) {
+  const map: Record<string, string> = {
+    name: "Название",
+    title: "Название",
+    inn: "ИНН",
+    website: "Сайт",
+    city: "Город",
+    phone: "Телефон",
+    email: "Email",
+    address: "Адрес",
+    legal_entity: "Юр.лицо",
+    budget: "Бюджет",
+    turnover: "Оборот",
+    margin_percent: "Маржа %",
+    discount_percent: "Скидка %",
+    stage_id: "Этап",
+    company_id: "Компания",
+    responsible_id: "Ответственный",
+    sales_channel: "Канал продаж",
+    purchase_format: "Формат закупки",
+    endpoints: "Конечные точки",
+    presale: "Presale",
+    project_map_link: "Ссылка на карту проекта",
+    kaiten_link: "Kaiten",
+    current_score: "Score",
+    current_recommendations: "Рекомендации",
+  };
+  return map[s] ?? s.replace(/_/g, " ");
+}
 
 const FIELD_TYPES = [
   { v: "text", l: "Текст" },
@@ -24,13 +99,48 @@ export function AdminFieldsPage() {
   const [options, setOptions] = React.useState("");
 
   async function load() {
-    const res = await pb.collection("settings_fields").getFullList({ sort: "collection,sort_order" });
-    setItems(res as any);
-  }
-  React.useEffect(() => { load(); }, []);
+    const res = await pb.collection("settings_fields").getFullList({
+      sort: "sort_order",
+      filter: `collection=\"${collection}\"`,
+    });
 
-  async function add() {
-    const sort_order = items.filter((x) => x.collection === collection).length + 1;
+    // ensure базовые поля тоже попадают в настройки (для управления label/видимостью/порядком)
+    const base = BASE_FIELDS[collection] ?? [];
+    const existing = new Set((res as any[]).map((x) => String(x.field_name)));
+
+    for (const bf of base) {
+      if (!existing.has(bf.name)) {
+        try {
+          await pb.collection("settings_fields").create({
+            collection,
+            field_name: bf.name,
+            label: humanize(bf.name),
+            field_type: bf.type,
+            required: false,
+            visible: true,
+            options: {},
+            sort_order: (res as any[]).length + 1,
+            role_visibility: {},
+          });
+        } catch {
+          // ignore race conditions
+        }
+      }
+    }
+
+    const res2 = await pb.collection("settings_fields").getFullList({
+      sort: "sort_order",
+      filter: `collection=\"${collection}\"`,
+    });
+    setItems(res2 as any);
+  }
+
+  React.useEffect(() => {
+    load();
+  }, [collection]);
+async function add() {
+    const sort_order = items.length + 1;
+
     await pb.collection("settings_fields").create({
       collection,
       field_name: fieldName,
@@ -42,7 +152,47 @@ export function AdminFieldsPage() {
       sort_order,
       role_visibility: {},
     });
-    setFieldName(""); setLabel(""); setOptions("");
+
+    // ensure real PB schema field exists (requires PB superuser creds in env)
+    // This is needed so the field can actually store values inside companies/deals records.
+    try {
+      const pbType =
+        fieldType === "number"
+          ? "number"
+          : fieldType === "date"
+            ? "date"
+            : fieldType === "email"
+              ? "email"
+              : fieldType === "select"
+                ? "select"
+                : "text";
+
+      const schemaField: any = {
+        name: fieldName,
+        type: pbType,
+        system: false,
+        required: !!required,
+        options: {},
+      };
+
+      if (pbType === "number") schemaField.options = { min: null, max: null };
+      if (pbType === "date") schemaField.options = { min: "", max: "" };
+      if (pbType === "select") {
+        const vals = options
+          ? options.split(",").map((s) => s.trim()).filter(Boolean)
+          : [];
+        schemaField.options = { maxSelect: 1, values: vals };
+      }
+
+      await ensureCollectionField(collection, schemaField);
+    } catch {
+      // if admin creds not provided - field will still be a config record,
+      // but it won't be able to store values until PB schema is updated.
+    }
+
+    setFieldName("");
+    setLabel("");
+    setOptions("");
     load();
   }
 

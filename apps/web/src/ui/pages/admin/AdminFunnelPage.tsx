@@ -37,41 +37,65 @@ function normalizeStage(raw: any): Partial<FunnelStage> {
   return { stage_name, position, color, is_final, final_type, active, default_prob };
 }
 
-export function AdminFunnelPage() {
-  const [stages, setStages] = React.useState<FunnelStage[]>([]);
-  const [name, setName] = React.useState("");
-  const [color, setColor] = React.useState("#004EEB");
-  const [settingsId, setSettingsId] = React.useState<string | null>(null);
 
-  // Некоторые инсталляции PB делают funnel stages «под-настройкой» и требуют settings_id (relation).
-  // Чтобы не править вручную схему на сервере, пытаемся найти любой singleton settings record и подставлять его id.
-  async function resolveSettingsId(): Promise<string | null> {
-    if (settingsId) return settingsId;
+async function createStageSafe(stage: Omit<FunnelStage, "id"> & { id?: string }) {
+  // 1) Базовый payload — без технических полей
+  const basePayload: any = {
+    stage_name: String(stage.stage_name ?? "").trim(),
+    position: Number(stage.position ?? 0),
+    color: stage.color ?? "#004EEB",
+    active: stage.active ?? true,
+    is_final: stage.is_final ?? false,
+    final_type: stage.final_type ?? "none",
+    default_prob: stage.default_prob ?? null,
+  };
 
-    const candidates = [
-      "settings",
-      "app_settings",
-      "settings_main",
-      "settings_general",
-      "settings_core",
-      "settings_funnel",
-      "settings_sales_funnel",
-    ];
+  // 2) Первая попытка — без settings_id (так правильно для схем, где его нет)
+  try {
+    return await pb.collection("settings_funnel_stages").create(basePayload);
+  } catch (e: any) {
+    // 3) Если это не 400 — просто пробрасываем ошибку
+    if (e?.status !== 400) throw e;
+
+    // 4) Если PocketBase требует settings_id — пробуем найти "настройки" и повторить
+    const msg = String(e?.data?.message ?? e?.message ?? "").toLowerCase();
+    const dataErr = e?.data?.data ?? {};
+    const needsSettingsId =
+      msg.includes("settings_id") ||
+      Object.keys(dataErr).some((k) => k.toLowerCase().includes("settings_id"));
+
+    if (!needsSettingsId) throw e;
+
+    // Важно: 404 по коллекции настроек НЕ должен ломать создание — просто пропускаем
+    const candidates = ["settings", "app_settings", "settings_main", "settings_core", "settings_funnel"];
+    let settingsId: string | null = null;
 
     for (const col of candidates) {
       try {
         const list = await pb.collection(col).getList(1, 1, { sort: "-created" });
-        const id = (list?.items?.[0] as any)?.id;
-        if (id) {
-          setSettingsId(id);
-          return id;
+        if (list?.items?.length) {
+          settingsId = list.items[0].id;
+          break;
         }
-      } catch (_) {
-        // ignore
+      } catch (err: any) {
+        // 404 = коллекции нет, это ок
+        if (err?.status === 404) continue;
+        continue;
       }
     }
-    return null;
+
+    if (!settingsId) throw e;
+
+    return await pb
+      .collection("settings_funnel_stages")
+      .create({ ...basePayload, settings_id: settingsId });
   }
+}
+
+export function AdminFunnelPage() {
+  const [stages, setStages] = React.useState<FunnelStage[]>([]);
+  const [name, setName] = React.useState("");
+  const [color, setColor] = React.useState("#004EEB");
 
   async function load() {
     // PocketBase schema: stage_name + position
@@ -80,47 +104,24 @@ export function AdminFunnelPage() {
   }
   React.useEffect(() => {
     load();
-    // фоновая попытка найти settings_id
-    resolveSettingsId();
   }, []);
 
   async function addStage() {
     const position = stages.length ? Math.max(...stages.map((x) => Number(x.position ?? 0))) + 1 : 1;
-
-    const sid = await resolveSettingsId();
-
-    // ВАЖНО: PocketBase жёстко валидирует select/required поля.
-    // Чтобы не ловить 400 из-за несовпадения enum (final_type) или отсутствующих полей,
-    // создаём запись минимальным набором бизнес‑полей.
-    // Доп. поля (active/is_final/final_type/default_prob) будут доступны, если они реально есть в схеме PB.
-    await pb.collection("settings_funnel_stages").create({
+    await createStageSafe({
       stage_name: name.trim(),
       color,
       position,
-      ...(sid ? { settings_id: sid } : {}),
+      active: true,
+      is_final: false,
+      final_type: "none",
     });
     setName("");
     load();
   }
 
   async function updateStage(id: string, data: any) {
-    // как и при создании — отправляем только «безопасные» поля,
-    // и не шлём final_type="none" (часто enum в PB на проде другой: win/loss или пусто)
-    const safe: any = {};
-    if (data.stage_name !== undefined) safe.stage_name = String(data.stage_name);
-    if (data.position !== undefined) safe.position = Number(data.position);
-    if (data.color !== undefined) safe.color = String(data.color);
-    if (data.active !== undefined) safe.active = !!data.active;
-    if (data.is_final !== undefined) safe.is_final = !!data.is_final;
-    if (data.default_prob !== undefined) safe.default_prob = data.default_prob === null ? null : Number(data.default_prob);
-
-    if (data.final_type !== undefined) {
-      const ft = String(data.final_type);
-      if (ft && ft !== "none") safe.final_type = ft; // не отправляем none
-      else safe.final_type = ""; // если enum другой, пустая строка чаще проходит как "не задано"
-    }
-
-    await pb.collection("settings_funnel_stages").update(id, safe);
+    await pb.collection("settings_funnel_stages").update(id, data);
     load();
   }
 
@@ -160,33 +161,17 @@ export function AdminFunnelPage() {
 
     // naive MVP: очистить и перезаписать
     for (const s of stages) await pb.collection("settings_funnel_stages").delete(s.id).catch(() => {});
-
-    const sid = await resolveSettingsId();
     for (const s of normalized) {
       if (!s.stage_name?.trim()) continue;
-
-      // Импорт тоже делаем «безопасным»: минимальный payload.
-      // Если в вашей схеме PB присутствуют дополнительные поля — они будут выставляться через update ниже.
-      const created: any = await pb.collection("settings_funnel_stages").create({
+      await createStageSafe({
         stage_name: s.stage_name.trim(),
         position: s.position ?? 0,
         color: s.color ?? "#004EEB",
-        ...(sid ? { settings_id: sid } : {}),
+        active: s.active ?? true,
+        is_final: s.is_final ?? false,
+        final_type: s.is_final ? (s.final_type ?? "won") : "none",
+        default_prob: s.default_prob ?? null,
       });
-
-      const extra: any = {};
-      if (s.active !== undefined) extra.active = s.active;
-      if (s.is_final !== undefined) extra.is_final = s.is_final;
-      if (s.default_prob !== undefined) extra.default_prob = s.default_prob;
-
-      // final_type отправляем ТОЛЬКО если это финальный этап и значение явно задано.
-      if (s.is_final && s.final_type && s.final_type !== "none") {
-        extra.final_type = s.final_type;
-      }
-
-      if (Object.keys(extra).length) {
-        await pb.collection("settings_funnel_stages").update(created.id, extra).catch(() => {});
-      }
     }
     load();
   }

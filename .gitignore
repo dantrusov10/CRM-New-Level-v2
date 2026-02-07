@@ -1,0 +1,17 @@
+# dependencies
+node_modules
+dist
+.vite
+
+# env
+.env
+.env.local
+
+# pocketbase
+backend/pocketbase/pb
+backend/pocketbase/pb_data
+backend/pocketbase/data
+*.db
+
+# OS
+.DS_Store

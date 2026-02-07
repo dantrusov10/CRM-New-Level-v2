@@ -22,7 +22,7 @@ const Item = ({ to, icon: Icon, label }: { to: string; icon: any; label: string 
 
 export function Sidebar({ perms }: { perms: PermissionMatrix }) {
   return (
-    <aside className="min-h-screen border-r border-border bg-card p-4">
+    <aside className="h-screen w-full border-r border-border bg-card p-4 overflow-y-auto">
       <div className="mb-5">
         <div className="text-lg font-semibold leading-none">Решение</div>
         <div className="text-xs text-text2 mt-1">CRM для сложных продаж</div>

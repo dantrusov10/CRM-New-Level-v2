@@ -35,7 +35,7 @@ export function CompanyDetailPage() {
                 <div className="text-xl font-semibold">{c?.name}</div>
                 <div className="text-sm text-text2">ID: {c?.id}</div>
                 <div className="text-sm"><span className="text-text2">Город:</span> {c?.city ?? "—"}</div>
-                <div className="text-sm"><span className="text-text2">Сайт:</span> {c?.site ?? "—"}</div>
+                <div className="text-sm"><span className="text-text2">Сайт:</span> {c?.website ?? "—"}</div>
                 <div className="text-sm"><span className="text-text2">ИНН:</span> {c?.inn ?? "—"}</div>
               </div>
 

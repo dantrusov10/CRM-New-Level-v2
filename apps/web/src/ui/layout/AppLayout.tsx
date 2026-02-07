@@ -4,6 +4,8 @@ import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { CreateCompanyModal } from "../modals/CreateCompanyModal";
 import { CreateDealModal } from "../modals/CreateDealModal";
+import { ImportModal } from "../modals/ImportModal";
+import { ExportModal } from "../modals/ExportModal";
 import { useAuth } from "../../app/AuthProvider";
 import { usePermissions } from "../data/hooks";
 import { can } from "../../lib/rbac";
@@ -11,6 +13,8 @@ import { can } from "../../lib/rbac";
 export function AppLayout() {
   const [openCompany, setOpenCompany] = React.useState(false);
   const [openDeal, setOpenDeal] = React.useState(false);
+  const [openImport, setOpenImport] = React.useState(false);
+  const [openExport, setOpenExport] = React.useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -56,8 +60,8 @@ export function AppLayout() {
             pathname={location.pathname}
             onCreateCompany={() => setOpenCompany(true)}
             onCreateDeal={() => setOpenDeal(true)}
-            onImport={() => navigate("/import-export")}
-            onExport={() => navigate("/import-export")}
+            onImport={() => setOpenImport(true)}
+            onExport={() => setOpenExport(true)}
             perms={perms}
           />
           <main className="p-6">
@@ -68,6 +72,8 @@ export function AppLayout() {
 
       <CreateCompanyModal open={openCompany} onClose={() => setOpenCompany(false)} />
       <CreateDealModal open={openDeal} onClose={() => setOpenDeal(false)} />
+      <ImportModal open={openImport} onClose={() => setOpenImport(false)} />
+      <ExportModal open={openExport} onClose={() => setOpenExport(false)} />
     </div>
   );
 }

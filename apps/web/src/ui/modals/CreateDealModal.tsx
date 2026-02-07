@@ -37,12 +37,15 @@ export function CreateDealModal({ open, onClose }: { open: boolean; onClose: () 
         .getFirstListItem("position>=0", { sort: "position" })
         .catch(() => null);
 
-      const rec = await pb.collection("deals").create({
-        title: name.trim(),
-        company_id: company.value,
-        stage_id: stage?.id || null,
-        responsible_id: (pb.authStore.model as any)?.id || null,
-      });
+      if (!name.trim()) { alert("Введите название сделки"); return; }
+      if (!company?.value) { alert("Выберите компанию из списка"); return; }
+
+      const data: any = { title: name.trim(), company_id: company.value };
+      if (stage?.id) data.stage_id = stage.id;
+      const uid = (pb.authStore.model as any)?.id;
+      if (uid) data.responsible_id = uid;
+
+      const rec = await pb.collection("deals").create(data);
 
       // log timeline (deal only)
       await pb.collection("timeline").create({

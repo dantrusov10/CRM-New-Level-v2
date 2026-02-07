@@ -7,7 +7,7 @@ import { pb } from "../../../lib/pb";
 
 export function AdminUsersPage() {
   const [users, setUsers] = React.useState<any[]>([]);
-  // MVP: роли храним как enum в auth-коллекции `users.role_name`.
+  // MVP: роли храним как enum в auth-коллекции `users.role`.
   // settings_roles остаётся для матрицы прав и лейблов.
   const ROLE_FALLBACK = [
     { value: "admin", label: "Админ" },
@@ -24,11 +24,11 @@ export function AdminUsersPage() {
 
   async function load() {
     const u = await pb.collection("users").getList(1, 200, { sort: "email" });
-    const r = await pb.collection("settings_roles").getFullList({ sort: "role_name" }).catch(() => []);
+    const r = await pb.collection("settings_roles").getFullList({ sort: "role" }).catch(() => []);
     setUsers(u.items);
     // If settings_roles exists and filled - use it; else fallback.
     const mapped = (r as any[])
-      .map((x) => ({ value: x.role_name, label: x.label ?? x.role_name }))
+      .map((x) => ({ value: x.role, label: x.label ?? x.role }))
       .filter((x) => !!x.value);
     setRoles(mapped.length ? mapped : ROLE_FALLBACK);
   }
@@ -40,7 +40,7 @@ export function AdminUsersPage() {
     if (!role) { alert("Выберите роль"); return; }
     const data: any = { email, password, passwordConfirm: password };
     if (name.trim()) data.name = name.trim();
-    if (role) data.role_name = role;
+    if (role) data.role = role;
     await pb.collection("users").create(data);
     setOpen(false);
     setName(""); setEmail(""); setPassword(""); setRole("");
@@ -76,9 +76,9 @@ export function AdminUsersPage() {
                   <td className="px-3">
                     <select
                       className="h-9 rounded-card border border-[#9CA3AF] bg-white px-2 text-sm"
-                      value={u.role_name ?? ""}
+                      value={u.role ?? ""}
                       onChange={async (e) => {
-                        await pb.collection("users").update(u.id, { role_name: e.target.value || null });
+                        await pb.collection("users").update(u.id, { role: e.target.value || null });
                         load();
                       }}
                     >

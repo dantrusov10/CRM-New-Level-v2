@@ -10,8 +10,8 @@ const Item = ({ to, icon: Icon, label }: { to: string; icon: any; label: string 
     to={to}
     className={({ isActive }) =>
       clsx(
-        "flex items-center gap-3 rounded-card px-3 py-2 text-sm",
-        isActive ? "bg-rowSelected border border-border" : "hover:bg-rowHover"
+        "flex items-center gap-3 rounded-[16px] px-3 py-2 text-sm font-extrabold text-white/85 border border-transparent",
+        isActive ? "bg-white/10 border-white/16" : "hover:bg-white/10 hover:border-white/16"
       )
     }
   >
@@ -22,10 +22,10 @@ const Item = ({ to, icon: Icon, label }: { to: string; icon: any; label: string 
 
 export function Sidebar({ perms }: { perms: PermissionMatrix }) {
   return (
-    <aside className="h-screen w-full border-r border-border bg-card p-4 overflow-y-auto">
+    <aside className="h-screen w-full p-4 overflow-y-auto topbar">
       <div className="mb-5">
-        <div className="text-lg font-semibold leading-none">Решение</div>
-        <div className="text-xs text-text2 mt-1">CRM для сложных продаж</div>
+        <div className="text-base font-extrabold tracking-wide uppercase text-white leading-none">Решение</div>
+        <div className="text-xs text-white/70 mt-1 font-semibold">CRM для сложных продаж</div>
       </div>
 
       <div className="space-y-1">
@@ -36,8 +36,8 @@ export function Sidebar({ perms }: { perms: PermissionMatrix }) {
       </div>
 
       {can(perms, "admin", "read") ? (
-        <div className="mt-6 border-t border-border pt-4">
-          <div className="text-xs font-semibold text-text2 mb-2">Админ</div>
+        <div className="mt-6 border-t border-white/12 pt-4">
+          <div className="text-xs font-extrabold text-white/70 mb-2 tracking-wide uppercase">Админ</div>
           <div className="space-y-1">
             <Item to="/admin/users" icon={Settings} label="Пользователи" />
             <Item to="/admin/funnel" icon={Settings} label="Воронка" />

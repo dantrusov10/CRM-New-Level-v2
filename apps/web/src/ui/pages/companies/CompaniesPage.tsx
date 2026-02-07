@@ -13,7 +13,7 @@ export function CompaniesPage() {
   const responsible = sp.get("responsible") ?? "";
   const filter = [
     city ? `city~"${city.replace(/"/g, "\\\"")}"` : "",
-    responsible ? `responsible="${responsible}"` : "",
+    responsible ? `responsible_id="${responsible}"` : "",
   ].filter(Boolean).join(" && ");
 
   const companiesQ = useCompanies({ search: q || undefined, filter });
@@ -50,7 +50,7 @@ export function CompaniesPage() {
                   <tr key={c.id} className="h-11 border-b border-border hover:bg-rowHover cursor-pointer" onClick={() => nav(`/companies/${c.id}`)}>
                     <td className="px-3 font-medium">{c.name}</td>
                     <td className="px-3 text-text2">{c.city ?? "—"}</td>
-                    <td className="px-3 text-text2">{c.site ?? "—"}</td>
+                    <td className="px-3 text-text2">{c.website ?? "—"}</td>
                     <td className="px-3 text-text2">{c.inn ?? "—"}</td>
                   </tr>
                 ))}

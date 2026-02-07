@@ -10,6 +10,8 @@ import { useAuth } from "../../app/AuthProvider";
 import { usePermissions } from "../data/hooks";
 import { can } from "../../lib/rbac";
 
+const SIDEBAR_W = 260;
+
 export function AppLayout() {
   const [openCompany, setOpenCompany] = React.useState(false);
   const [openDeal, setOpenDeal] = React.useState(false);
@@ -52,22 +54,26 @@ export function AppLayout() {
   }, [location.pathname, navigate, perms]);
 
   return (
-    <div className="min-h-screen w-full">
-      <div className="grid grid-cols-[260px_1fr]">
+    <div className="min-h-screen w-full bg-bg">
+      {/* Sidebar is fixed, content scrolls independently */}
+      <div className="fixed left-0 top-0 h-screen" style={{ width: SIDEBAR_W }}>
         <Sidebar perms={perms} />
-        <div className="min-h-screen">
-          <Header
-            pathname={location.pathname}
-            onCreateCompany={() => setOpenCompany(true)}
-            onCreateDeal={() => setOpenDeal(true)}
-            onImport={() => setOpenImport(true)}
-            onExport={() => setOpenExport(true)}
-            perms={perms}
-          />
-          <main className="p-6">
-            <Outlet />
-          </main>
-        </div>
+      </div>
+
+      <div className="min-h-screen" style={{ marginLeft: SIDEBAR_W }}>
+        <Header
+          pathname={location.pathname}
+          onCreateCompany={() => setOpenCompany(true)}
+          onCreateDeal={() => setOpenDeal(true)}
+          onImport={() => setOpenImport(true)}
+          onExport={() => setOpenExport(true)}
+          perms={perms}
+        />
+
+        {/* Page content scrolls; header stays sticky */}
+        <main className="p-6 min-w-0">
+          <Outlet />
+        </main>
       </div>
 
       <CreateCompanyModal open={openCompany} onClose={() => setOpenCompany(false)} />

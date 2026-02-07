@@ -14,6 +14,48 @@ export function CompanyDetailPage() {
 
   const c = companyQ.data as any;
 
+  const [settingsFields, setSettingsFields] = React.useState<any[]>([]);
+  const [draft, setDraft] = React.useState<Record<string, any>>({});
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res = await pb.collection("settings_fields").getFullList({
+          sort: "sort_order",
+          filter: `collection=\"companies\" && visible=true`,
+        });
+        setSettingsFields(res as any[]);
+      } catch {
+        setSettingsFields([]);
+      }
+    })();
+  }, []);
+
+  React.useEffect(() => {
+    if (!c) return;
+    const next: Record<string, any> = {};
+    for (const sf of settingsFields) {
+      const fn = String(sf.field_name);
+      next[fn] = (c as any)[fn] ?? "";
+    }
+    setDraft(next);
+  }, [c?.id, settingsFields.length]);
+
+  async function save() {
+    if (!id) return;
+    const payload: Record<string, any> = {};
+    for (const sf of settingsFields) {
+      const fn = String(sf.field_name);
+      const ft = String(sf.field_type || "text");
+      const raw = (draft as any)?.[fn];
+      if (raw === "" || raw === undefined) { payload[fn] = null; continue; }
+      if (ft === "number") payload[fn] = Number(raw);
+      else payload[fn] = raw;
+    }
+    await pb.collection("companies").update(id, payload);
+    companyQ.refetch();
+  }
+
   return (
     <div className="grid gap-4">
       <Card>
@@ -37,6 +79,47 @@ export function CompanyDetailPage() {
                 <div className="text-sm"><span className="text-text2">Город:</span> {c?.city ?? "—"}</div>
                 <div className="text-sm"><span className="text-text2">Сайт:</span> {c?.website ?? "—"}</div>
                 <div className="text-sm"><span className="text-text2">ИНН:</span> {c?.inn ?? "—"}</div>
+              </div>
+
+              <div className="rounded-card border border-border bg-white p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-sm font-semibold">Поля компании</div>
+                  <Button onClick={save}>Сохранить</Button>
+                </div>
+                {!settingsFields.length ? (
+                  <div className="text-sm text-text2">Поля не настроены. Добавь через Админ → Поля.</div>
+                ) : (
+                  <div className="grid gap-3">
+                    {settingsFields.map((sf) => {
+                      const fn = String(sf.field_name);
+                      const ft = String(sf.field_type || "text");
+                      const opts = (sf.options?.values ?? []) as string[];
+                      const val = draft?.[fn] ?? "";
+                      if (ft === "select") {
+                        return (
+                          <div key={sf.id} className="grid grid-cols-12 gap-3 items-center">
+                            <div className="col-span-4 text-xs text-text2">{sf.label || fn}</div>
+                            <div className="col-span-8">
+                              <select className="h-10 w-full rounded-card border border-border bg-white px-3 text-sm" value={String(val || "")} onChange={(e) => setDraft((p) => ({ ...p, [fn]: e.target.value }))}>
+                                <option value="">—</option>
+                                {opts.map((o) => <option key={o} value={o}>{o}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                        );
+                      }
+                      const inputType = ft === "number" ? "number" : ft === "date" ? "date" : ft === "email" ? "email" : "text";
+                      return (
+                        <div key={sf.id} className="grid grid-cols-12 gap-3 items-center">
+                          <div className="col-span-4 text-xs text-text2">{sf.label || fn}</div>
+                          <div className="col-span-8">
+                            <Input type={inputType as any} value={String(val ?? "")} onChange={(e) => setDraft((p) => ({ ...p, [fn]: e.target.value }))} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="rounded-card border border-border bg-rowHover p-3 text-sm text-text2">

@@ -35,10 +35,10 @@ export function usePermissions(role?: string) {
     queryKey: ["permissions", role],
     queryFn: async (): Promise<PermissionMatrix> => {
       if (!role) return defaultMatrixByRole(role);
-      // best-effort: role can be text in users; map to settings_roles.role
+      // best-effort: role can be text in users; map to settings_roles.role_name
       const rec = await pb
         .collection("settings_roles")
-        .getFirstListItem(`role="${role.replace(/"/g, "\\\"")}"`)
+        .getFirstListItem(`role_name="${role.replace(/"/g, "\\\"")}"`)
         .catch(() => null);
       const matrix = (rec as any)?.perms as PermissionMatrix | undefined;
       return matrix && Object.keys(matrix).length ? matrix : defaultMatrixByRole(role);
@@ -117,7 +117,14 @@ export function useTimeline(entityType: "deal" | "company", entityId: string) {
   return useQuery({
     queryKey: ["timeline", entityType, entityId],
     queryFn: async (): Promise<TimelineItem[]> => {
-      const res = await pb.collection("timeline").getList(1, 200, { filter: `entity_type="${entityType}" && entity_id="${entityId}"`, sort: "-created", expand: "by" });
+      // PocketBase schema for timeline: deal_id + user_id + action + comment + payload + timestamp
+      // (company timeline can be added later; for now we only support deal timeline)
+      if (entityType !== "deal") return [] as any;
+      const res = await pb.collection("timeline").getList(1, 200, {
+        filter: `deal_id="${entityId}"`,
+        sort: "-created",
+        expand: "user_id",
+      });
       return res.items as any;
     },
     enabled: !!entityId,

@@ -1,0 +1,246 @@
+[
+  {
+    "id": "kpTpl00000000001",
+    "name": "settings_kp_templates",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "kpTplName0000001",
+        "name": "name",
+        "type": "text",
+        "system": false,
+        "required": true,
+        "presentable": true,
+        "unique": false,
+        "options": {
+          "min": 1,
+          "max": 200,
+          "pattern": ""
+        }
+      },
+      {
+        "id": "kpTplIsAct00001",
+        "name": "is_active",
+        "type": "bool",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "kpTplIsDef00001",
+        "name": "is_default",
+        "type": "bool",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "kpTplJson0000001",
+        "name": "template_json",
+        "type": "json",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 200000
+        }
+      },
+      {
+        "id": "kpTplLogo0000001",
+        "name": "logo",
+        "type": "file",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "mimeTypes": ["image/png", "image/jpeg", "image/webp", "image/svg+xml"],
+          "thumbs": [],
+          "maxSelect": 1,
+          "maxSize": 5242880
+        }
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != '' && (is_active = true || @request.auth.role = 'admin')",
+    "viewRule": "@request.auth.id != '' && (is_active = true || @request.auth.role = 'admin')",
+    "createRule": "@request.auth.id != '' && @request.auth.role = 'admin'",
+    "updateRule": "@request.auth.id != '' && @request.auth.role = 'admin'",
+    "deleteRule": "@request.auth.id != '' && @request.auth.role = 'admin'"
+  },
+  {
+    "id": "kpIns000000000001",
+    "name": "kp_instances",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "kpInsDeal0000001",
+        "name": "deal_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "5ob41g0sxdeap7m",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "kpInsTpl0000001",
+        "name": "template_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "kpTpl00000000001",
+          "cascadeDelete": false,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "kpInsStatus00001",
+        "name": "status",
+        "type": "select",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": ["draft", "final"]
+        }
+      },
+      {
+        "id": "kpInsVersion0001",
+        "name": "version",
+        "type": "number",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": 1,
+          "max": null,
+          "noDecimal": true
+        }
+      },
+      {
+        "id": "kpInsInput00001",
+        "name": "input_json",
+        "type": "json",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 200000
+        }
+      },
+      {
+        "id": "kpInsComp000001",
+        "name": "computed_json",
+        "type": "json",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 200000
+        }
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != ''",
+    "viewRule": "@request.auth.id != ''",
+    "createRule": "@request.auth.id != ''",
+    "updateRule": "@request.auth.id != ''",
+    "deleteRule": "@request.auth.id != '' && @request.auth.role = 'admin'"
+  },
+  {
+    "id": "kpDoc000000000001",
+    "name": "kp_documents",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "kpDocDeal0000001",
+        "name": "deal_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "5ob41g0sxdeap7m",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "kpDocInst0000001",
+        "name": "kp_instance_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "kpIns000000000001",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "kpDocFile0000001",
+        "name": "pdf",
+        "type": "file",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "mimeTypes": ["application/pdf"],
+          "thumbs": [],
+          "maxSelect": 1,
+          "maxSize": 20971520
+        }
+      },
+      {
+        "id": "kpDocMeta0000001",
+        "name": "meta",
+        "type": "json",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 50000
+        }
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != ''",
+    "viewRule": "@request.auth.id != ''",
+    "createRule": "@request.auth.id != ''",
+    "updateRule": "@request.auth.id != ''",
+    "deleteRule": "@request.auth.id != '' && @request.auth.role = 'admin'"
+  }
+]

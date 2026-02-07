@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
 import { pb } from "../../../lib/pb";
+import { KpTemplateEditor } from "../../modules/kp/KpTemplateEditor";
+import { DEFAULT_KP_TEMPLATE_V1 } from "../../modules/kp/defaultTemplate";
 
 type Tab = "contacts" | "media" | "tenders" | "kp";
 
@@ -438,62 +440,50 @@ function TenderParser() {
 
 /** KP SETTINGS (skeleton) */
 function KpSettings() {
-  const [kp, setKp] = React.useState<any>(null);
-  const [vat, setVat] = React.useState("20");
-  const [currency, setCurrency] = React.useState("RUB");
-  const [disclaimer, setDisclaimer] = React.useState("");
+  const [tpl, setTpl] = React.useState<any>(null);
+
+  async function ensureDefault() {
+    const list = await pb
+      .collection("settings_kp_templates")
+      .getList(1, 1, { filter: "is_default=true && is_active=true" })
+      .catch(() => ({ items: [] as any[] }));
+
+    if (list.items[0]) return list.items[0];
+
+    const created = await pb
+      .collection("settings_kp_templates")
+      .create({ name: DEFAULT_KP_TEMPLATE_V1.name, is_active: true, is_default: true, template_json: DEFAULT_KP_TEMPLATE_V1 })
+      .catch(() => null);
+
+    return created;
+  }
 
   async function load() {
-    const list = await pb.collection("kp_settings").getList(1, 1).catch(() => ({ items: [] as any[] }));
-    const s = list.items[0] ?? (await pb.collection("kp_settings").create({ vat_percent: 20, currency: "RUB", disclaimer: "" }));
-    setKp(s);
-    setVat(String(s.vat_percent ?? 20));
-    setCurrency(s.currency ?? "RUB");
-    setDisclaimer(s.disclaimer ?? "");
+    const t = await ensureDefault();
+    setTpl(t);
   }
   React.useEffect(() => { load(); }, []);
 
-  async function save() {
-    await pb.collection("kp_settings").update(kp.id, { vat_percent: Number(vat || 20), currency, disclaimer });
-    load();
+  async function save(patch: any) {
+    if (!tpl?.id) return;
+    await pb.collection("settings_kp_templates").update(tpl.id, patch);
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="text-sm font-semibold">Калькулятор КП (настройки)</div>
-        <div className="text-xs text-text2 mt-1">Поля структуры КП, логотип, дисклеймеры, валюта/НДС — в MVP сделан каркас.</div>
-      </CardHeader>
-      <CardContent>
-        {!kp ? <div className="text-sm text-text2">Загрузка...</div> : (
-          <div className="grid gap-3 max-w-2xl">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <div className="text-xs text-text2 mb-1">Валюта</div>
-                <select className="h-10 w-full rounded-card border border-[#9CA3AF] bg-white px-3 text-sm" value={currency} onChange={(e) => setCurrency(e.target.value)}>
-                  <option value="RUB">RUB</option>
-                  <option value="USD">USD</option>
-                  <option value="EUR">EUR</option>
-                </select>
-              </div>
-              <div>
-                <div className="text-xs text-text2 mb-1">НДС %</div>
-                <Input value={vat} onChange={(e) => setVat(e.target.value)} />
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-text2 mb-1">Дисклеймер</div>
-              <textarea className="w-full min-h-[120px] rounded-card border border-[#9CA3AF] bg-white p-3 text-sm" value={disclaimer} onChange={(e) => setDisclaimer(e.target.value)} />
-            </div>
-            <div className="flex justify-end">
-              <Button onClick={save}>Сохранить</Button>
-            </div>
-            <div className="text-xs text-text2">
-              Прайс-листы и материалы: `price_lists`, `price_list_items`, `products`, `product_materials`. Генерация КП: `quotes`, `quote_items`.
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <div className="grid gap-4">
+      {!tpl ? (
+        <Card>
+          <CardHeader>
+            <div className="text-sm font-semibold">КП (каркас)</div>
+            <div className="text-xs text-text2 mt-1">Загрузка…</div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm text-text2">Проверь, что в PocketBase создана коллекция <code>settings_kp_templates</code> (см. JSON патч).</div>
+          </CardContent>
+        </Card>
+      ) : (
+        <KpTemplateEditor templateRecord={tpl} onSave={save} onReload={load} />
+      )}
+    </div>
   );
 }

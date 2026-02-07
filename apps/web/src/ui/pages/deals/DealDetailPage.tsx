@@ -8,6 +8,7 @@ import { Badge } from "../../components/Badge";
 import { Tabs } from "../../components/Tabs";
 import { pb } from "../../../lib/pb";
 import { useAiInsights, useDeal, useFunnelStages, useTimeline, useUpdateDeal } from "../../data/hooks";
+import { DealKpModule } from "../../modules/kp/DealKpModule";
 
 type AnyObj = Record<string, any>;
 
@@ -548,17 +549,7 @@ export function DealDetailPage() {
           ) : null}
 
           {tab === "kp" ? (
-            <Card>
-              <CardHeader>
-                <div className="text-sm font-semibold">КП</div>
-                <div className="text-xs text-text2 mt-1">Калькулятор КП и версии КП (каркас)</div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-sm text-text2">
-                  Каркас. Коллекции для КП уже предусмотрены (quotes, quote_items). Дальше сделаем генерацию/версии.
-                </div>
-              </CardContent>
-            </Card>
+            <DealKpModule deal={deal} onTimeline={createTimelineEvent} />
           ) : null}
 
           {tab === "workspace" ? (

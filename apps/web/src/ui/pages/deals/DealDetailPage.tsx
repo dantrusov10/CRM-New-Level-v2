@@ -104,6 +104,41 @@ export function DealDetailPage() {
   const deal = dealQ.data as any;
   const stages = stagesQ.data ?? [];
 
+  const [settingsFields, setSettingsFields] = React.useState<any[]>([]);
+  const [extra, setExtra] = React.useState<Record<string, any>>({});
+
+  const baseKeys = React.useMemo(() => new Set([
+    "title","budget","turnover","margin_percent","discount_percent","sales_channel","partner","distributor",
+    "purchase_format","activity_type","endpoints","infrastructure_size","presale",
+    "registration_deadline","test_start","test_end","delivery_date","expected_payment_date","payment_received_date",
+    "project_map_link","kaiten_link","company_id","responsible_id","stage_id"
+  ]), []);
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res = await pb.collection("settings_fields").getFullList({
+          sort: "sort_order",
+          filter: `collection=\"deals\" && visible=true`,
+        });
+        setSettingsFields(res as any[]);
+      } catch {
+        setSettingsFields([]);
+      }
+    })();
+  }, []);
+
+  React.useEffect(() => {
+    if (!deal) return;
+    const next: Record<string, any> = {};
+    for (const sf of settingsFields) {
+      const fn = String(sf.field_name);
+      if (baseKeys.has(fn)) continue;
+      next[fn] = (deal as any)[fn] ?? "";
+    }
+    setExtra(next);
+  }, [deal?.id, settingsFields.length]);
+
   const [tab, setTab] = React.useState<string>("overview");
   const [comment, setComment] = React.useState<string>("");
   const [timelineFilter, setTimelineFilter] = React.useState<string>("all");
@@ -224,6 +259,20 @@ export function DealDetailPage() {
       project_map_link: projectMapLink || null,
       kaiten_link: kaitenLink || null,
     };
+
+    // merge additional fields from settings_fields
+    for (const sf of settingsFields) {
+      const fn = String(sf.field_name);
+      if (baseKeys.has(fn)) continue;
+      const ft = String(sf.field_type || "text");
+      const raw = (extra as any)?.[fn];
+      if (raw === "" || raw === undefined) {
+        (data as any)[fn] = null;
+        continue;
+      }
+      if (ft === "number") (data as any)[fn] = Number(raw);
+      else (data as any)[fn] = raw;
+    }
 
     const prev = initialRef.current;
     const diff: AnyObj = {};
@@ -436,6 +485,52 @@ export function DealDetailPage() {
                       <Input value={presale} onChange={(e) => setPresale(e.target.value)} placeholder="Иван Лашин" />
                     </FieldRow>
                   </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <div className="text-sm font-semibold">Дополнительные поля</div>
+                  <div className="text-xs text-text2 mt-1">Добавляются через Админ → Поля</div>
+                </CardHeader>
+                <CardContent>
+                  {!settingsFields.filter((sf) => !baseKeys.has(String(sf.field_name))).length ? (
+                    <div className="text-sm text-text2">Дополнительных полей нет.</div>
+                  ) : (
+                    <div className="grid gap-3">
+                      {settingsFields
+                        .filter((sf) => !baseKeys.has(String(sf.field_name)))
+                        .map((sf) => {
+                          const fn = String(sf.field_name);
+                          const ft = String(sf.field_type || "text");
+                          const opts = (sf.options?.values ?? []) as string[];
+                          const val = extra?.[fn] ?? "";
+                          if (ft === "select") {
+                            return (
+                              <FieldRow key={sf.id} label={sf.label || fn}>
+                                <Select value={String(val || "")} onChange={(v) => setExtra((p) => ({ ...p, [fn]: v }))}>
+                                  <option value="">—</option>
+                                  {opts.map((o) => (
+                                    <option key={o} value={o}>{o}</option>
+                                  ))}
+                                </Select>
+                              </FieldRow>
+                            );
+                          }
+                          const inputType = ft === "number" ? "number" : ft === "date" ? "date" : ft === "email" ? "email" : "text";
+                          return (
+                            <FieldRow key={sf.id} label={sf.label || fn}>
+                              <Input
+                                type={inputType as any}
+                                value={String(val ?? "")}
+                                onChange={(e) => setExtra((p) => ({ ...p, [fn]: (e.target as any).value }))}
+                                placeholder={fn}
+                              />
+                            </FieldRow>
+                          );
+                        })}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 

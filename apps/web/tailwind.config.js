@@ -7,7 +7,8 @@ export default {
         'card': '12px'
       },
       colors: {
-        bg: '#EEF1F6',
+        // App background (Design System v1.1)
+        bg: '#F4F6F9',
         card: '#FFFFFF',
         border: '#D1D5DB',
         borderHover: '#9CA3AF',
@@ -21,7 +22,8 @@ export default {
         infoBg: '#EEF4FF',
         infoBorder: '#B6CCFF',
         rowHover: '#F1F5F9',
-        rowSelected: '#E1ECFF'
+        rowSelected: '#E1ECFF',
+        tableHeader: '#EEF1F6'
       }
     }
   },

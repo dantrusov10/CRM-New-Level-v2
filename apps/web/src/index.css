@@ -2,7 +2,167 @@
 @tailwind components;
 @tailwind utilities;
 
-:root{
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+/* =========================================================
+   New Level CRM — "Cockpit everywhere" UI (v3)
+   BYD confidence + iOS glass + amo productivity
+   Visual-only changes (no business logic touched)
+========================================================= */
+
+@layer base {
+  :root{
+    font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  }
+  *{ box-sizing: border-box; }
+  html, body { height: 100%; }
+  body{
+    margin: 0;
+    background:
+      radial-gradient(900px 600px at 10% -10%, rgba(96,165,250,0.35), transparent 60%),
+      radial-gradient(900px 600px at 95% 0%, rgba(45,212,191,0.22), transparent 55%),
+      linear-gradient(180deg, #E9EEF8, #DDE6F6);
+  }
 }
-*{box-sizing:border-box}
+
+/* ===== Core patterns (match your "Sales Cockpit" element) ===== */
+@layer components {
+  .nwl-bg{
+    background:
+      radial-gradient(900px 600px at 10% -10%, rgba(96,165,250,0.35), transparent 60%),
+      radial-gradient(900px 600px at 95% 0%, rgba(45,212,191,0.22), transparent 55%),
+      linear-gradient(180deg, #E9EEF8, #DDE6F6);
+  }
+
+  /* Topbar / sidebar glass on dark */
+  .nwl-glassbar{
+    background: rgba(17,24,39,0.35);
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    backdrop-filter: blur(14px);
+  }
+  .nwl-glass{
+    background: rgba(255,255,255,0.10);
+    border: 1px solid rgba(255,255,255,0.16);
+    backdrop-filter: blur(14px);
+  }
+
+  /* Main cockpit panel */
+  .nwl-panel{
+    position: relative;
+    overflow: hidden;
+    border-radius: 22px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: linear-gradient(135deg, #1E3A8A 0%, #0E7490 45%, #111827 110%);
+    box-shadow: 0 18px 46px rgba(15,23,42,0.22);
+    color: rgba(255,255,255,0.92);
+  }
+  .nwl-panel::before{
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 20% 10%, rgba(255,255,255,0.18), transparent 55%),
+      radial-gradient(circle at 80% 30%, rgba(96,165,250,0.22), transparent 60%);
+    opacity: 0.9;
+  }
+  .nwl-panel > *{ position: relative; }
+
+  /* inner "metric card" inside panels */
+  .nwl-metric{
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.16);
+    background: rgba(17,24,39,0.26);
+    backdrop-filter: blur(10px);
+  }
+
+  /* pills */
+  .nwl-pill{
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(17,24,39,0.22);
+    color: rgba(226,232,240,0.90);
+  }
+  .nwl-pill-ok{
+    border-color: rgba(34,197,94,0.35);
+    background: rgba(34,197,94,0.20);
+  }
+  .nwl-pill-warn{
+    border-color: rgba(245,158,11,0.35);
+    background: rgba(245,158,11,0.20);
+  }
+  .nwl-pill-danger{
+    border-color: rgba(239,68,68,0.35);
+    background: rgba(239,68,68,0.20);
+  }
+
+  /* Secondary panels (still cockpit but lighter) */
+  .nwl-panel-soft{
+    background: linear-gradient(135deg, rgba(30,58,138,0.92) 0%, rgba(14,116,144,0.90) 55%, rgba(17,24,39,0.92) 115%);
+  }
+
+  /* kanban columns/cards */
+  .nwl-column{
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(17,24,39,0.35);
+    backdrop-filter: blur(10px);
+    color: rgba(255,255,255,0.90);
+  }
+  .nwl-dealcard{
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.06);
+    transition: transform .12s ease, background .12s ease, border-color .12s ease;
+  }
+  .nwl-dealcard:hover{
+    transform: translateY(-2px);
+    background: rgba(255,255,255,0.10);
+    border-color: rgba(96,165,250,0.35);
+  }
+
+  /* modal */
+  .nwl-modal{
+    border-radius: 22px;
+    border: 1px solid rgba(255,255,255,0.16);
+    background: linear-gradient(135deg, rgba(30,58,138,0.92) 0%, rgba(14,116,144,0.88) 55%, rgba(17,24,39,0.92) 115%);
+    box-shadow: 0 24px 70px rgba(15,23,42,0.35);
+    color: rgba(255,255,255,0.92);
+  }
+
+  /* inputs/buttons in dark */
+  .nwl-input{
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.16);
+    background: rgba(255,255,255,0.10);
+    color: rgba(255,255,255,0.92);
+  }
+  .nwl-input::placeholder{ color: rgba(226,232,240,0.62); }
+
+  .nwl-btn{
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.16);
+    background: rgba(255,255,255,0.10);
+    color: rgba(255,255,255,0.92);
+    transition: transform .12s ease, background .12s ease, border-color .12s ease;
+  }
+  .nwl-btn:hover{
+    transform: translateY(-1px);
+    border-color: rgba(96,165,250,0.35);
+    background: rgba(255,255,255,0.14);
+  }
+  .nwl-btn-primary{
+    background: linear-gradient(180deg, rgba(96,165,250,0.95), rgba(37,99,235,0.92));
+    border-color: rgba(96,165,250,0.45);
+    box-shadow: 0 16px 44px rgba(96,165,250,0.20);
+  }
+
+  /* table readability */
+  .nwl-table{
+    border-radius: 22px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(17,24,39,0.35);
+    backdrop-filter: blur(10px);
+    color: rgba(255,255,255,0.92);
+  }
+  .nwl-table th{ color: rgba(226,232,240,0.78); }
+  .nwl-table td{ color: rgba(255,255,255,0.92); }
+}

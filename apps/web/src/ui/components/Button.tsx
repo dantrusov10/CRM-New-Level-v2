@@ -7,8 +7,7 @@ type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 export function Button({ variant = "primary", small, className, ...rest }: Props) {
-  const base =
-    "inline-flex items-center justify-center gap-2 rounded-card px-4 font-medium transition-colors disabled:cursor-not-allowed";
+  const base = "nwl-btn inline-flex items-center justify-center gap-2 font-semibold";
   const h = small ? "h-9 text-sm" : "h-10 text-sm";
   const v =
     variant === "primary"

@@ -35,10 +35,10 @@ export function usePermissions(role?: string) {
     queryKey: ["permissions", role],
     queryFn: async (): Promise<PermissionMatrix> => {
       if (!role) return defaultMatrixByRole(role);
-      // best-effort: role can be text in users; map to settings_roles.role_name
+      // best-effort: role can be text in users; map to settings_roles.role
       const rec = await pb
         .collection("settings_roles")
-        .getFirstListItem(`role_name="${role.replace(/"/g, "\\\"")}"`)
+        .getFirstListItem(`role="${role.replace(/"/g, "\\\"")}"`)
         .catch(() => null);
       const matrix = (rec as any)?.perms as PermissionMatrix | undefined;
       return matrix && Object.keys(matrix).length ? matrix : defaultMatrixByRole(role);

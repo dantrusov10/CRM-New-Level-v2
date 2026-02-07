@@ -37,70 +37,24 @@ function normalizeStage(raw: any): Partial<FunnelStage> {
   return { stage_name, position, color, is_final, final_type, active, default_prob };
 }
 
-
-async function createStageSafe(stage: Omit<FunnelStage, "id"> & { id?: string }) {
-  // 1) Базовый payload — без технических полей
-  const basePayload: any = {
-    stage_name: String(stage.stage_name ?? "").trim(),
-    position: Number(stage.position ?? 0),
-    color: stage.color ?? "#004EEB",
-    active: stage.active ?? true,
-    is_final: stage.is_final ?? false,
-    final_type: stage.final_type ?? "none",
-    default_prob: stage.default_prob ?? null,
-  };
-
-  // 2) Первая попытка — без settings_id (так правильно для схем, где его нет)
-  try {
-    return await pb.collection("settings_funnel_stages").create(basePayload);
-  } catch (e: any) {
-    // 3) Если это не 400 — просто пробрасываем ошибку
-    if (e?.status !== 400) throw e;
-
-    // 4) Если PocketBase требует settings_id — пробуем найти "настройки" и повторить
-    const msg = String(e?.data?.message ?? e?.message ?? "").toLowerCase();
-    const dataErr = e?.data?.data ?? {};
-    const needsSettingsId =
-      msg.includes("settings_id") ||
-      Object.keys(dataErr).some((k) => k.toLowerCase().includes("settings_id"));
-
-    if (!needsSettingsId) throw e;
-
-    // Важно: 404 по коллекции настроек НЕ должен ломать создание — просто пропускаем
-    const candidates = ["settings", "app_settings", "settings_main", "settings_core", "settings_funnel"];
-    let settingsId: string | null = null;
-
-    for (const col of candidates) {
-      try {
-        const list = await pb.collection(col).getList(1, 1, { sort: "-created" });
-        if (list?.items?.length) {
-          settingsId = list.items[0].id;
-          break;
-        }
-      } catch (err: any) {
-        // 404 = коллекции нет, это ок
-        if (err?.status === 404) continue;
-        continue;
-      }
-    }
-
-    if (!settingsId) throw e;
-
-    return await pb
-      .collection("settings_funnel_stages")
-      .create({ ...basePayload, settings_id: settingsId });
-  }
-}
-
 export function AdminFunnelPage() {
   const [stages, setStages] = React.useState<FunnelStage[]>([]);
   const [name, setName] = React.useState("");
   const [color, setColor] = React.useState("#004EEB");
+  const [defaultProb, setDefaultProb] = React.useState<number>(10);
+  const [error, setError] = React.useState<string | null>(null);
 
   async function load() {
-    // PocketBase schema: stage_name + position
-    const s = await pb.collection("settings_funnel_stages").getFullList({ sort: "position" });
-    setStages(s as any);
+    try {
+      setError(null);
+      // PocketBase schema: stage_name + position
+      const s = await pb.collection("settings_funnel_stages").getFullList({ sort: "position" });
+      setStages(s as any);
+    } catch (err: any) {
+      console.error("PB load stages error:", err);
+      setStages([]);
+      setError(err?.data?.message || err?.message || "Не удалось загрузить этапы из PocketBase");
+    }
   }
   React.useEffect(() => {
     load();
@@ -108,26 +62,52 @@ export function AdminFunnelPage() {
 
   async function addStage() {
     const position = stages.length ? Math.max(...stages.map((x) => Number(x.position ?? 0))) + 1 : 1;
-    await createStageSafe({
-      stage_name: name.trim(),
-      color,
-      position,
-      active: true,
-      is_final: false,
-      final_type: "none",
-    });
+    try {
+      setError(null);
+      await pb.collection("settings_funnel_stages").create({
+        stage_name: name.trim(),
+        color,
+        position,
+        active: true,
+        is_final: false,
+        final_type: "none",
+        // В PB часто field number не принимает null/undefined, поэтому шлём число всегда
+        default_prob: Number.isFinite(defaultProb) ? defaultProb : 10,
+      });
+      setName("");
+      await load();
+    } catch (err: any) {
+      console.error("PB create stage error:", err);
+      setError(err?.data?.message || err?.message || "Не удалось создать этап");
+      // Для дебага в UI показываем всё, что PocketBase вернул
+      if (err?.data) {
+        console.error("PB error data:", err.data);
+      }
+    }
     setName("");
-    load();
+    // load() вызван в try выше
   }
 
   async function updateStage(id: string, data: any) {
-    await pb.collection("settings_funnel_stages").update(id, data);
-    load();
+    try {
+      setError(null);
+      await pb.collection("settings_funnel_stages").update(id, data);
+      await load();
+    } catch (err: any) {
+      console.error("PB update stage error:", err);
+      setError(err?.data?.message || err?.message || "Не удалось обновить этап");
+    }
   }
 
   async function removeStage(id: string) {
-    await pb.collection("settings_funnel_stages").delete(id);
-    load();
+    try {
+      setError(null);
+      await pb.collection("settings_funnel_stages").delete(id);
+      await load();
+    } catch (err: any) {
+      console.error("PB delete stage error:", err);
+      setError(err?.data?.message || err?.message || "Не удалось удалить этап");
+    }
   }
 
   async function exportJson() {
@@ -163,14 +143,15 @@ export function AdminFunnelPage() {
     for (const s of stages) await pb.collection("settings_funnel_stages").delete(s.id).catch(() => {});
     for (const s of normalized) {
       if (!s.stage_name?.trim()) continue;
-      await createStageSafe({
+      await pb.collection("settings_funnel_stages").create({
         stage_name: s.stage_name.trim(),
         position: s.position ?? 0,
         color: s.color ?? "#004EEB",
         active: s.active ?? true,
         is_final: s.is_final ?? false,
         final_type: s.is_final ? (s.final_type ?? "won") : "none",
-        default_prob: s.default_prob ?? null,
+        // не отправляем null в number
+        default_prob: s.default_prob ?? 10,
       });
     }
     load();
@@ -205,7 +186,12 @@ export function AdminFunnelPage() {
       </CardHeader>
       <CardContent>
         <div className="grid gap-3">
-          <div className="grid grid-cols-[1fr_140px_120px] gap-2 items-end">
+          {error ? (
+            <div className="rounded-card border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+              {error}
+            </div>
+          ) : null}
+          <div className="grid grid-cols-[1fr_140px_180px_120px] gap-2 items-end">
             <div>
               <div className="text-xs text-text2 mb-1">Название этапа</div>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Квалификация" />
@@ -218,6 +204,10 @@ export function AdminFunnelPage() {
                 value={color}
                 onChange={(e) => setColor(e.target.value)}
               />
+            </div>
+            <div>
+              <div className="text-xs text-text2 mb-1">Вероятность (по умолч.)</div>
+              <Input value={String(defaultProb)} onChange={(e) => setDefaultProb(Number(e.target.value || 0))} placeholder="например 10" />
             </div>
             <Button onClick={addStage} disabled={!name.trim()}>
               Добавить
@@ -277,7 +267,8 @@ export function AdminFunnelPage() {
                       <Input
                         value={s.default_prob === undefined || s.default_prob === null ? "" : String(s.default_prob)}
                         onChange={(e) =>
-                          updateStage(s.id, { default_prob: e.target.value === "" ? null : Number(e.target.value) })
+                          // В PB number поле часто не принимает null. Если поле очищают — ставим 0.
+                          updateStage(s.id, { default_prob: e.target.value === "" ? 0 : Number(e.target.value) })
                         }
                         placeholder="например 25"
                       />

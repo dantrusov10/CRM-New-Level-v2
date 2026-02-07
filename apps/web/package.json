@@ -23,7 +23,8 @@
     "@dnd-kit/utilities": "^3.2.2",
     "papaparse": "^5.4.1",
     "dayjs": "^1.11.13",
-    "lucide-react": "^0.452.0"
+    "lucide-react": "^0.452.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/react": "^18.3.5",

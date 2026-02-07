@@ -26,8 +26,12 @@ export function CreateCompanyModal({ open, onClose }: { open: boolean; onClose: 
     if (!name.trim()) return;
     setSaving(true);
     try {
-      const rec = await pb.collection("companies").create({ name, inn: inn || undefined, website: website || undefined, city: city || undefined });
-onClose();
+      const data: any = { name: name.trim() };
+      if (inn.trim()) data.inn = inn.trim();
+      if (website.trim()) data.website = website.trim();
+      if (city.trim()) data.city = city.trim();
+      const rec = await pb.collection("companies").create(data);
+      onClose();
       nav(`/companies/${rec.id}`);
     } finally {
       setSaving(false);

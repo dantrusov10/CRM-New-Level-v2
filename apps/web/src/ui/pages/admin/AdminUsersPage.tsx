@@ -37,13 +37,11 @@ export function AdminUsersPage() {
 
   async function createUser() {
     if (!email || !password) return;
-    await pb.collection("users").create({
-      email,
-      password,
-      passwordConfirm: password,
-      name: name || undefined,
-      role_name: role || undefined,
-    });
+    if (!role) { alert("Выберите роль"); return; }
+    const data: any = { email, password, passwordConfirm: password };
+    if (name.trim()) data.name = name.trim();
+    if (role) data.role_name = role;
+    await pb.collection("users").create(data);
     setOpen(false);
     setName(""); setEmail(""); setPassword(""); setRole("");
     load();
@@ -115,6 +113,7 @@ export function AdminUsersPage() {
           <div>
             <div className="text-xs text-text2 mb-1">Роль</div>
             <select className="h-10 w-full rounded-card border border-[#9CA3AF] bg-white px-3 text-sm" value={role} onChange={(e) => setRole(e.target.value)}>
+              <option value="">— выбери роль —</option>
               <option value="">—</option>
               {roles.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>

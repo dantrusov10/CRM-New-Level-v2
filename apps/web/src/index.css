@@ -2,7 +2,153 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Calm Power UI (Cockpit everywhere) — global styles
+   Goal: change visuals without touching business logic.
+*/
+
 :root{
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 }
-*{box-sizing:border-box}
+
+*{ box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body{
+  margin:0;
+  /* Light tech background like cockpit on top of clean canvas */
+  background:
+    radial-gradient(900px 600px at 10% -10%, rgba(96,165,250,0.35), transparent 60%),
+    radial-gradient(900px 600px at 95% 0%, rgba(45,212,191,0.22), transparent 55%),
+    linear-gradient(180deg, #E9EEF8, #DDE6F6);
+}
+
+/* Subtle tech grid overlay */
+.app-bg{
+  position: relative;
+  min-height: 100vh;
+}
+.app-bg:before{
+  content:"";
+  position: fixed;
+  inset: 0;
+  pointer-events:none;
+  opacity: 0.16;
+  background-image:
+    linear-gradient(to right, rgba(15,23,42,0.10) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15,23,42,0.10) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(circle at 30% 10%, rgba(0,0,0,1), rgba(0,0,0,0.15) 55%, rgba(0,0,0,0) 75%);
+}
+
+/* Core pattern: Cockpit Panel (matches your best element) */
+@layer components{
+  .panel{
+    @apply relative overflow-hidden rounded-[22px] border border-white/15 text-white;
+    background: linear-gradient(135deg, #1E3A8A 0%, #0E7490 45%, #111827 110%);
+    box-shadow: 0 18px 46px rgba(15,23,42,0.22);
+  }
+  .panel::before{
+    content:"";
+    position:absolute; inset:0;
+    background:
+      radial-gradient(circle at 20% 10%, rgba(255,255,255,0.18), transparent 55%),
+      radial-gradient(circle at 80% 30%, rgba(96,165,250,0.22), transparent 60%);
+    opacity: .9;
+    pointer-events:none;
+  }
+  .panel-inner{ @apply relative; }
+
+  .panel-soft{
+    @apply border border-white/12 rounded-[18px];
+    background: rgba(255,255,255,0.08);
+  }
+
+  .metric-card{
+    @apply rounded-[16px] border border-white/16;
+    background: rgba(17,24,39,0.26);
+    backdrop-filter: blur(10px);
+  }
+
+  .pill{
+    @apply inline-flex items-center rounded-full border border-white/14 px-3 py-[6px] text-xs font-extrabold;
+    background: rgba(17,24,39,0.22);
+    color: rgba(226,232,240,0.92);
+  }
+  .pill-ok{
+    border-color: rgba(34,197,94,0.35) !important;
+    background: rgba(34,197,94,0.20) !important;
+  }
+  .pill-warn{
+    border-color: rgba(245,158,11,0.35) !important;
+    background: rgba(245,158,11,0.20) !important;
+  }
+  .pill-danger{
+    border-color: rgba(239,68,68,0.35) !important;
+    background: rgba(239,68,68,0.20) !important;
+  }
+
+  .topbar{
+    @apply sticky top-0 z-40 border-b border-white/12;
+    background: rgba(17,24,39,0.35);
+    backdrop-filter: blur(14px);
+  }
+
+  .glass-btn{
+    @apply inline-flex items-center justify-center gap-2 rounded-[16px] border border-white/16 px-4 font-extrabold;
+    background: rgba(255,255,255,0.10);
+    backdrop-filter: blur(14px);
+    color: rgba(255,255,255,0.92);
+    transition: transform .12s ease, background .12s ease, border-color .12s ease;
+  }
+  .glass-btn:hover{
+    transform: translateY(-1px);
+    border-color: rgba(96,165,250,0.35);
+    background: rgba(255,255,255,0.14);
+  }
+
+  .glass-icon{
+    @apply h-[42px] w-[42px] rounded-[16px] border border-white/16;
+    background: rgba(255,255,255,0.10);
+    backdrop-filter: blur(14px);
+    color: rgba(255,255,255,0.92);
+    transition: transform .12s ease, background .12s ease, border-color .12s ease;
+  }
+  .glass-icon:hover{
+    transform: translateY(-1px);
+    border-color: rgba(96,165,250,0.35);
+    background: rgba(255,255,255,0.14);
+  }
+
+  .glass-primary{
+    background: linear-gradient(180deg, rgba(96,165,250,0.95), rgba(37,99,235,0.92)) !important;
+    border-color: rgba(96,165,250,0.45) !important;
+    box-shadow: 0 16px 44px rgba(96,165,250,0.20);
+  }
+  .glass-primary:hover{
+    border-color: rgba(96,165,250,0.70) !important;
+  }
+
+  .glass-field{
+    @apply h-10 w-full rounded-[16px] border border-white/16 px-3 text-sm outline-none;
+    background: rgba(255,255,255,0.10);
+    backdrop-filter: blur(14px);
+    color: rgba(255,255,255,0.92);
+  }
+  .glass-field::placeholder{ color: rgba(226,232,240,0.62); }
+
+  .glass-field-light{
+    @apply h-10 w-full rounded-[16px] border px-3 text-sm outline-none;
+    border-color: rgba(17,24,39,0.12);
+    background: rgba(255,255,255,0.70);
+    backdrop-filter: blur(10px);
+    color: #0B1220;
+  }
+
+  .glass-modal{
+    @apply rounded-[22px] border border-white/15 text-white;
+    background: linear-gradient(135deg, rgba(30,58,138,0.92) 0%, rgba(14,116,144,0.90) 55%, rgba(17,24,39,0.92) 115%);
+    box-shadow: 0 18px 46px rgba(15,23,42,0.30);
+    backdrop-filter: blur(16px);
+  }
+}

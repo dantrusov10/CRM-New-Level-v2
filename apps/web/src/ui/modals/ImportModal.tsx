@@ -170,24 +170,10 @@ export function ImportModal({
       partner: ["partner", "Партнёр"],
       distributor: ["distributor", "Дистрибьютор"],
       purchase_format: ["purchase_format", "Формат закупки"],
-      activity_type: ["activity_type", "Вид деятельности", "Тип деятельности"],
-      endpoints: ["endpoints", "Конечные точки", "Endpoint", "Endpoints"],
-      infrastructure_size: ["infrastructure_size", "Размер инфраструктуры"],
-      presale: ["presale", "Presale", "Пресейл"],
       attraction_channel: ["attraction_channel", "Канал привлечения"],
       attraction_date: ["attraction_date", "Дата привлечения"],
-      registration_deadline: ["registration_deadline", "Регистрация до даты"],
-      test_start: ["test_start", "Старт теста"],
-      test_end: ["test_end", "Окончание теста"],
-      delivery_date: ["delivery_date", "Дата отгрузки"],
       expected_payment_date: ["expected_payment_date", "Ожидаемая оплата"],
       payment_received_date: ["payment_received_date", "Фактическая оплата"],
-      project_map_link: ["project_map_link", "Ссылка на карту проекта"],
-      kaiten_link: ["kaiten_link", "Ссылка на Kaiten", "Kaiten"],
-      current_score: ["current_score", "Score", "Скор"],
-      current_recommendations: ["current_recommendations", "Рекомендации", "Next steps"],
-      comment: ["comment", "Комментарий", "Комментарии", "Примечание"],
-      comment_timestamp: ["comment_timestamp", "Дата комментария", "Дата примечания"],
     }),
     []
   );
@@ -226,12 +212,10 @@ export function ImportModal({
 
   function downloadTemplate() {
     if (entity === "deal") {
-      // Полный шаблон: все поля deals + удобная миграция комментариев в timeline
       const template = [
         {
-          "ID (для обновления)": "",
           "Название сделки": "",
-          "Компания (название)": "",
+          "Компания": "",
           "ИНН": "",
           "Этап": "",
           "Бюджет": "",
@@ -240,29 +224,12 @@ export function ImportModal({
           "Скидка, %": "",
           "Канал продаж": "",
           "Партнёр": "",
-          "Дистрибьютор": "",
           "Формат закупки": "",
-          "Вид деятельности": "",
-          "Конечные точки": "",
-          "Размер инфраструктуры": "",
-          "Presale": "",
-          "Канал привлечения": "",
           "Дата привлечения": "",
-          "Регистрация до даты": "",
-          "Старт теста": "",
-          "Окончание теста": "",
-          "Дата отгрузки": "",
           "Ожидаемая оплата": "",
-          "Фактическая оплата": "",
-          "Ссылка на карту проекта": "",
-          "Ссылка на Kaiten": "",
-          "Score": "",
-          "Рекомендации": "",
-          "Комментарий (в timeline)": "",
-          "Дата комментария": "",
         },
       ];
-      downloadXlsx(template, "deals", "template_deals_full.xlsx");
+      downloadXlsx(template, "deals", "template_deals.xlsx");
     } else {
       const template = [
         {
@@ -297,15 +264,6 @@ export function ImportModal({
       if (!col) return "";
       return r[col];
     };
-
-    const asStr = (v: any) => String(v ?? "").trim();
-
-    function asDateStr(v: any) {
-      const s = asStr(v);
-      if (!s) return "";
-      // keep as-is (PocketBase can parse ISO and common formats). We don't want to guess too much here.
-      return s;
-    }
 
     async function resolveStageId(stageName: string): Promise<string | ""> {
       const s = (stageName || "").toString().trim();
@@ -417,42 +375,13 @@ export function ImportModal({
             partner: String(get(r, "partner") || "").trim() || undefined,
             distributor: String(get(r, "distributor") || "").trim() || undefined,
             purchase_format: String(get(r, "purchase_format") || "").trim() || undefined,
-            activity_type: asStr(get(r, "activity_type")) || undefined,
-            endpoints: num(get(r, "endpoints")),
-            infrastructure_size: num(get(r, "infrastructure_size")),
-            presale: asStr(get(r, "presale")) || undefined,
             attraction_channel: String(get(r, "attraction_channel") || "").trim() || undefined,
-            attraction_date: asDateStr(get(r, "attraction_date")) || undefined,
-            registration_deadline: asDateStr(get(r, "registration_deadline")) || undefined,
-            test_start: asDateStr(get(r, "test_start")) || undefined,
-            test_end: asDateStr(get(r, "test_end")) || undefined,
-            delivery_date: asDateStr(get(r, "delivery_date")) || undefined,
+            attraction_date: String(get(r, "attraction_date") || "").trim() || undefined,
             expected_payment_date: String(get(r, "expected_payment_date") || "").trim() || undefined,
             payment_received_date: String(get(r, "payment_received_date") || "").trim() || undefined,
-            project_map_link: asStr(get(r, "project_map_link")) || undefined,
-            kaiten_link: asStr(get(r, "kaiten_link")) || undefined,
-            current_score: num(get(r, "current_score")),
-            current_recommendations: asStr(get(r, "current_recommendations")) || undefined,
           };
-
-          const createdOrUpdated = id
-            ? await pb.collection("deals").update(id, payload)
-            : await pb.collection("deals").create(payload);
-
-          // Комментарии -> timeline
-          const commentText = asStr(get(r, "comment"));
-          if (commentText) {
-            const tsRaw = asStr(get(r, "comment_timestamp"));
-            const timestamp = tsRaw || new Date().toISOString();
-            await pb.collection("timeline").create({
-              deal_id: (createdOrUpdated as any).id,
-              user_id: user?.id || undefined,
-              action: "import_comment",
-              comment: commentText,
-              payload: { source: "import" },
-              timestamp,
-            });
-          }
+          if (id) await pb.collection("deals").update(id, payload);
+          else await pb.collection("deals").create(payload);
         }
         ok++;
       } catch (e: any) {

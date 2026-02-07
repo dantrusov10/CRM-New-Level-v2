@@ -17,14 +17,14 @@ export function Modal({
 }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onMouseDown={onClose}>
       <div
-        className={clsx("w-full rounded-card border border-border bg-card", widthClass)}
+        className={clsx("w-full glass-modal", widthClass)}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/12">
           <div className="text-sm font-semibold">{title}</div>
-          <button className="p-2 rounded-card hover:bg-rowHover" onClick={onClose} aria-label="close">
+          <button className="glass-icon !h-10 !w-10" onClick={onClose} aria-label="close">
             <X size={18} />
           </button>
         </div>

@@ -221,79 +221,92 @@ body:before{
 .theme-cockpit .hover\:bg-rowHover:hover{ background: rgba(255,255,255,0.10) !important; }
 
 
-/* ========= Cockpit v5 readability overrides ========= */
+/* === Cockpit v6: global contrast fixes + iOS-glass depth + neon outlines === */
+.theme-cockpit{
+  --cp-text: rgba(255,255,255,.92);
+  --cp-text2: rgba(226,232,240,.74);
+  --cp-text3: rgba(226,232,240,.58);
+  --cp-stroke: rgba(255,255,255,.16);
+  --cp-glass: rgba(17,24,39,.34);
+  --cp-glass2: rgba(17,24,39,.22);
+  --cp-neon: rgba(96,165,250,.55);
+  --cp-neon2: rgba(45,212,191,.35);
+}
 
-/* Tailwind token overrides INSIDE cockpit theme (fix “серое на сером”) */
+/* Fix Tailwind token classes inside cockpit (they were designed for light theme) */
 .theme-cockpit .text-text{ color: var(--cp-text) !important; }
 .theme-cockpit .text-text2{ color: var(--cp-text2) !important; }
-.theme-cockpit .text-text3{ color: var(--cp-text3) !important; }
-.theme-cockpit .border-border{ border-color: rgba(255,255,255,0.12) !important; }
-.theme-cockpit .bg-card{ background: rgba(17,24,39,0.22) !important; }
-.theme-cockpit .bg-white{ background: rgba(255,255,255,0.08) !important; } /* prevents white blocks in cockpit */
-.theme-cockpit .bg-[#EEF1F6]{ background: rgba(255,255,255,0.08) !important; } /* safety */
+.theme-cockpit .text-[#374151]{ color: var(--cp-text) !important; }
+.theme-cockpit .text-[#111827]{ color: var(--cp-text) !important; }
+.theme-cockpit .text-[#6B7280]{ color: var(--cp-text2) !important; }
 
-/* iOS-like depth + BYD confidence: glow + highlight */
-.theme-cockpit .ui-card{
-  position: relative;
+.theme-cockpit .border-border{ border-color: var(--cp-stroke) !important; }
+.theme-cockpit .bg-white{ background: rgba(255,255,255,.06) !important; }
+.theme-cockpit .bg-card{ background: rgba(255,255,255,.06) !important; }
+.theme-cockpit .bg-tableHeader{ background: rgba(255,255,255,.08) !important; }
+.theme-cockpit .hover\:bg-rowHover:hover{ background: rgba(255,255,255,.06) !important; }
+
+/* The main “glass panel” look */
+.theme-cockpit .ui-card,
+.theme-cockpit .ui-modal,
+.theme-cockpit .ui-panel,
+.theme-cockpit .ui-glass{
+  background: linear-gradient(135deg,
+    rgba(30,58,138,.56) 0%,
+    rgba(14,116,144,.44) 52%,
+    rgba(17,24,39,.58) 110%
+  ) !important;
+  border: 1px solid var(--cp-stroke) !important;
   backdrop-filter: blur(18px) saturate(140%);
   -webkit-backdrop-filter: blur(18px) saturate(140%);
+  color: var(--cp-text);
+  position: relative;
   box-shadow:
-    0 18px 46px rgba(15,23,42,0.22),
-    0 0 0 1px rgba(96,165,250,0.10) inset;
-  overflow: hidden;
+    0 18px 46px rgba(15,23,42,.22),
+    0 0 0 1px rgba(96,165,250,.10) inset;
 }
-.theme-cockpit .ui-card::before{
+
+/* iOS-like highlight */
+.theme-cockpit .ui-card::before,
+.theme-cockpit .ui-panel::before,
+.theme-cockpit .ui-glass::before{
   content:"";
   position:absolute; inset:0;
   pointer-events:none;
+  border-radius: inherit;
   background:
-    radial-gradient(circle at 18% 12%, rgba(255,255,255,0.16), transparent 48%),
-    radial-gradient(circle at 82% 22%, rgba(96,165,250,0.18), transparent 52%);
+    radial-gradient(circle at 18% 12%, rgba(255,255,255,.16), transparent 48%),
+    radial-gradient(circle at 82% 22%, rgba(96,165,250,.18), transparent 52%);
   opacity:.95;
 }
-.theme-cockpit .ui-card::after{
+
+/* neon outline */
+.theme-cockpit .ui-card::after,
+.theme-cockpit .ui-panel::after,
+.theme-cockpit .ui-glass::after{
   content:"";
   position:absolute; inset:-1px;
   border-radius: inherit;
   pointer-events:none;
-  background: linear-gradient(90deg, rgba(96,165,250,0.55), transparent 35%, transparent 65%, rgba(45,212,191,0.35));
-  opacity:.18;
-  filter: blur(7px);
+  background: linear-gradient(90deg, var(--cp-neon), transparent 35%, transparent 65%, var(--cp-neon2));
+  opacity:.22;
+  filter: blur(6px);
 }
 
-/* Pagination visibility + click layer */
-.theme-cockpit .pagination{
-  position: relative;
-  z-index: 50;
+/* Inputs inside glass */
+.theme-cockpit input,
+.theme-cockpit select,
+.theme-cockpit textarea{
+  color: var(--cp-text) !important;
+  background: rgba(255,255,255,.10) !important;
+  border-color: rgba(255,255,255,.18) !important;
 }
-.theme-cockpit .pagination button{
-  background: rgba(255,255,255,0.10) !important;
-  border-color: rgba(255,255,255,0.18) !important;
-  color: rgba(226,232,240,0.92) !important;
-}
-.theme-cockpit .pagination button.bg-primary{
-  box-shadow: 0 16px 44px rgba(96,165,250,0.20);
-}
+.theme-cockpit input::placeholder{ color: rgba(226,232,240,.55) !important; }
 
-/* Tabs in cockpit */
-.theme-cockpit .tabs-shell{
-  background: rgba(255,255,255,0.08) !important;
-  border-color: rgba(255,255,255,0.12) !important;
+/* Kanban cards readability */
+.theme-cockpit .kanban-card,
+.theme-cockpit [data-kanban-card="true"]{
+  background: rgba(17,24,39,.34) !important;
+  border-color: rgba(255,255,255,.14) !important;
 }
-.theme-cockpit .tabs-btn{
-  color: rgba(226,232,240,0.78) !important;
-}
-.theme-cockpit .tabs-btn.active{
-  background: rgba(96,165,250,0.18) !important;
-  border-color: rgba(96,165,250,0.35) !important;
-  color: #fff !important;
-}
-
-/* Stronger “tech” background (a bit brighter) */
-body{
-  background:
-    radial-gradient(900px 600px at 10% -10%, rgba(96,165,250,0.38), transparent 60%),
-    radial-gradient(900px 600px at 95% 0%, rgba(45,212,191,0.26), transparent 55%),
-    radial-gradient(1100px 700px at 30% 110%, rgba(99,102,241,0.18), transparent 58%),
-    linear-gradient(180deg, var(--cp-bg-1), var(--cp-bg-2));
-}
+.theme-cockpit .kanban-card *{ color: rgba(255,255,255,.86) !important; }

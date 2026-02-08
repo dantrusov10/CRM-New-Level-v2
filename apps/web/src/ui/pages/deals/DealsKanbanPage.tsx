@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { useSearchParams } from "react-router-dom";
 import {
   DndContext,
@@ -49,10 +50,10 @@ export function DealsKanbanPage() {
     .filter(Boolean)
     .join(" && ");
 
-  const dealsQ = useDeals({ filter, page: 1, perPage: 500 });
+  const dealsQ = useDeals({ filter });
 
   const stages = stageOnly ? (stagesQ.data ?? []).filter((s) => s.id === stageOnly) : stagesQ.data ?? [];
-  const deals = dealsQ.data?.items ?? [];
+  const deals = dealsQ.data ?? [];
 
   const dealsByStage = React.useMemo(() => {
     const m: Record<string, any[]> = {};
@@ -204,13 +205,18 @@ export function DealsKanbanPage() {
                 </div>
               </div>
 
+              {createPortal(
               <DragOverlay>
+
                 {activeDeal ? (
                   <div className="opacity-95">
                     <KanbanCard deal={activeDeal} stageColor={activeDeal.expand?.stage_id?.color ?? "#004EEB"} overlay />
                   </div>
                 ) : null}
-              </DragOverlay>
+              
+              </DragOverlay>,
+              document.body
+            )}
             </DndContext>
           </>
         )}

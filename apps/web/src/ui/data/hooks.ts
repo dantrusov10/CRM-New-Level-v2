@@ -1,6 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { pb } from "../../lib/pb";
 import type { Deal, Company, FunnelStage, TimelineItem, AiInsight } from "../../lib/types";
+
+export type ListResult<T> = {
+  items: T[];
+  page: number;
+  perPage: number;
+  totalPages: number;
+  totalItems: number;
+};
 import type { PermissionMatrix } from "../../lib/rbac";
 
 function defaultMatrixByRole(role?: string): PermissionMatrix {
@@ -58,58 +66,54 @@ export function useFunnelStages() {
   });
 }
 
-export function useDeals(params?: { search?: string; filter?: string; sort?: string }) {
-  const { search, filter, sort } = params ?? {};
-  // PocketBase schema: title (not name)
-  const q = search ? `title~"${search.replace(/\"/g, "\\\"")}"` : "";
-  const f = [filter, q].filter(Boolean).join(" && ");
+export function useDeals(params?: { search?: string; filter?: string; page?: number; perPage?: number }) {
+  const q = params?.search ? `title~"${params.search}"` : "";
+  const f = [params?.filter, q].filter(Boolean).join(" && ");
+  const page = params?.page ?? 1;
+  const perPage = params?.perPage ?? 200;
+
   return useQuery({
-    queryKey: ["deals", f, sort],
-    queryFn: async (): Promise<Deal[]> => {
-      // Relations in PB: company_id, stage_id, responsible_id
+    queryKey: ["deals", f, page, perPage],
+    queryFn: async (): Promise<ListResult<Deal>> => {
       const options: Record<string, any> = {
-        sort: sort ?? "-updated",
+        sort: "-updated",
         expand: "company_id,stage_id,responsible_id",
       };
-      // IMPORTANT: do not send filter=undefined (PocketBase returns 400)
       if (f && String(f).trim().length) options.filter = f;
 
-      const res = await pb.collection("deals").getList(1, 200, options);
-      return res.items as any;
+      const res = await pb.collection("deals").getList(page, perPage, options);
+      return {
+        items: res.items as any,
+        page: res.page,
+        perPage: res.perPage,
+        totalPages: res.totalPages,
+        totalItems: res.totalItems,
+      };
     },
-  });}
-
-export function useDeal(id: string) {
-  return useQuery({
-    queryKey: ["deal", id],
-    queryFn: async (): Promise<any> => {
-      const rec = await pb.collection("deals").getOne(id, { expand: "company_id,stage_id,responsible_id" });
-      return rec;
-    },
-    enabled: !!id,
   });
 }
 
-export function useCompanies(params?: { search?: string; filter?: string }) {
+export function useCompanies(params?: { search?: string; filter?: string; page?: number; perPage?: number }) {
   const q = params?.search ? `name~"${params.search}"` : "";
   const f = [params?.filter, q].filter(Boolean).join(" && ");
+  const page = params?.page ?? 1;
+  const perPage = params?.perPage ?? 50;
+
   return useQuery({
-    queryKey: ["companies", f],
-    queryFn: async (): Promise<Company[]> => {
+    queryKey: ["companies", f, page, perPage],
+    queryFn: async (): Promise<ListResult<Company>> => {
       const options: Record<string, any> = { sort: "name" };
-      // IMPORTANT: do not send filter=undefined (PocketBase returns 400)
       if (f && String(f).trim().length) options.filter = f;
 
-      const res = await pb.collection("companies").getList(1, 200, options);
-      return res.items as any;
+      const res = await pb.collection("companies").getList(page, perPage, options);
+      return {
+        items: res.items as any,
+        page: res.page,
+        perPage: res.perPage,
+        totalPages: res.totalPages,
+        totalItems: res.totalItems,
+      };
     },
-  });}
-
-export function useCompany(id: string) {
-  return useQuery({
-    queryKey: ["company", id],
-    queryFn: async () => pb.collection("companies").getOne(id),
-    enabled: !!id,
   });
 }
 

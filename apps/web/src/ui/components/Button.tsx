@@ -7,13 +7,13 @@ type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 export function Button({ variant = "primary", small, className, ...rest }: Props) {
-  const base = "nwl-btn inline-flex items-center justify-center gap-2 font-semibold";
-  const h = small ? "h-9 text-sm" : "h-10 text-sm";
+  const base = "ui-btn";
+  const h = small ? "h-9 text-sm" : "h-[42px] text-sm";
   const v =
     variant === "primary"
-      ? "bg-primary text-white hover:bg-primaryHover disabled:bg-primaryDisabled"
+      ? "ui-btn-primary"
       : variant === "secondary"
-        ? "bg-white border border-borderHover text-text hover:bg-rowHover hover:border-[#6B7280]"
-        : "bg-danger text-white hover:opacity-90";
+        ? "ui-btn-secondary"
+        : "ui-btn-danger";
   return <button className={clsx(base, h, v, className)} {...rest} />;
 }

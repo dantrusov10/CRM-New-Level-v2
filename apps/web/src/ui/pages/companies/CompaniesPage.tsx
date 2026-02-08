@@ -3,14 +3,11 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import { useCompanies } from "../../data/hooks";
 import { Input } from "../../components/Input";
-import { Pagination } from "../../components/Pagination";
 
 export function CompaniesPage() {
   const nav = useNavigate();
-  const [sp, setSp] = useSearchParams();
+  const [sp] = useSearchParams();
   const [q, setQ] = React.useState("");
-  const page = Math.max(1, Number(sp.get("page") ?? "1") || 1);
-  const perPage = 50;
 
   const city = sp.get("city") ?? "";
   const responsible = sp.get("responsible") ?? "";
@@ -19,7 +16,11 @@ export function CompaniesPage() {
     responsible ? `responsible_id="${responsible}"` : "",
   ].filter(Boolean).join(" && ");
 
-  const companiesQ = useCompanies({ search: q || undefined, filter, page, perPage });
+  const companiesQ = useCompanies({ search: q || undefined, filter });
+  const companies: any[] = Array.isArray(companiesQ.data)
+    ? (companiesQ.data as any[])
+    : ((companiesQ.data as any)?.items ?? []);
+
 
   return (
     <Card>
@@ -41,7 +42,7 @@ export function CompaniesPage() {
           <div className="overflow-auto">
             <table className="min-w-[900px] w-full text-sm">
               <thead>
-                <tr className="h-10 bg-[rgba(255,255,255,0.08)] text-[rgba(226,232,240,0.92)] font-semibold">
+                <tr className="h-10 bg-[#EEF1F6] text-[#374151] font-semibold">
                   <th className="text-left px-3">Название</th>
                   <th className="text-left px-3">Город</th>
                   <th className="text-left px-3">Сайт</th>
@@ -49,8 +50,8 @@ export function CompaniesPage() {
                 </tr>
               </thead>
               <tbody>
-                {(companiesQ.data ?? []).map((c: any) => (
-                  <tr key={c.id} className="h-11 border-b border-[rgba(255,255,255,0.10)] hover:bg-[rgba(255,255,255,0.06)] cursor-pointer" onClick={() => nav(`/companies/${c.id}`)}>
+                {(companies ?? []).map((c: any) => (
+                  <tr key={c.id} className="h-11 border-b border-border hover:bg-rowHover cursor-pointer" onClick={() => nav(`/companies/${c.id}`)}>
                     <td className="px-3 font-medium">{c.name}</td>
                     <td className="px-3 text-text2">{c.city ?? "—"}</td>
                     <td className="px-3 text-text2">{c.website ?? "—"}</td>
@@ -59,20 +60,9 @@ export function CompaniesPage() {
                 ))}
               </tbody>
             </table>
-            {!companiesQ.data?.items?.length ? <div className="text-sm text-text2 py-6">Компаний пока нет.</div> : null}
+            {!(companies ?? []).length ? <div className="text-sm text-text2 py-6">Компаний пока нет.</div> : null}
           </div>
         )}
-
-          <Pagination
-            page={companiesQ.data?.page ?? page}
-            totalPages={companiesQ.data?.totalPages ?? 1}
-            onPage={(p) => {
-              const next = new URLSearchParams(sp);
-              next.set("page", String(p));
-              setSp(next);
-            }}
-          />
-
       </CardContent>
     </Card>
   );

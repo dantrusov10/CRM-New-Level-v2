@@ -4,11 +4,14 @@ import { Card, CardContent, CardHeader } from "../../components/Card";
 import { useDeals, useFunnelStages } from "../../data/hooks";
 import { Badge } from "../../components/Badge";
 import dayjs from "dayjs";
+import { Pagination } from "../../components/Pagination";
 
 export function DealsTablePage() {
   const nav = useNavigate();
-  const [sp] = useSearchParams();
+  const [sp, setSp] = useSearchParams();
   const search = sp.get("search") ?? undefined;
+  const page = Math.max(1, Number(sp.get("page") ?? "1") || 1);
+  const perPage = 50;
 
   const stage = sp.get("stage") ?? "";
   const owner = sp.get("owner") ?? "";
@@ -21,7 +24,7 @@ export function DealsTablePage() {
     channel ? `sales_channel="${channel.replace(/\"/g, "\\\"")}"` : "",
   ].filter(Boolean).join(" && ");
 
-  const dealsQ = useDeals({ search, filter });
+  const dealsQ = useDeals({ search, filter, page, perPage });
   useFunnelStages();
 
   return (
@@ -49,7 +52,7 @@ export function DealsTablePage() {
           <div className="overflow-auto">
             <table className="min-w-[1100px] w-full text-sm">
               <thead>
-                <tr className="h-10 bg-[#EEF1F6] text-[#374151] font-semibold">
+                <tr className="h-10 bg-[rgba(255,255,255,0.08)] text-[rgba(226,232,240,0.92)] font-semibold">
                   <th className="text-left px-3">Сделка</th>
                   <th className="text-left px-3">Компания</th>
                   <th className="text-left px-3">Ответственный</th>
@@ -62,10 +65,10 @@ export function DealsTablePage() {
                 </tr>
               </thead>
               <tbody>
-                {dealsQ.data?.map((d: any) => (
+                {dealsQ.data?.items?.map((d: any) => (
                   <tr
                     key={d.id}
-                    className="h-11 border-b border-border hover:bg-rowHover cursor-pointer"
+                    className="h-11 border-b border-[rgba(255,255,255,0.10)] hover:bg-[rgba(255,255,255,0.06)] cursor-pointer"
                     onClick={() => nav(`/deals/${d.id}`)}
                   >
                     <td className="px-3 font-medium">{d.title}</td>
@@ -86,9 +89,19 @@ export function DealsTablePage() {
                 ))}
               </tbody>
             </table>
-            {!dealsQ.data?.length ? <div className="text-sm text-text2 py-6">Сделок пока нет.</div> : null}
+            {!dealsQ.data?.items?.length ? <div className="text-sm text-text2 py-6">Сделок пока нет.</div> : null}
           </div>
         )}
+
+          <Pagination
+            page={dealsQ.data?.page ?? page}
+            totalPages={dealsQ.data?.totalPages ?? 1}
+            onPage={(p) => {
+              const next = new URLSearchParams(sp);
+              next.set("page", String(p));
+              setSp(next);
+            }}
+          />
       </CardContent>
     </Card>
   );

@@ -49,10 +49,10 @@ export function DealsKanbanPage() {
     .filter(Boolean)
     .join(" && ");
 
-  const dealsQ = useDeals({ filter });
+  const dealsQ = useDeals({ filter, page: 1, perPage: 500 });
 
   const stages = stageOnly ? (stagesQ.data ?? []).filter((s) => s.id === stageOnly) : stagesQ.data ?? [];
-  const deals = dealsQ.data ?? [];
+  const deals = dealsQ.data?.items ?? [];
 
   const dealsByStage = React.useMemo(() => {
     const m: Record<string, any[]> = {};

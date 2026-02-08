@@ -1,14 +1,16 @@
 import React from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader } from "../../components/Card";
-import { useDeals, useFunnelStages } from "../../data/hooks";
+import { useDealsList, useFunnelStages } from "../../data/hooks";
 import { Badge } from "../../components/Badge";
+import { Pagination } from "../../components/Pagination";
 import dayjs from "dayjs";
 
 export function DealsTablePage() {
   const nav = useNavigate();
-  const [sp] = useSearchParams();
+  const [sp, setSp] = useSearchParams();
   const search = sp.get("search") ?? undefined;
+  const page = Math.max(1, Number(sp.get("page") ?? 1) || 1);
 
   const stage = sp.get("stage") ?? "";
   const owner = sp.get("owner") ?? "";
@@ -21,7 +23,7 @@ export function DealsTablePage() {
     channel ? `sales_channel="${channel.replace(/\"/g, "\\\"")}"` : "",
   ].filter(Boolean).join(" && ");
 
-  const dealsQ = useDeals({ search, filter });
+  const dealsQ = useDealsList({ search, filter, page, perPage: 25 });
   useFunnelStages();
 
   return (
@@ -62,7 +64,7 @@ export function DealsTablePage() {
                 </tr>
               </thead>
               <tbody>
-                {dealsQ.data?.map((d: any) => (
+                {(dealsQ.data?.items ?? []).map((d: any) => (
                   <tr
                     key={d.id}
                     className="h-11 border-b border-border hover:bg-rowHover cursor-pointer"
@@ -86,7 +88,18 @@ export function DealsTablePage() {
                 ))}
               </tbody>
             </table>
-            {!dealsQ.data?.length ? <div className="text-sm text-text2 py-6">Сделок пока нет.</div> : null}
+            {!(dealsQ.data?.items ?? []).length ? <div className="text-sm text-text2 py-6">Сделок пока нет.</div> : null}
+
+            <Pagination
+              page={dealsQ.data?.page ?? page}
+              totalPages={dealsQ.data?.totalPages ?? 1}
+              onPage={(next) => {
+                const n = String(Math.max(1, next));
+                const sp2 = new URLSearchParams(sp);
+                sp2.set("page", n);
+                setSp(sp2, { replace: true });
+              }}
+            />
           </div>
         )}
       </CardContent>

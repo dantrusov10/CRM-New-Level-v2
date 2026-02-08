@@ -52,12 +52,12 @@ export function KanbanCard({
       <div className="p-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="text-sm font-medium truncate">{deal.title}</div>
+            <div className="text-sm font-semibold text-text truncate drop-shadow-sm">{deal.title}</div>
             <div className="text-xs text-text2 mt-1 truncate">{deal.expand?.company_id?.name ?? "—"}</div>
           </div>
 
           {score ? (
-            <div className="text-xs font-semibold rounded-card border border-border px-2 py-1 tabular-nums">
+            <div className="text-xs font-semibold rounded-card border border-border px-2 py-1 tabular-nums text-text">
               {score}%
             </div>
           ) : null}

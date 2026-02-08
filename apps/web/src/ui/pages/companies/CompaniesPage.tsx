@@ -1,13 +1,15 @@
 import React from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader } from "../../components/Card";
-import { useCompanies } from "../../data/hooks";
+import { useCompaniesList } from "../../data/hooks";
 import { Input } from "../../components/Input";
+import { Pagination } from "../../components/Pagination";
 
 export function CompaniesPage() {
   const nav = useNavigate();
-  const [sp] = useSearchParams();
+  const [sp, setSp] = useSearchParams();
   const [q, setQ] = React.useState("");
+  const page = Math.max(1, Number(sp.get("page") ?? 1) || 1);
 
   const city = sp.get("city") ?? "";
   const responsible = sp.get("responsible") ?? "";
@@ -16,10 +18,8 @@ export function CompaniesPage() {
     responsible ? `responsible_id="${responsible}"` : "",
   ].filter(Boolean).join(" && ");
 
-  const companiesQ = useCompanies({ search: q || undefined, filter });
-  const companies: any[] = Array.isArray(companiesQ.data)
-    ? (companiesQ.data as any[])
-    : ((companiesQ.data as any)?.items ?? []);
+  const companiesQ = useCompaniesList({ search: q || undefined, filter, page, perPage: 25 });
+  const companies: any[] = (companiesQ.data as any)?.items ?? [];
 
 
   return (
@@ -38,6 +38,8 @@ export function CompaniesPage() {
       <CardContent>
         {companiesQ.isLoading ? (
           <div className="text-sm text-text2">Загрузка...</div>
+        ) : companiesQ.error ? (
+          <div className="text-sm text-danger">Ошибка загрузки</div>
         ) : (
           <div className="overflow-auto">
             <table className="min-w-[900px] w-full text-sm">
@@ -61,6 +63,16 @@ export function CompaniesPage() {
               </tbody>
             </table>
             {!(companies ?? []).length ? <div className="text-sm text-text2 py-6">Компаний пока нет.</div> : null}
+
+            <Pagination
+              page={(companiesQ.data as any)?.page ?? page}
+              totalPages={(companiesQ.data as any)?.totalPages ?? 1}
+              onPage={(next) => {
+                const sp2 = new URLSearchParams(sp);
+                sp2.set("page", String(Math.max(1, next)));
+                setSp(sp2, { replace: true });
+              }}
+            />
           </div>
         )}
       </CardContent>

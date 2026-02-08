@@ -1,69 +1,59 @@
 import React from "react";
-import clsx from "clsx";
+import { Button } from "./Button";
 
 export function Pagination({
   page,
   totalPages,
   onPage,
-  className,
 }: {
   page: number;
   totalPages: number;
-  onPage: (p: number) => void;
-  className?: string;
+  onPage: (next: number) => void;
 }) {
+  const canPrev = page > 1;
+  const canNext = page < totalPages;
   if (totalPages <= 1) return null;
 
-  const safePage = Math.min(Math.max(1, page), totalPages);
-
-  const pages: (number | "…")[] = [];
-  const push = (v: number | "…") => pages.push(v);
-
-  push(1);
-  if (safePage > 3) push("…");
-  for (let p = Math.max(2, safePage - 1); p <= Math.min(totalPages - 1, safePage + 1); p++) push(p);
-  if (safePage < totalPages - 2) push("…");
-  if (totalPages > 1) push(totalPages);
+  const start = Math.max(1, page - 2);
+  const end = Math.min(totalPages, page + 2);
+  const pages: number[] = [];
+  for (let p = start; p <= end; p++) pages.push(p);
 
   return (
-    <div className={clsx("pagination flex items-center justify-between gap-3 mt-4", className)} data-pagination="true">
-      <div className="text-xs text-text2">Страница {safePage} из {totalPages}</div>
-
+    <div className="flex items-center justify-between gap-3 mt-4">
+      <div className="text-xs text-text2">Страница {page} из {totalPages}</div>
       <div className="flex items-center gap-2">
-        <button
-          className="h-9 px-3 rounded-card border border-border bg-white text-sm font-semibold disabled:opacity-40"
-          onClick={() => onPage(safePage - 1)}
-          disabled={safePage <= 1}
-        >
+        <Button variant="secondary" disabled={!canPrev} onClick={() => onPage(page - 1)}>
           Назад
-        </button>
+        </Button>
 
-        <div className="flex items-center gap-1">
-          {pages.map((p, i) =>
-            p === "…" ? (
-              <span key={`dots-${i}`} className="px-2 text-text2">…</span>
-            ) : (
-              <button
-                key={p}
-                className={clsx(
-                  "h-9 min-w-9 px-3 rounded-card border border-border text-sm font-semibold",
-                  p === safePage ? "bg-primary text-white border-primary" : "bg-white"
-                )}
-                onClick={() => onPage(p)}
-              >
-                {p}
-              </button>
-            )
-          )}
-        </div>
+        {start > 1 ? (
+          <Button variant="secondary" onClick={() => onPage(1)}>
+            1
+          </Button>
+        ) : null}
+        {start > 2 ? <div className="text-text2 px-1">…</div> : null}
 
-        <button
-          className="h-9 px-3 rounded-card border border-border bg-white text-sm font-semibold disabled:opacity-40"
-          onClick={() => onPage(safePage + 1)}
-          disabled={safePage >= totalPages}
-        >
+        {pages.map((p) => (
+          <Button
+            key={p}
+            variant={p === page ? "primary" : "secondary"}
+            onClick={() => onPage(p)}
+          >
+            {p}
+          </Button>
+        ))}
+
+        {end < totalPages - 1 ? <div className="text-text2 px-1">…</div> : null}
+        {end < totalPages ? (
+          <Button variant="secondary" onClick={() => onPage(totalPages)}>
+            {totalPages}
+          </Button>
+        ) : null}
+
+        <Button variant="secondary" disabled={!canNext} onClick={() => onPage(page + 1)}>
           Вперёд
-        </button>
+        </Button>
       </div>
     </div>
   );

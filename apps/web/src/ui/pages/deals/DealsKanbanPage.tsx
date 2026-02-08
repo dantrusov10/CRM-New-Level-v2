@@ -191,7 +191,7 @@ export function DealsKanbanPage() {
               onDragEnd={onDragEnd}
             >
               {/* Horizontal scroll only inside the kanban strip */}
-              <div className="min-w-0 overflow-x-auto pb-2">
+              <div className="min-w-0 overflow-x-auto no-scrollbar">
                 <div className="grid auto-cols-[320px] grid-flow-col gap-4 min-w-max">
                   {stages.map((s) => (
                     <SortableContext

@@ -1,8 +1,9 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
-import { Building2, KanbanSquare, LayoutGrid, Settings, Upload } from "lucide-react";
+import { Building2, KanbanSquare, LayoutDashboard, LayoutGrid, Settings, Upload } from "lucide-react";
 import type { PermissionMatrix } from "../../lib/rbac";
 import { can } from "../../lib/rbac";
+import logo from "../../assets/newlevel-logo.png";
 
 const Item = ({ to, icon: Icon, label }: { to: string; icon: any; label: string }) => (
   <NavLink
@@ -18,11 +19,17 @@ export function Sidebar({ perms }: { perms: PermissionMatrix }) {
   return (
     <aside className="cockpit-sidebar p-4 overflow-y-auto">
       <div className="mb-5">
-        <div className="text-lg font-extrabold leading-none">Решение</div>
-        <div className="text-xs mt-1 muted font-semibold">CRM для сложных продаж</div>
+        <div className="flex items-center gap-3">
+          <img src={logo} alt="NewLevel CRM" className="w-10 h-10 rounded-2xl border border-[rgba(255,255,255,0.12)]" />
+          <div>
+            <div className="text-base font-extrabold leading-none">NewLevel CRM</div>
+            <div className="text-xs mt-1 muted font-semibold">Command center для продаж</div>
+          </div>
+        </div>
       </div>
 
       <div className="space-y-1">
+        {can(perms, "deals", "read") ? <Item to="/dashboard" icon={LayoutDashboard} label="Dashboard" /> : null}
         {can(perms, "deals", "read") ? <Item to="/deals" icon={LayoutGrid} label="Сделки" /> : null}
         {can(perms, "deals", "read") ? <Item to="/kanban" icon={KanbanSquare} label="Канбан" /> : null}
         {can(perms, "companies", "read") ? <Item to="/companies" icon={Building2} label="Компании" /> : null}

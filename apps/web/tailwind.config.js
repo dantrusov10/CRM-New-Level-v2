@@ -7,23 +7,23 @@ export default {
         'card': '12px'
       },
       colors: {
-        // App background (Design System v1.1)
-        bg: '#F4F6F9',
-        card: '#FFFFFF',
-        border: '#D1D5DB',
-        borderHover: '#9CA3AF',
-        text: '#111827',
-        text2: '#6B7280',
-        primary: '#004EEB',
-        primaryHover: '#003FC4',
-        primaryDisabled: '#C7D7FF',
-        danger: '#DC2626',
-        dangerBg: '#FEF2F2',
-        infoBg: '#EEF4FF',
-        infoBorder: '#B6CCFF',
-        rowHover: '#F1F5F9',
-        rowSelected: '#E1ECFF',
-        tableHeader: '#EEF1F6'
+        // NewLevel CRM — Dark Enterprise (ref-style)
+        bg: '#060F21',
+        card: '#0B1B35',
+        border: '#1F3356',
+        borderHover: '#2B4470',
+        text: '#EAF2FF',
+        text2: '#A8B3C7',
+        primary: '#57B7FF',
+        primaryHover: '#2C9EFF',
+        primaryDisabled: '#22415F',
+        danger: '#EF5350',
+        dangerBg: '#2A0F16',
+        infoBg: '#0B2036',
+        infoBorder: '#244C7A',
+        rowHover: '#0E2440',
+        rowSelected: '#123A66',
+        tableHeader: '#0A1A33'
       }
     }
   },

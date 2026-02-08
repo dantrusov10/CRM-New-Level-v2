@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader } from "../components/Card";
 import { Input } from "../components/Input";
 import { Button } from "../components/Button";
 import { useAuth } from "../../app/AuthProvider";
+import logo from "../../assets/newlevel-logo.png";
 
 export function LoginPage() {
   const { user, login } = useAuth();
@@ -31,11 +32,16 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
+    <div className="min-h-screen flex items-center justify-center p-6 theme-cockpit">
       <Card className="w-full max-w-lg">
         <CardHeader>
-          <div className="text-xl font-semibold">CRM «Решение»</div>
-          <div className="text-xs text-text2 mt-1">Вход</div>
+          <div className="flex items-center gap-3">
+            <img src={logo} alt="NewLevel CRM" className="w-10 h-10 rounded-2xl border border-[rgba(255,255,255,0.12)]" />
+            <div>
+              <div className="text-xl font-extrabold">NewLevel CRM</div>
+              <div className="text-xs text-text2 mt-1">Вход</div>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid gap-3">

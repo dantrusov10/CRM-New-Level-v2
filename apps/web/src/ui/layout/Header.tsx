@@ -9,6 +9,7 @@ import type { PermissionMatrix } from "../../lib/rbac";
 import { can } from "../../lib/rbac";
 
 function titleByPath(pathname: string) {
+  if (pathname.startsWith("/dashboard")) return "Dashboard";
   if (pathname.startsWith("/kanban")) return "Канбан";
   if (pathname.startsWith("/companies")) return "Компании";
   if (pathname.startsWith("/admin")) return "Админ";

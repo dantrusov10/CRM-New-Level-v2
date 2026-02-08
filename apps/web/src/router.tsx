@@ -2,6 +2,7 @@ import React from "react";
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppLayout } from "./ui/layout/AppLayout";
 import { LoginPage } from "./ui/pages/LoginPage";
+import { DashboardPage } from "./ui/pages/DashboardPage";
 import { DealsTablePage } from "./ui/pages/deals/DealsTablePage";
 import { DealsKanbanPage } from "./ui/pages/deals/DealsKanbanPage";
 import { DealDetailPage } from "./ui/pages/deals/DealDetailPage";
@@ -24,7 +25,8 @@ export const router = createBrowserRouter([
       </Protected>
     ),
     children: [
-      { index: true, element: <Navigate to="/deals" replace /> },
+      { index: true, element: <Navigate to="/dashboard" replace /> },
+      { path: "dashboard", element: <DashboardPage /> },
       { path: "deals", element: <DealsTablePage /> },
       { path: "kanban", element: <DealsKanbanPage /> },
       { path: "deals/:id", element: <DealDetailPage /> },

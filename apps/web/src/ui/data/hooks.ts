@@ -86,6 +86,27 @@ export function useDeals(params?: { search?: string; filter?: string; sort?: str
     },
   });}
 
+/**
+ * Paged list for table views (so we can render pagination UI).
+ * Returns PocketBase list result: { page, perPage, totalItems, totalPages, items }.
+ */
+export function useDealsList(params?: { search?: string; filter?: string; sort?: string; page?: number; perPage?: number }) {
+  const { search, filter, sort, page = 1, perPage = 25 } = params ?? {};
+  const q = search ? `title~"${search.replace(/\"/g, "\\\"")}"` : "";
+  const f = [filter, q].filter(Boolean).join(" && ");
+  return useQuery({
+    queryKey: ["dealsList", f, sort, page, perPage],
+    queryFn: async () => {
+      const options: Record<string, any> = {
+        sort: sort ?? "-updated",
+        expand: "company_id,stage_id,responsible_id",
+      };
+      if (f && String(f).trim().length) options.filter = f;
+      return pb.collection("deals").getList(page, perPage, options);
+    },
+  });
+}
+
 export function useDeal(id: string) {
   return useQuery({
     queryKey: ["deal", id],
@@ -111,6 +132,21 @@ export function useCompanies(params?: { search?: string; filter?: string }) {
       return normalizeListResult(res) as any;
     },
   });}
+
+/** Paged companies list for table views (pagination UI). */
+export function useCompaniesList(params?: { search?: string; filter?: string; page?: number; perPage?: number }) {
+  const { search, filter, page = 1, perPage = 25 } = params ?? {};
+  const q = search ? `name~"${search.replace(/\"/g, "\\\"")}"` : "";
+  const f = [filter, q].filter(Boolean).join(" && ");
+  return useQuery({
+    queryKey: ["companiesList", f, page, perPage],
+    queryFn: async () => {
+      const options: Record<string, any> = { sort: "name" };
+      if (f && String(f).trim().length) options.filter = f;
+      return pb.collection("companies").getList(page, perPage, options);
+    },
+  });
+}
 
 export function useCompany(id: string) {
   return useQuery({

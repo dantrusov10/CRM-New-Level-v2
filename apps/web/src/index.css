@@ -17,14 +17,15 @@
   --cp-panel-c:#111827;
 
   --cp-text: rgba(255,255,255,0.92);
-  --cp-text2: rgba(226,232,240,0.78);
-  --cp-text3: rgba(226,232,240,0.62);
+  /* slightly higher contrast for readability on glass */
+  --cp-text2: rgba(226,232,240,0.86);
+  --cp-text3: rgba(226,232,240,0.72);
 
   --cp-stroke: rgba(255,255,255,0.16);
   --cp-stroke2: rgba(255,255,255,0.10);
 
-  --cp-glass: rgba(255,255,255,0.10);
-  --cp-glass2: rgba(255,255,255,0.14);
+  --cp-glass: rgba(255,255,255,0.14);
+  --cp-glass2: rgba(255,255,255,0.18);
 
   --cp-radius: 22px;
   --cp-radius2: 18px;
@@ -189,9 +190,13 @@ body:before{
 .ui-card{
   border-radius: var(--cp-radius2);
   border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(17,24,39,0.22);
+  background: rgba(17,24,39,0.28);
   color: var(--cp-text);
 }
+
+/* Hide native scrollbars (keep scroll) */
+.no-scrollbar{ scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar{ display:none; }
 
 
 .brand-dot{
@@ -215,8 +220,27 @@ body:before{
 
 /* make “white cards” inside cockpit look slightly glassy (optional but helps consistency) */
 .theme-cockpit .bg-white{
-  background: rgba(255,255,255,0.08) !important;
+  /* make "white" surfaces inside cockpit darker glass for contrast */
+  background: rgba(17,24,39,0.26) !important;
   backdrop-filter: blur(10px);
+}
+
+/* Native selects: keep inside theme (avoid unreadable system dropdown) */
+.theme-cockpit select{
+  background: rgba(17,24,39,0.28) !important;
+  color: rgba(255,255,255,0.92) !important;
+  border-color: rgba(255,255,255,0.16) !important;
+}
+.theme-cockpit select option{
+  background: #0B1220;
+  color: #fff;
+}
+
+/* Slight text shadow helps on translucent glass */
+.theme-cockpit .cockpit-panel,
+.theme-cockpit .cockpit-glass,
+.theme-cockpit .bg-white{
+  text-shadow: 0 1px 0 rgba(0,0,0,0.28);
 }
 .theme-cockpit .hover\:bg-rowHover:hover{ background: rgba(255,255,255,0.10) !important; }
 
@@ -224,8 +248,8 @@ body:before{
 /* === Cockpit v6: global contrast fixes + iOS-glass depth + neon outlines === */
 .theme-cockpit{
   --cp-text: rgba(255,255,255,.92);
-  --cp-text2: rgba(226,232,240,.74);
-  --cp-text3: rgba(226,232,240,.58);
+  --cp-text2: rgba(226,232,240,.86);
+  --cp-text3: rgba(226,232,240,.72);
   --cp-stroke: rgba(255,255,255,.16);
   --cp-glass: rgba(17,24,39,.34);
   --cp-glass2: rgba(17,24,39,.22);
@@ -241,10 +265,10 @@ body:before{
 .theme-cockpit .text-[#6B7280]{ color: var(--cp-text2) !important; }
 
 .theme-cockpit .border-border{ border-color: var(--cp-stroke) !important; }
-.theme-cockpit .bg-white{ background: rgba(255,255,255,.06) !important; }
-.theme-cockpit .bg-card{ background: rgba(255,255,255,.06) !important; }
-.theme-cockpit .bg-tableHeader{ background: rgba(255,255,255,.08) !important; }
-.theme-cockpit .hover\:bg-rowHover:hover{ background: rgba(255,255,255,.06) !important; }
+.theme-cockpit .bg-white{ background: rgba(17,24,39,.26) !important; }
+.theme-cockpit .bg-card{ background: rgba(17,24,39,.22) !important; }
+.theme-cockpit .bg-tableHeader{ background: rgba(17,24,39,.30) !important; }
+.theme-cockpit .hover\:bg-rowHover:hover{ background: rgba(255,255,255,.10) !important; }
 
 /* The main “glass panel” look */
 .theme-cockpit .ui-card,

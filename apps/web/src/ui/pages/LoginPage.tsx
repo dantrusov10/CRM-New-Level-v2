@@ -32,9 +32,9 @@ export function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-lg">
         <CardHeader>
-          <div className="text-base font-semibold">CRM «Решение»</div>
+          <div className="text-xl font-semibold">CRM «Решение»</div>
           <div className="text-xs text-text2 mt-1">Вход</div>
         </CardHeader>
         <CardContent>
@@ -49,9 +49,6 @@ export function LoginPage() {
             </div>
             {err ? <div className="text-sm text-danger">{err}</div> : null}
             <Button onClick={submit} disabled={loading || !email || !password}>{loading ? "Входим..." : "Войти"}</Button>
-            <div className="text-xs text-text2">
-              Пользователи создаются в PocketBase Admin UI (`users`) или через раздел Админ → Пользователи (в этом UI).
-            </div>
           </div>
         </CardContent>
       </Card>

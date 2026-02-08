@@ -16,7 +16,7 @@ export function Tabs({
   onChange: (key: string) => void;
 }) {
   return (
-    <div className="inline-flex items-center gap-1 rounded-card border border-border bg-white p-1">
+    <div className="tabs-shell inline-flex items-center gap-1 rounded-card border border-border bg-white p-1">
       {items.map((t) => {
         const active = t.key === activeKey;
         return (

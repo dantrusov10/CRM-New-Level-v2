@@ -54,7 +54,7 @@ export function AppLayout() {
   }, [location.pathname, navigate, perms]);
 
   return (
-    <div className="min-h-screen w-full nwl-bg">
+    <div className="min-h-screen w-full theme-cockpit">
       {/* Sidebar is fixed, content scrolls independently */}
       <div className="fixed left-0 top-0 h-screen" style={{ width: SIDEBAR_W }}>
         <Sidebar perms={perms} />

@@ -1,19 +1,13 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { Building2, KanbanSquare, LayoutGrid, Settings, Upload } from "lucide-react";
-import clsx from "clsx";
 import type { PermissionMatrix } from "../../lib/rbac";
 import { can } from "../../lib/rbac";
 
 const Item = ({ to, icon: Icon, label }: { to: string; icon: any; label: string }) => (
   <NavLink
     to={to}
-    className={({ isActive }) =>
-      clsx(
-        "flex items-center gap-3 rounded-card px-3 py-2 text-sm",
-        isActive ? "bg-rowSelected border border-border" : "hover:bg-rowHover"
-      )
-    }
+    className={({ isActive }) => `cockpit-nav-item ${isActive ? "active" : ""}`}
   >
     <Icon size={18} />
     <span>{label}</span>
@@ -22,10 +16,10 @@ const Item = ({ to, icon: Icon, label }: { to: string; icon: any; label: string 
 
 export function Sidebar({ perms }: { perms: PermissionMatrix }) {
   return (
-    <aside className="h-screen w-full border-r border-border bg-card p-4 overflow-y-auto">
+    <aside className="cockpit-sidebar p-4 overflow-y-auto">
       <div className="mb-5">
-        <div className="text-lg font-semibold leading-none">Решение</div>
-        <div className="text-xs text-text2 mt-1">CRM для сложных продаж</div>
+        <div className="text-lg font-extrabold leading-none">Решение</div>
+        <div className="text-xs mt-1 muted font-semibold">CRM для сложных продаж</div>
       </div>
 
       <div className="space-y-1">
@@ -36,8 +30,8 @@ export function Sidebar({ perms }: { perms: PermissionMatrix }) {
       </div>
 
       {can(perms, "admin", "read") ? (
-        <div className="mt-6 border-t border-border pt-4">
-          <div className="text-xs font-semibold text-text2 mb-2">Админ</div>
+        <div className="mt-6 border-t border-[rgba(255,255,255,0.12)] pt-4">
+          <div className="text-xs font-extrabold muted mb-2 tracking-wide uppercase">Админ</div>
           <div className="space-y-1">
             <Item to="/admin/users" icon={Settings} label="Пользователи" />
             <Item to="/admin/funnel" icon={Settings} label="Воронка" />

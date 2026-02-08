@@ -2,167 +2,220 @@
 @tailwind components;
 @tailwind utilities;
 
-/* =========================================================
-   New Level CRM — "Cockpit everywhere" UI (v3)
-   BYD confidence + iOS glass + amo productivity
-   Visual-only changes (no business logic touched)
-========================================================= */
+/* ========= Calm Power UI (Cockpit) — Global ========= */
+:root{
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 
-@layer base {
-  :root{
-    font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  }
-  *{ box-sizing: border-box; }
-  html, body { height: 100%; }
-  body{
-    margin: 0;
-    background:
-      radial-gradient(900px 600px at 10% -10%, rgba(96,165,250,0.35), transparent 60%),
-      radial-gradient(900px 600px at 95% 0%, rgba(45,212,191,0.22), transparent 55%),
-      linear-gradient(180deg, #E9EEF8, #DDE6F6);
-  }
+  --cp-bg-1:#E9EEF8;
+  --cp-bg-2:#DDE6F6;
+
+  --cp-panel-a:#1E3A8A;
+  --cp-panel-b:#0E7490;
+  --cp-panel-c:#111827;
+
+  --cp-text: rgba(255,255,255,0.92);
+  --cp-text2: rgba(226,232,240,0.78);
+  --cp-text3: rgba(226,232,240,0.62);
+
+  --cp-stroke: rgba(255,255,255,0.16);
+  --cp-stroke2: rgba(255,255,255,0.10);
+
+  --cp-glass: rgba(255,255,255,0.10);
+  --cp-glass2: rgba(255,255,255,0.14);
+
+  --cp-radius: 22px;
+  --cp-radius2: 18px;
+  --cp-radius3: 14px;
+
+  --cp-shadow: 0 18px 46px rgba(15,23,42,0.22);
+  --cp-shadow2: 0 10px 30px rgba(15,23,42,0.18);
+
+  --cp-primary: #60A5FA;
+  --cp-primary2:#2563EB;
 }
 
-/* ===== Core patterns (match your "Sales Cockpit" element) ===== */
-@layer components {
-  .nwl-bg{
-    background:
-      radial-gradient(900px 600px at 10% -10%, rgba(96,165,250,0.35), transparent 60%),
-      radial-gradient(900px 600px at 95% 0%, rgba(45,212,191,0.22), transparent 55%),
-      linear-gradient(180deg, #E9EEF8, #DDE6F6);
-  }
+*{box-sizing:border-box}
 
-  /* Topbar / sidebar glass on dark */
-  .nwl-glassbar{
-    background: rgba(17,24,39,0.35);
-    border-bottom: 1px solid rgba(255,255,255,0.12);
-    backdrop-filter: blur(14px);
-  }
-  .nwl-glass{
-    background: rgba(255,255,255,0.10);
-    border: 1px solid rgba(255,255,255,0.16);
-    backdrop-filter: blur(14px);
-  }
-
-  /* Main cockpit panel */
-  .nwl-panel{
-    position: relative;
-    overflow: hidden;
-    border-radius: 22px;
-    border: 1px solid rgba(255,255,255,0.14);
-    background: linear-gradient(135deg, #1E3A8A 0%, #0E7490 45%, #111827 110%);
-    box-shadow: 0 18px 46px rgba(15,23,42,0.22);
-    color: rgba(255,255,255,0.92);
-  }
-  .nwl-panel::before{
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background:
-      radial-gradient(circle at 20% 10%, rgba(255,255,255,0.18), transparent 55%),
-      radial-gradient(circle at 80% 30%, rgba(96,165,250,0.22), transparent 60%);
-    opacity: 0.9;
-  }
-  .nwl-panel > *{ position: relative; }
-
-  /* inner "metric card" inside panels */
-  .nwl-metric{
-    border-radius: 16px;
-    border: 1px solid rgba(255,255,255,0.16);
-    background: rgba(17,24,39,0.26);
-    backdrop-filter: blur(10px);
-  }
-
-  /* pills */
-  .nwl-pill{
-    border-radius: 999px;
-    border: 1px solid rgba(255,255,255,0.14);
-    background: rgba(17,24,39,0.22);
-    color: rgba(226,232,240,0.90);
-  }
-  .nwl-pill-ok{
-    border-color: rgba(34,197,94,0.35);
-    background: rgba(34,197,94,0.20);
-  }
-  .nwl-pill-warn{
-    border-color: rgba(245,158,11,0.35);
-    background: rgba(245,158,11,0.20);
-  }
-  .nwl-pill-danger{
-    border-color: rgba(239,68,68,0.35);
-    background: rgba(239,68,68,0.20);
-  }
-
-  /* Secondary panels (still cockpit but lighter) */
-  .nwl-panel-soft{
-    background: linear-gradient(135deg, rgba(30,58,138,0.92) 0%, rgba(14,116,144,0.90) 55%, rgba(17,24,39,0.92) 115%);
-  }
-
-  /* kanban columns/cards */
-  .nwl-column{
-    border-radius: 20px;
-    border: 1px solid rgba(255,255,255,0.12);
-    background: rgba(17,24,39,0.35);
-    backdrop-filter: blur(10px);
-    color: rgba(255,255,255,0.90);
-  }
-  .nwl-dealcard{
-    border-radius: 18px;
-    border: 1px solid rgba(255,255,255,0.12);
-    background: rgba(255,255,255,0.06);
-    transition: transform .12s ease, background .12s ease, border-color .12s ease;
-  }
-  .nwl-dealcard:hover{
-    transform: translateY(-2px);
-    background: rgba(255,255,255,0.10);
-    border-color: rgba(96,165,250,0.35);
-  }
-
-  /* modal */
-  .nwl-modal{
-    border-radius: 22px;
-    border: 1px solid rgba(255,255,255,0.16);
-    background: linear-gradient(135deg, rgba(30,58,138,0.92) 0%, rgba(14,116,144,0.88) 55%, rgba(17,24,39,0.92) 115%);
-    box-shadow: 0 24px 70px rgba(15,23,42,0.35);
-    color: rgba(255,255,255,0.92);
-  }
-
-  /* inputs/buttons in dark */
-  .nwl-input{
-    border-radius: 16px;
-    border: 1px solid rgba(255,255,255,0.16);
-    background: rgba(255,255,255,0.10);
-    color: rgba(255,255,255,0.92);
-  }
-  .nwl-input::placeholder{ color: rgba(226,232,240,0.62); }
-
-  .nwl-btn{
-    border-radius: 16px;
-    border: 1px solid rgba(255,255,255,0.16);
-    background: rgba(255,255,255,0.10);
-    color: rgba(255,255,255,0.92);
-    transition: transform .12s ease, background .12s ease, border-color .12s ease;
-  }
-  .nwl-btn:hover{
-    transform: translateY(-1px);
-    border-color: rgba(96,165,250,0.35);
-    background: rgba(255,255,255,0.14);
-  }
-  .nwl-btn-primary{
-    background: linear-gradient(180deg, rgba(96,165,250,0.95), rgba(37,99,235,0.92));
-    border-color: rgba(96,165,250,0.45);
-    box-shadow: 0 16px 44px rgba(96,165,250,0.20);
-  }
-
-  /* table readability */
-  .nwl-table{
-    border-radius: 22px;
-    border: 1px solid rgba(255,255,255,0.12);
-    background: rgba(17,24,39,0.35);
-    backdrop-filter: blur(10px);
-    color: rgba(255,255,255,0.92);
-  }
-  .nwl-table th{ color: rgba(226,232,240,0.78); }
-  .nwl-table td{ color: rgba(255,255,255,0.92); }
+/* App background */
+body{
+  background:
+    radial-gradient(900px 600px at 10% -10%, rgba(96,165,250,0.35), transparent 60%),
+    radial-gradient(900px 600px at 95% 0%, rgba(45,212,191,0.22), transparent 55%),
+    linear-gradient(180deg, var(--cp-bg-1), var(--cp-bg-2));
 }
+
+/* Subtle tech grid */
+body:before{
+  content:"";
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  opacity:0.18;
+  background-image:
+    linear-gradient(to right, rgba(15,23,42,0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15,23,42,0.06) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(circle at 30% 10%, rgba(0,0,0,1), rgba(0,0,0,0.22) 55%, rgba(0,0,0,0) 75%);
+}
+
+/* ========= Cockpit utility classes (no @apply, to avoid Tailwind build issues) ========= */
+.cockpit-topbar{
+  position:sticky; top:0; z-index:40;
+  background: rgba(17,24,39,0.35);
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  backdrop-filter: blur(14px);
+}
+
+.cockpit-sidebar{
+  height:100%;
+  border-right: 1px solid rgba(255,255,255,0.12);
+  background: linear-gradient(180deg, rgba(17,24,39,0.92), rgba(17,24,39,0.80));
+  color: var(--cp-text);
+}
+.cockpit-sidebar .muted{ color: var(--cp-text3); }
+
+.cockpit-nav-item{
+  display:flex; align-items:center; gap:12px;
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 750;
+  color: rgba(226,232,240,0.88);
+  border:1px solid transparent;
+}
+.cockpit-nav-item:hover{
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.10);
+}
+.cockpit-nav-item.active{
+  background: rgba(96,165,250,0.16);
+  border-color: rgba(96,165,250,0.30);
+  color: #fff;
+}
+
+/* Core surfaces */
+.cockpit-panel{
+  background: linear-gradient(135deg, var(--cp-panel-a) 0%, var(--cp-panel-b) 45%, var(--cp-panel-c) 110%);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: var(--cp-radius);
+  box-shadow: var(--cp-shadow);
+  color: var(--cp-text);
+  position:relative;
+  overflow:hidden;
+}
+.cockpit-panel:before{
+  content:"";
+  position:absolute; inset:0;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(255,255,255,0.18), transparent 55%),
+    radial-gradient(circle at 80% 30%, rgba(96,165,250,0.22), transparent 60%);
+  opacity:.9;
+  pointer-events:none;
+}
+.cockpit-panel > *{ position:relative; }
+
+.cockpit-glass{
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: var(--cp-radius2);
+  backdrop-filter: blur(12px);
+}
+
+/* Typography on dark glass/panels */
+.cockpit-panel h1, .cockpit-panel h2, .cockpit-panel h3, .cockpit-panel h4,
+.cockpit-topbar, .cockpit-sidebar{
+  color: var(--cp-text);
+}
+.cockpit-panel .subtle{ color: var(--cp-text2); }
+.cockpit-panel .muted{ color: var(--cp-text3); }
+
+/* Buttons */
+.ui-btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  height:42px;
+  padding: 0 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.10);
+  backdrop-filter: blur(14px);
+  color: rgba(255,255,255,0.92);
+  font-weight: 850;
+  cursor:pointer;
+  transition: transform .12s ease, background .12s ease, border-color .12s ease, opacity .12s ease;
+}
+.ui-btn:hover{ transform: translateY(-1px); border-color: rgba(96,165,250,0.35); background: rgba(255,255,255,0.14); }
+.ui-btn:disabled{ opacity: .55; cursor:not-allowed; transform:none; }
+
+.ui-btn-primary{
+  background: linear-gradient(180deg, rgba(96,165,250,0.95), rgba(37,99,235,0.92));
+  border-color: rgba(96,165,250,0.45);
+  box-shadow: 0 16px 44px rgba(96,165,250,0.20);
+}
+.ui-btn-primary:hover{ border-color: rgba(96,165,250,0.75); }
+
+.ui-btn-danger{
+  background: linear-gradient(180deg, rgba(239,68,68,0.92), rgba(220,38,38,0.88));
+  border-color: rgba(239,68,68,0.35);
+}
+.ui-btn-secondary{
+  background: rgba(255,255,255,0.10);
+}
+
+/* Icon button */
+.ui-icon-btn{
+  width:42px;
+  padding:0;
+}
+
+/* Inputs */
+.ui-input{
+  height:42px;
+  width:100%;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.10);
+  backdrop-filter: blur(14px);
+  padding: 0 12px;
+  color: rgba(255,255,255,0.92);
+  outline:none;
+  font-weight: 750;
+}
+.ui-input::placeholder{ color: rgba(226,232,240,0.62); }
+.ui-input:focus{ border-color: rgba(96,165,250,0.55); }
+
+.ui-card{
+  border-radius: var(--cp-radius2);
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(17,24,39,0.22);
+  color: var(--cp-text);
+}
+
+
+.brand-dot{
+  width:10px;height:10px;border-radius:999px;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.92), rgba(96,165,250,0.95));
+  box-shadow: 0 0 0 4px rgba(96,165,250,0.18), 0 12px 30px rgba(96,165,250,0.22);
+  display:inline-block;
+}
+
+
+/* ========= Tailwind class overrides inside cockpit theme ========= */
+.theme-cockpit .bg-bg{ background: transparent !important; }
+.theme-cockpit .bg-card{ background: rgba(17,24,39,0.22) !important; }
+.theme-cockpit .border-border{ border-color: rgba(255,255,255,0.12) !important; }
+.theme-cockpit .border-borderHover{ border-color: rgba(255,255,255,0.18) !important; }
+.theme-cockpit .text-text{ color: rgba(255,255,255,0.92) !important; }
+.theme-cockpit .text-text2{ color: rgba(226,232,240,0.64) !important; }
+.theme-cockpit .bg-rowHover{ background: rgba(255,255,255,0.08) !important; }
+.theme-cockpit .bg-rowSelected{ background: rgba(96,165,250,0.16) !important; }
+.theme-cockpit .border{ border-color: rgba(255,255,255,0.12) !important; }
+
+/* make “white cards” inside cockpit look slightly glassy (optional but helps consistency) */
+.theme-cockpit .bg-white{
+  background: rgba(255,255,255,0.08) !important;
+  backdrop-filter: blur(10px);
+}
+.theme-cockpit .hover\:bg-rowHover:hover{ background: rgba(255,255,255,0.10) !important; }

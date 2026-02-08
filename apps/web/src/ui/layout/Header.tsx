@@ -36,13 +36,16 @@ export function Header({
   const { logout } = useAuth();
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-card">
+    <header className="cockpit-topbar">
       <div className="flex items-center gap-3 px-6 py-4">
-        <div className="text-base font-semibold w-[160px]">{titleByPath(pathname)}</div>
+        <div className="text-sm font-extrabold tracking-wide uppercase w-[160px] flex items-center gap-2">
+          <span className="brand-dot" />
+          {titleByPath(pathname)}
+        </div>
 
         <div className="flex-1 flex items-center gap-2">
-          <div className="relative w-full max-w-[520px]">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-text2">
+          <div className="relative w-full max-w-[560px]">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[rgba(226,232,240,0.72)]">
               <Search size={16} />
             </div>
             <Input
@@ -56,18 +59,24 @@ export function Header({
             />
           </div>
 
-          <button className="h-10 w-10 rounded-card border border-border bg-white hover:bg-rowHover flex items-center justify-center" onClick={() => setFiltersOpen(true)} title="Фильтры">
+          <button
+            className="ui-btn ui-icon-btn"
+            onClick={() => setFiltersOpen(true)}
+            title="Фильтры"
+            aria-label="Фильтры"
+          >
             <Filter size={18} />
           </button>
 
           <button
-            className="h-10 w-10 rounded-card border border-border bg-white hover:bg-rowHover flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+            className="ui-btn ui-icon-btn disabled:opacity-50 disabled:cursor-not-allowed"
             title={can(perms, "admin", "read") ? "Настройки" : "Настройки (нет доступа)"}
             onClick={() => {
               if (!can(perms, "admin", "read")) return;
               nav("/admin/users");
             }}
             disabled={!can(perms, "admin", "read")}
+            aria-label="Настройки"
           >
             <Settings2 size={18} />
           </button>
@@ -75,18 +84,30 @@ export function Header({
 
         <div className="flex items-center gap-2">
           {can(perms, "import_export", "read") ? (
-            <Button variant="secondary" onClick={onImport} disabled={!can(perms, "import_export", "create")}><Upload size={16}/>Импорт</Button>
+            <Button variant="secondary" onClick={onImport} disabled={!can(perms, "import_export", "create")}>
+              <Upload size={16} />
+              Импорт
+            </Button>
           ) : null}
           {can(perms, "import_export", "read") ? (
-            <Button variant="secondary" onClick={onExport}><Download size={16}/>Экспорт</Button>
+            <Button variant="secondary" onClick={onExport}>
+              <Download size={16} />
+              Экспорт
+            </Button>
           ) : null}
           {can(perms, "companies", "create") ? (
-            <Button variant="secondary" onClick={onCreateCompany}><Plus size={16}/>Компания</Button>
+            <Button variant="secondary" onClick={onCreateCompany}>
+              <Plus size={16} />
+              Компания
+            </Button>
           ) : null}
           {can(perms, "deals", "create") ? (
-            <Button onClick={onCreateDeal}><Plus size={16}/>Сделка</Button>
+            <Button onClick={onCreateDeal}>
+              <Plus size={16} />
+              Сделка
+            </Button>
           ) : null}
-          <button className="h-10 w-10 rounded-card border border-border bg-white hover:bg-rowHover flex items-center justify-center" title="Выйти" onClick={logout}>
+          <button className="ui-btn ui-icon-btn" title="Выйти" onClick={logout} aria-label="Выйти">
             <LogOut size={18} />
           </button>
         </div>

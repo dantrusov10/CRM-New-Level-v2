@@ -10,13 +10,13 @@ export function Input({ className, error, ...rest }: Props) {
     <div className="w-full">
       <input
         className={clsx(
-          "h-10 w-full rounded-card border bg-white px-3 text-sm outline-none transition-colors",
-          error ? "border-danger ring-0 bg-dangerBg" : "border-[#9CA3AF] focus:border-primary focus:ring-0",
+          "ui-input text-sm",
+          error ? "border-[rgba(239,68,68,0.55)] bg-[rgba(239,68,68,0.08)]" : "",
           className
         )}
         {...rest}
       />
-      {error ? <div className="mt-1 text-xs text-danger">{error}</div> : null}
+      {error ? <div className="mt-1 text-xs text-[rgba(239,68,68,0.95)] font-semibold">{error}</div> : null}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { Input } from "../components/Input";
 import { Button } from "../components/Button";
 import { pb } from "../../lib/pb";
 import { useNavigate } from "react-router-dom";
+import { notifyPbError } from "../../lib/pbError";
 
 export function CreateCompanyModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [name, setName] = React.useState("");
@@ -33,6 +34,8 @@ export function CreateCompanyModal({ open, onClose }: { open: boolean; onClose: 
       const rec = await pb.collection("companies").create(data);
       onClose();
       nav(`/companies/${rec.id}`);
+    } catch (e) {
+      notifyPbError(e, "Не удалось создать компанию");
     } finally {
       setSaving(false);
     }

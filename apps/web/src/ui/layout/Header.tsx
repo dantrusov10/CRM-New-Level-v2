@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Filter, Search, Settings2, Plus, Upload, Download, LogOut } from "lucide-react";
+import { Filter, Search, Plus, Upload, Download, LogOut } from "lucide-react";
 import { Input } from "../components/Input";
 import { Button } from "../components/Button";
 import { useAuth } from "../../app/AuthProvider";
@@ -69,18 +69,7 @@ export function Header({
             <Filter size={18} />
           </button>
 
-          <button
-            className="ui-btn ui-icon-btn disabled:opacity-50 disabled:cursor-not-allowed"
-            title={can(perms, "admin", "read") ? "Настройки" : "Настройки (нет доступа)"}
-            onClick={() => {
-              if (!can(perms, "admin", "read")) return;
-              nav("/admin/users");
-            }}
-            disabled={!can(perms, "admin", "read")}
-            aria-label="Настройки"
-          >
-            <Settings2 size={18} />
-          </button>
+          {/* Кнопку "Настройки" убрали из хедера (дублировала левое меню и путала) */}
         </div>
 
         <div className="flex items-center gap-2">

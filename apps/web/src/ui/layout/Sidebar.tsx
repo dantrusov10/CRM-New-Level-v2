@@ -1,5 +1,5 @@
 import React from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { Building2, KanbanSquare, LayoutDashboard, LayoutGrid, Settings, Upload } from "lucide-react";
 import type { PermissionMatrix } from "../../lib/rbac";
 import { can } from "../../lib/rbac";
@@ -16,16 +16,22 @@ const Item = ({ to, icon: Icon, label }: { to: string; icon: any; label: string 
 );
 
 export function Sidebar({ perms }: { perms: PermissionMatrix }) {
+  const nav = useNavigate();
   return (
     <aside className="cockpit-sidebar p-4 overflow-y-auto">
       <div className="mb-5">
-        <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => nav("/dashboard")}
+          className="flex items-center gap-3 text-left w-full hover:opacity-95 active:opacity-90"
+          title="На главную (Dashboard)"
+        >
           <img src={logo} alt="NewLevel CRM" className="w-10 h-10 rounded-2xl border border-[rgba(255,255,255,0.12)]" />
           <div>
             <div className="text-base font-extrabold leading-none">NewLevel CRM</div>
             <div className="text-xs mt-1 muted font-semibold">Command center для продаж</div>
           </div>
-        </div>
+        </button>
       </div>
 
       <div className="space-y-1">

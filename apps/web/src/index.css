@@ -261,10 +261,17 @@ body:after{
 /* Kanban cards */
 .kanban-card{
   position: relative;
+  /* cards must never be wider than the column */
+  width: calc(100% - 10px);
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
   background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.06));
   border: 1px solid rgba(255,255,255,0.14);
-  box-shadow: 0 14px 44px rgba(0,0,0,0.38);
-  backdrop-filter: blur(14px);
+  /* Lighter shadow for performance (400+ cards) */
+  box-shadow: 0 10px 28px rgba(0,0,0,0.34);
+  /* blur on hundreds of elements is heavy; keep glass feel without per-card blur */
+  backdrop-filter: none;
 }
 .kanban-card::before{
   content:"";
@@ -272,7 +279,8 @@ body:after{
   left:0; top:0; bottom:0;
   width:4px;
   background: var(--stage-color, var(--cp-primary));
-  filter: drop-shadow(0 0 12px var(--stage-color, var(--cp-primary)));
+  /* drop-shadow filter is expensive; rely on subtle glow via ::after */
+  filter: none;
   border-top-left-radius: var(--cp-radius3);
   border-bottom-left-radius: var(--cp-radius3);
   opacity: .95;

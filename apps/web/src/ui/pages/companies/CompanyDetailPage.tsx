@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader } from "../../components/Card";
 import { useCompany, useDeals, useTimeline } from "../../data/hooks";
 import { Button } from "../../components/Button";
 import dayjs from "dayjs";
+import { DynamicEntityFormWithRef, DynamicEntityFormHandle } from "../../components/DynamicEntityForm";
 
 export function CompanyDetailPage() {
   const { id } = useParams();
@@ -13,6 +14,7 @@ export function CompanyDetailPage() {
   const tlQ = useTimeline("company", id!);
 
   const c = companyQ.data as any;
+  const formRef = React.useRef<DynamicEntityFormHandle | null>(null);
 
   return (
     <div className="grid gap-4">
@@ -30,19 +32,31 @@ export function CompanyDetailPage() {
           {companyQ.isLoading ? (
             <div className="text-sm text-text2">Загрузка...</div>
           ) : (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <div className="text-xl font-semibold">{c?.name}</div>
-                <div className="text-sm text-text2">ID: {c?.id}</div>
-                <div className="text-sm"><span className="text-text2">Город:</span> {c?.city ?? "—"}</div>
-                <div className="text-sm"><span className="text-text2">Сайт:</span> {c?.website ?? "—"}</div>
-                <div className="text-sm"><span className="text-text2">ИНН:</span> {c?.inn ?? "—"}</div>
+            <div className="grid gap-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-xl font-semibold">{c?.name}</div>
+                  <div className="text-sm text-text2 mt-1">ID: {c?.id}</div>
+                </div>
+                <Button
+                  variant="secondary"
+                  onClick={async () => {
+                    await formRef.current?.save();
+                    await companyQ.refetch();
+                  }}
+                >
+                  Сохранить
+                </Button>
               </div>
 
-              <div className="rounded-card border border-border bg-rowHover p-3 text-sm text-text2">
-                Конструктор полей карточки компании реализуется через коллекцию `settings_fields`.
-                В MVP показаны базовые атрибуты.
-              </div>
+              <DynamicEntityFormWithRef
+                ref={formRef}
+                entity="company"
+                record={c}
+                onSaved={async () => {
+                  await companyQ.refetch();
+                }}
+              />
             </div>
           )}
         </CardContent>

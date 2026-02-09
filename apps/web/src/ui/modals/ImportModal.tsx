@@ -211,39 +211,52 @@ export function ImportModal({
     setProgress("");
   }
 
-  function downloadTemplate() {
+  async function downloadTemplate() {
     if (entity === "deal") {
-      const template = [
-        {
-          "Название сделки": "",
-          "Компания": "",
-          "ИНН": "",
-          "Этап": "",
-          "Бюджет": "",
-          "Оборот": "",
-          "Маржа, %": "",
-          "Скидка, %": "",
-          "Канал продаж": "",
-          "Партнёр": "",
-          "Формат закупки": "",
-          "Дата привлечения": "",
-          "Ожидаемая оплата": "",
-        },
-      ];
-      downloadXlsx(template, "deals", "template_deals.xlsx");
-    } else {
-      const template = [
-        {
-          "Название компании": "",
-          "ИНН": "",
-          "Город": "",
-          "Сайт": "",
-          "Телефон": "",
-          "Email": "",
-        },
-      ];
-      downloadXlsx(template, "companies", "template_companies.xlsx");
+      // Dynamic template: all active deal fields (visible OR required) + 5 notes columns
+      const filter = `entity_type="deal" && (visible=true || required=true)`;
+      const fields = (await pb
+        .collection("settings_fields")
+        .getFullList({ filter, sort: "order,sort_order" })
+        .catch(() => [])) as any[];
+
+      const seen = new Set<string>();
+      const headers: string[] = [];
+      for (const f of fields) {
+        const h0 = String(f?.label ?? "").trim();
+        if (!h0) continue;
+        let h = h0;
+        let i = 2;
+        while (seen.has(h)) {
+          h = `${h0} (${i})`;
+          i += 1;
+        }
+        seen.add(h);
+        headers.push(h);
+      }
+
+      // Always add 5 notes columns for timeline comments
+      for (let i = 1; i <= 5; i++) headers.push(`Примечание ${i}`);
+
+      const row: Record<string, any> = {};
+      for (const h of headers) row[h] = "";
+
+      downloadXlsx([row], "deals", "template_deals.xlsx");
+      return;
     }
+
+    // companies template stays simple (MVP)
+    const template = [
+      {
+        "Название компании": "",
+        "ИНН": "",
+        "Город": "",
+        "Сайт": "",
+        "Телефон": "",
+        "Email": "",
+      },
+    ];
+    downloadXlsx(template, "companies", "template_companies.xlsx");
   }
 
   async function runImport() {
@@ -260,6 +273,23 @@ export function ImportModal({
     const companyByInn = new Map<string, string>();
     const companyByName = new Map<string, string>();
     const salesChannelByKey = new Map<string, string>();
+
+
+    // Active deal fields (for dynamic import + template parity)
+    const dealFields = entity === "deal"
+      ? (((await pb
+          .collection("settings_fields")
+          .getFullList({ filter: `entity_type="deal" && (visible=true || required=true)`, sort: "order,sort_order" })
+          .catch(() => [])) as any[]) ?? [])
+      : [];
+
+    const dealFieldByLabel = new Map<string, any>();
+    for (const f of dealFields) {
+      const lbl = String(f?.label ?? "").trim();
+      if (!lbl) continue;
+      // if duplicates exist, keep the first one (admin should avoid duplicates)
+      if (!dealFieldByLabel.has(lbl)) dealFieldByLabel.set(lbl, f);
+    }
 
     const get = (r: Record<string, any>, key: string) => {
       const col = mapping[key];
@@ -429,8 +459,88 @@ export function ImportModal({
             expected_payment_date: String(get(r, "expected_payment_date") || "").trim() || undefined,
             payment_received_date: String(get(r, "payment_received_date") || "").trim() || undefined,
           };
-          if (id) await pb.collection("deals").update(id, payload);
-          else await pb.collection("deals").create(payload);
+
+          // Fill dynamic fields by label (works идеально с нашим шаблоном)
+          // NOTE: системные поля (title/company_id/stage_id/responsible_id) уже заданы выше — не трогаем их здесь.
+          for (const [lbl, f] of dealFieldByLabel.entries()) {
+            const fieldName = String(f?.field_name ?? "").trim();
+            if (!fieldName) continue;
+            if (["title", "company_id", "stage_id", "responsible_id"].includes(fieldName)) continue;
+
+            const raw = (r as any)[lbl];
+            if (raw === null || raw === undefined) continue;
+            const s = String(raw).trim();
+            if (!s || s === "-" || s === "—") continue;
+
+            const ft = String(f?.field_type ?? f?.value_type ?? "").toLowerCase();
+
+            if (ft === "number") payload[fieldName] = num(s);
+            else if (ft === "checkbox" || ft === "bool" || ft === "boolean") {
+              const v = s.toLowerCase();
+              payload[fieldName] = v === "1" || v === "true" || v === "да" || v === "yes" || v === "y";
+            } else if (ft === "relation") {
+              // MVP: если пользователь указал ID — используем его; иначе пытаемся найти по name/title
+              const maybeId = s;
+              if (/^[a-z0-9]{15}$/.test(maybeId)) {
+                payload[fieldName] = maybeId;
+              } else {
+                const opt = (f?.options ?? {}) as any;
+                const relCollection = String(opt?.collection ?? "").trim();
+                if (relCollection) {
+                  const escaped = maybeId.replace(/"/g, "\\\"");
+                  const found = await pb
+                    .collection(relCollection)
+                    .getList(1, 1, { filter: `name="${escaped}"` })
+                    .then((x) => x.items?.[0])
+                    .catch(() => null);
+                  const found2 = found
+                    ? found
+                    : await pb
+                        .collection(relCollection)
+                        .getList(1, 1, { filter: `title="${escaped}"` })
+                        .then((x) => x.items?.[0])
+                        .catch(() => null);
+                  if (found2) payload[fieldName] = (found2 as any).id;
+                }
+              }
+            } else {
+              // text/date/email/select etc
+              payload[fieldName] = s;
+            }
+          }
+
+          // Notes columns → timeline comments (separate records, 1..5)
+          const notes: string[] = [];
+          for (let i = 1; i <= 5; i++) {
+            const v = (r as any)[`Примечание ${i}`];
+            const s = v === null || v === undefined ? "" : String(v).trim();
+            if (s) notes.push(s);
+          }
+
+
+          let dealRec: any = null;
+          if (id) dealRec = await pb.collection("deals").update(id, payload);
+          else dealRec = await pb.collection("deals").create(payload);
+
+          const dealIdFinal = String(dealRec?.id ?? id);
+
+          // persist notes into timeline as отдельные комментарии
+          if (dealIdFinal && notes.length) {
+            for (let i = 0; i < notes.length; i++) {
+              const note = notes[i];
+              await pb
+                .collection("timeline")
+                .create({
+                  deal_id: dealIdFinal,
+                  user_id: user?.id || pb.authStore.model?.id || null,
+                  action: "comment",
+                  comment: note,
+                  payload: { source: "import", kind: "note", index: i + 1 },
+                  timestamp: new Date().toISOString(),
+                })
+                .catch(() => {});
+            }
+          }
         }
         ok++;
       } catch (e: any) {

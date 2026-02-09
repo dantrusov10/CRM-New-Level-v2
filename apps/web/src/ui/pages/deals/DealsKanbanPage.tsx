@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   DndContext,
   DragEndEvent,
+  DragOverEvent,
   DragOverlay,
   DragStartEvent,
   PointerSensor,
@@ -11,7 +12,7 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import { useFunnelStages, useDeals } from "../../data/hooks";
 import { KanbanColumn } from "./components/KanbanColumn";
@@ -148,6 +149,41 @@ export function DealsKanbanPage() {
     return m;
   }, [stages, deals]);
 
+  // Local UI state for drag preview ("cards расступаются" during drag&drop)
+  const [itemsByStage, setItemsByStage] = React.useState<Record<string, string[]>>({});
+
+  const dealsMap = React.useMemo(() => {
+    const m: Record<string, any> = {};
+    for (const d of deals as any[]) m[String(d.id)] = d;
+    return m;
+  }, [deals]);
+
+  React.useEffect(() => {
+    const next: Record<string, string[]> = {};
+    for (const s of stages) next[s.id] = (dealsByStage[s.id] ?? []).map((d) => String(d.id));
+    setItemsByStage(next);
+  }, [stages, dealsByStage]);
+
+  function findContainer(id: string): string | null {
+    if (stages.some((s) => s.id === id)) return id;
+    for (const s of stages) {
+      const arr = itemsByStage[s.id] ?? [];
+      if (arr.includes(id)) return s.id;
+    }
+    return null;
+  }
+
+  const orderedDealsByStage = React.useMemo(() => {
+    const out: Record<string, any[]> = {};
+    for (const s of stages) {
+      const ids = itemsByStage[s.id] ?? [];
+      out[s.id] = ids.map((id) => dealsMap[id]).filter(Boolean);
+    }
+    return out;
+  }, [stages, itemsByStage, dealsMap]);
+
+
+
   const stageStats = React.useMemo(() => {
     const out: Record<string, { count: number; sum: number }> = {};
     for (const s of stages) out[s.id] = { count: 0, sum: 0 };
@@ -199,6 +235,42 @@ export function DealsKanbanPage() {
 
   function onDragStart(ev: DragStartEvent) {
     setActiveDealId(String(ev.active.id));
+  }
+
+  function onDragOver(ev: DragOverEvent) {
+    const activeId = String(ev.active.id);
+    const overId = ev.over?.id ? String(ev.over.id) : null;
+    if (!overId) return;
+
+    const activeContainer = findContainer(activeId);
+    const overContainer = findContainer(overId) ?? (stages.some((s) => s.id === overId) ? overId : null);
+
+    if (!activeContainer || !overContainer) return;
+
+    setItemsByStage((prev) => {
+      const fromItems = (prev[activeContainer] ?? []).slice();
+      const toItems = (prev[overContainer] ?? []).slice();
+
+      // Reorder within the same column (shows insertion position)
+      if (activeContainer === overContainer) {
+        const oldIndex = fromItems.indexOf(activeId);
+        const newIndex = fromItems.indexOf(overId);
+        if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return prev;
+        return { ...prev, [activeContainer]: arrayMove(fromItems, oldIndex, newIndex) };
+      }
+
+      // Move across columns (cards "расступаются" live)
+      const oldIndex = fromItems.indexOf(activeId);
+      if (oldIndex === -1) return prev;
+      fromItems.splice(oldIndex, 1);
+
+      // Insert before the hovered card; if hovered over the column itself → append
+      const overIndex = toItems.indexOf(overId);
+      if (overIndex >= 0) toItems.splice(overIndex, 0, activeId);
+      else toItems.push(activeId);
+
+      return { ...prev, [activeContainer]: fromItems, [overContainer]: toItems };
+    });
   }
 
   async function onDragEnd(ev: DragEndEvent) {
@@ -271,6 +343,7 @@ export function DealsKanbanPage() {
               sensors={sensors}
               collisionDetection={closestCorners}
               onDragStart={onDragStart}
+              onDragOver={onDragOver}
               onDragEnd={onDragEnd}
             >
               {/* Horizontal scroll only inside the kanban strip */}
@@ -282,10 +355,10 @@ export function DealsKanbanPage() {
                   {stages.map((s) => (
                     <SortableContext
                       key={s.id}
-                      items={(dealsByStage[s.id] ?? []).map((d) => d.id)}
+                      items={(itemsByStage[s.id] ?? [])}
                       strategy={verticalListSortingStrategy}
                     >
-                      <KanbanColumn stage={s} deals={dealsByStage[s.id] ?? []} stats={stageStats[s.id]} />
+                      <KanbanColumn stage={s} deals={orderedDealsByStage[s.id] ?? []} stats={stageStats[s.id]} />
                     </SortableContext>
                   ))}
                 </div>

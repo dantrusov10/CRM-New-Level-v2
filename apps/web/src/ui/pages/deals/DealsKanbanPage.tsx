@@ -31,6 +31,25 @@ function dealAmount(d: any) {
 
 export function DealsKanbanPage() {
   const kanbanScrollRef = React.useRef<HTMLDivElement | null>(null);
+
+  // Space + drag to pan horizontally (like Figma). This avoids relying only on Shift+wheel
+  // and is more discoverable than middle-mouse (which can trigger browser auto-scroll).
+  const spaceDownRef = React.useRef(false);
+  React.useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Space") spaceDownRef.current = true;
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space") spaceDownRef.current = false;
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, []);
+
   React.useEffect(() => {
     const el = kanbanScrollRef.current;
     if (!el) return;
@@ -40,11 +59,15 @@ export function DealsKanbanPage() {
     let startLeft = 0;
 
     const onMouseDown = (e: MouseEvent) => {
-      if (e.button !== 1) return; // middle mouse only
+      // middle mouse OR space+left mouse
+      const isMiddle = e.button === 1;
+      const isSpacePan = spaceDownRef.current && e.button === 0;
+      if (!isMiddle && !isSpacePan) return;
       dragging = true;
       startX = e.clientX;
       startLeft = el.scrollLeft;
       e.preventDefault();
+      e.stopPropagation();
     };
 
     const onMouseMove = (e: MouseEvent) => {
@@ -71,13 +94,20 @@ export function DealsKanbanPage() {
       }
     };
 
+    // Prevent Chrome's default middle-click auto-scroll from stealing the interaction.
+    const onAuxClick = (e: MouseEvent) => {
+      if (e.button === 1) e.preventDefault();
+    };
+
     el.addEventListener("mousedown", onMouseDown);
+    el.addEventListener("auxclick", onAuxClick);
     el.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
 
     return () => {
       el.removeEventListener("mousedown", onMouseDown);
+      el.removeEventListener("auxclick", onAuxClick as any);
       el.removeEventListener("wheel", onWheel as any);
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);

@@ -18,11 +18,15 @@ export function Modal({
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/30 p-4"
+      // Intentionally keep the modal lower than the sticky header (so it never "hides" under it).
+      className="fixed inset-0 z-[9999] flex items-start justify-center bg-black/30 px-4 pt-24 pb-6"
       onMouseDown={onClose}
     >
       <div
-        className={clsx("w-full rounded-card border border-border bg-card max-h-[calc(100vh-32px)] overflow-hidden", widthClass)}
+        className={clsx(
+          "w-full rounded-card border border-border bg-card max-h-[calc(100vh-96px)] overflow-hidden",
+          widthClass
+        )}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -31,7 +35,7 @@ export function Modal({
             <X size={18} />
           </button>
         </div>
-        <div className="p-4 overflow-y-auto max-h-[calc(100vh-32px-56px)]">{children}</div>
+        <div className="p-4 overflow-y-auto max-h-[calc(100vh-96px-56px)]">{children}</div>
       </div>
     </div>
   );

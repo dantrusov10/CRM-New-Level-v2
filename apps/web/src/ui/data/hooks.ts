@@ -199,3 +199,15 @@ export function useUpdateDeal() {
   });
 }
 
+export function useUsers() {
+  return useQuery({
+    queryKey: ["users"],
+    queryFn: async (): Promise<any[]> => {
+      // PocketBase auth collection `users`
+      const res = await pb.collection("users").getFullList({ sort: "email", batch: 500 });
+      return normalizeListResult(res) as any;
+    },
+    staleTime: 60_000,
+  });
+}
+

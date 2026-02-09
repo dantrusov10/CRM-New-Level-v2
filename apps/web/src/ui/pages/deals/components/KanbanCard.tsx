@@ -41,6 +41,7 @@ export function KanbanCard({
 
   return (
     <div
+      data-kanban-card-id={deal.id}
       ref={setNodeRef}
       {...(overlay ? {} : attributes)}
       {...(overlay ? {} : listeners)}

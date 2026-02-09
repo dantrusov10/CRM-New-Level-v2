@@ -6,6 +6,7 @@ import { Modal } from "../components/Modal";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import { Combobox, type ComboOption } from "../components/Combobox";
+import { notifyPbError } from "../../lib/pbError";
 
 type EntityType = "deal" | "company";
 
@@ -145,14 +146,20 @@ export function FiltersModal({
       const r = await pb.collection("saved_filters").getList(1, 50, { filter: `entity_type="${entityType}"`, sort: "-created" });
       setPresets(r.items as any);
       setPresetName("");
+    } catch (e) {
+      notifyPbError(e, "Не удалось сохранить пресет");
     } finally {
       setSavingPreset(false);
     }
   }
 
   async function deletePreset(id: string) {
-    await pb.collection("saved_filters").delete(id);
-    setPresets((p) => p.filter((x) => x.id !== id));
+    try {
+      await pb.collection("saved_filters").delete(id);
+      setPresets((p) => p.filter((x) => x.id !== id));
+    } catch (e) {
+      notifyPbError(e, "Не удалось удалить пресет");
+    }
   }
 
   function applyPreset(p: any) {

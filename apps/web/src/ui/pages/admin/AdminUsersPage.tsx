@@ -4,6 +4,7 @@ import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
 import { Modal } from "../../components/Modal";
 import { pb } from "../../../lib/pb";
+import { notifyPbError } from "../../../lib/pbError";
 
 export function AdminUsersPage() {
   const [users, setUsers] = React.useState<any[]>([]);
@@ -41,10 +42,14 @@ export function AdminUsersPage() {
     const data: any = { email, password, passwordConfirm: password };
     if (name.trim()) data.name = name.trim();
     if (role) data.role_name = role;
-    await pb.collection("users").create(data);
-    setOpen(false);
-    setName(""); setEmail(""); setPassword(""); setRole("");
-    load();
+    try {
+      await pb.collection("users").create(data);
+      setOpen(false);
+      setName(""); setEmail(""); setPassword(""); setRole("");
+      load();
+    } catch (e) {
+      notifyPbError(e, "Не удалось создать пользователя");
+    }
   }
 
   return (
@@ -78,8 +83,12 @@ export function AdminUsersPage() {
                       className="h-9 rounded-card border border-[#9CA3AF] bg-white px-2 text-sm"
                       value={u.role_name ?? ""}
                       onChange={async (e) => {
-                        await pb.collection("users").update(u.id, { role_name: e.target.value || null });
-                        load();
+                        try {
+                          await pb.collection("users").update(u.id, { role_name: e.target.value || null });
+                          load();
+                        } catch (err) {
+                          notifyPbError(err, "Не удалось сменить роль");
+                        }
                       }}
                     >
                       <option value="">—</option>

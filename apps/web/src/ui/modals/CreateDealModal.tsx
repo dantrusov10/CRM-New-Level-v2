@@ -6,6 +6,7 @@ import { pb } from "../../lib/pb";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "../components/Badge";
 import { Combobox, type ComboOption } from "../components/Combobox";
+import { notifyPbError } from "../../lib/pbError";
 
 export function CreateDealModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [name, setName] = React.useState("");
@@ -80,6 +81,8 @@ export function CreateDealModal({ open, onClose }: { open: boolean; onClose: () 
 
       onClose();
       nav(`/deals/${rec.id}`);
+    } catch (e) {
+      notifyPbError(e, "Не удалось создать сделку");
     } finally {
       setSaving(false);
     }

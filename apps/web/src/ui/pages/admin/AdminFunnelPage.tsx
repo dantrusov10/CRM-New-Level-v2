@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
 import { pb } from "../../../lib/pb";
+import { notifyPbError } from "../../../lib/pbError";
 
 type FunnelStage = {
   id: string;
@@ -53,26 +54,38 @@ export function AdminFunnelPage() {
 
   async function addStage() {
     const position = stages.length ? Math.max(...stages.map((x) => Number(x.position ?? 0))) + 1 : 1;
-    await pb.collection("settings_funnel_stages").create({
-      stage_name: name.trim(),
-      color,
-      position,
-      active: true,
-      is_final: false,
-      final_type: "none",
-    });
-    setName("");
-    load();
+    try {
+      await pb.collection("settings_funnel_stages").create({
+        stage_name: name.trim(),
+        color,
+        position,
+        active: true,
+        is_final: false,
+        final_type: "none",
+      });
+      setName("");
+      load();
+    } catch (e) {
+      notifyPbError(e, "Не удалось добавить этап");
+    }
   }
 
   async function updateStage(id: string, data: any) {
-    await pb.collection("settings_funnel_stages").update(id, data);
-    load();
+    try {
+      await pb.collection("settings_funnel_stages").update(id, data);
+      load();
+    } catch (e) {
+      notifyPbError(e, "Не удалось сохранить изменения этапа");
+    }
   }
 
   async function removeStage(id: string) {
-    await pb.collection("settings_funnel_stages").delete(id);
-    load();
+    try {
+      await pb.collection("settings_funnel_stages").delete(id);
+      load();
+    } catch (e) {
+      notifyPbError(e, "Не удалось удалить этап");
+    }
   }
 
   async function exportJson() {
@@ -99,26 +112,36 @@ export function AdminFunnelPage() {
   }
 
   async function importJson(file: File) {
-    const txt = await file.text();
-    const arr = JSON.parse(txt);
+    let arr: any;
+    try {
+      const txt = await file.text();
+      arr = JSON.parse(txt);
+    } catch (e) {
+      notifyPbError(e, "Файл импорта повреждён или не является JSON");
+      return;
+    }
 
     const normalized: Partial<FunnelStage>[] = Array.isArray(arr) ? arr.map(normalizeStage) : [];
 
     // naive MVP: очистить и перезаписать
-    for (const s of stages) await pb.collection("settings_funnel_stages").delete(s.id).catch(() => {});
-    for (const s of normalized) {
-      if (!s.stage_name?.trim()) continue;
-      await pb.collection("settings_funnel_stages").create({
-        stage_name: s.stage_name.trim(),
-        position: s.position ?? 0,
-        color: s.color ?? "#004EEB",
-        active: s.active ?? true,
-        is_final: s.is_final ?? false,
-        final_type: s.is_final ? (s.final_type ?? "won") : "none",
-        default_prob: s.default_prob ?? null,
-      });
+    try {
+      for (const s of stages) await pb.collection("settings_funnel_stages").delete(s.id).catch(() => {});
+      for (const s of normalized) {
+        if (!s.stage_name?.trim()) continue;
+        await pb.collection("settings_funnel_stages").create({
+          stage_name: s.stage_name.trim(),
+          position: s.position ?? 0,
+          color: s.color ?? "#004EEB",
+          active: s.active ?? true,
+          is_final: s.is_final ?? false,
+          final_type: s.is_final ? (s.final_type ?? "won") : "none",
+          default_prob: s.default_prob ?? null,
+        });
+      }
+      load();
+    } catch (e) {
+      notifyPbError(e, "Не удалось импортировать этапы");
     }
-    load();
   }
 
   return (

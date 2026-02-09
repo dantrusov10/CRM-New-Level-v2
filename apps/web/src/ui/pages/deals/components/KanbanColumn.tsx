@@ -23,7 +23,7 @@ export function KanbanColumn({
   return (
     <div
       ref={setNodeRef}
-      className="rounded-card border border-border bg-tableHeader p-3"
+      className="rounded-card border border-border bg-tableHeader p-3 overflow-hidden"
       style={{
         outline: isOver ? `2px solid ${(stage as any).color ?? "#33D7FF"}` : "none",
         boxShadow: isOver ? `0 0 0 1px rgba(255,255,255,0.12) inset, 0 0 28px ${(stage as any).color ?? "#33D7FF"}` : undefined,

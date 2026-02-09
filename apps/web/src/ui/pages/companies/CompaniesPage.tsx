@@ -106,34 +106,28 @@ export function CompaniesPage() {
           <div className="text-sm text-danger">Ошибка загрузки</div>
         ) : (
           <div className="overflow-auto">
-            {selectedCount ? (
-              <div className="mb-3 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 rounded-card border border-border bg-white p-3">
-                <div className="text-sm">
-                  Выбрано: <span className="font-semibold">{selectedCount}</span>
-                  {selectedCount === companies.length ? <span className="text-text2"> (страница)</span> : null}
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button variant="danger" onClick={bulkDelete}>Удалить</Button>
-                  <div className="flex items-center gap-2">
-                    <select className="h-9 rounded-card border border-[#9CA3AF] bg-white px-2 text-sm" value={ownerTo} onChange={(e) => setOwnerTo(e.target.value)}>
-                      <option value="">Сменить ответственного…</option>
-                      {(usersQ.data ?? []).map((u: any) => (
-                        <option key={u.id} value={u.id}>{u.name ?? u.email}</option>
-                      ))}
-                    </select>
-                    <Button variant="secondary" onClick={bulkOwner}>Применить</Button>
-                  </div>
-                </div>
+            {/* Bulk actions bar (always visible so it’s obvious) */}
+            <div className="mb-3 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 rounded-card border border-border bg-white p-3">
+              <div className="text-sm">
+                Выбрано: <span className="font-semibold">{selectedCount}</span>
+                {selectedCount > 0 && selectedCount === companies.length ? <span className="text-text2"> (страница)</span> : null}
               </div>
-            ) : (
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <div className="text-xs text-text2">Выбери компании чекбоксами, чтобы выполнить массовое действие</div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="secondary" onClick={() => togglePage(true)} disabled={!companies.length}>Выбрать страницу</Button>
+                <Button variant="secondary" onClick={selectAllMatching} disabled={companiesQ.isLoading}>Выбрать все по фильтру</Button>
+                <div className="w-px h-6 bg-border mx-1" />
+                <Button variant="danger" onClick={bulkDelete} disabled={!selectedCount}>Удалить</Button>
                 <div className="flex items-center gap-2">
-                  <Button variant="secondary" onClick={() => togglePage(true)} disabled={!companies.length}>Выбрать страницу</Button>
-                  <Button variant="secondary" onClick={selectAllMatching}>Выбрать все по фильтру</Button>
+                  <select className="h-9 rounded-card border border-[#9CA3AF] bg-white px-2 text-sm" value={ownerTo} onChange={(e) => setOwnerTo(e.target.value)}>
+                    <option value="">Сменить ответственного…</option>
+                    {(usersQ.data ?? []).map((u: any) => (
+                      <option key={u.id} value={u.id}>{u.name ?? u.email}</option>
+                    ))}
+                  </select>
+                  <Button variant="secondary" onClick={bulkOwner} disabled={!selectedCount}>Применить</Button>
                 </div>
               </div>
-            )}
+            </div>
 
             <table className="min-w-[900px] w-full text-sm">
               <thead>

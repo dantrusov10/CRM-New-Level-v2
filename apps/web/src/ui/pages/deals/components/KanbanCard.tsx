@@ -44,7 +44,7 @@ export function KanbanCard({
       ref={setNodeRef}
       {...(overlay ? {} : attributes)}
       {...(overlay ? {} : listeners)}
-      className="kanban-card rounded-card cursor-grab active:cursor-grabbing select-none"
+      className="kanban-card w-full max-w-full rounded-card cursor-grab active:cursor-grabbing select-none"
       // IMPORTANT: DragOverlay портится в document.body (вне .theme-cockpit),
       // поэтому здесь нельзя rely на .bg-white override — задаём “кокпит” стиль прямо.
       // Stage color применяется как CSS variable, чтобы подсвечивать сделки цветом этапа.

@@ -183,6 +183,7 @@ export function ImportModal({
       id: ["id", "ID"],
       name: ["name", "Компания", "Название компании"],
       inn: ["inn", "ИНН"],
+      sales_channel: ["sales_channel", "sales_channel_id", "Канал продаж", "Канал"],
       website: ["website", "site", "Сайт"],
       city: ["city", "Город"],
       phone: ["phone", "Телефон"],
@@ -258,6 +259,7 @@ export function ImportModal({
     const stageCache = new Map<string, string>(); // stage_name -> id
     const companyByInn = new Map<string, string>();
     const companyByName = new Map<string, string>();
+    const salesChannelByKey = new Map<string, string>();
 
     const get = (r: Record<string, any>, key: string) => {
       const col = mapping[key];
@@ -277,6 +279,44 @@ export function ImportModal({
       if (!found) return "";
       stageCache.set(s, (found as any).id);
       return (found as any).id;
+    }
+
+    async function resolveSalesChannelId(raw: string): Promise<string | null> {
+      const s0 = String(raw || "").trim();
+      if (!s0) return null;
+      const code = s0.toLowerCase().replace(/\s+/g, "_");
+      if (salesChannelByKey.has(code)) return salesChannelByKey.get(code)!;
+      // try by code
+      const foundByCode = await pb
+        .collection("sales_channels")
+        .getList(1, 1, { filter: `code="${code.replace(/"/g, "\\\"")}"` })
+        .then((x) => x.items?.[0])
+        .catch(() => null);
+      if (foundByCode) {
+        salesChannelByKey.set(code, (foundByCode as any).id);
+        return (foundByCode as any).id;
+      }
+      // try by name
+      const foundByName = await pb
+        .collection("sales_channels")
+        .getList(1, 1, { filter: `name="${s0.replace(/"/g, "\\\"")}"` })
+        .then((x) => x.items?.[0])
+        .catch(() => null);
+      if (foundByName) {
+        salesChannelByKey.set(code, (foundByName as any).id);
+        return (foundByName as any).id;
+      }
+
+      // auto-create channel (admin-like behavior). This keeps import smooth.
+      const created = await pb
+        .collection("sales_channels")
+        .create({ name: s0, code, is_active: true })
+        .catch(() => null);
+      if (created) {
+        salesChannelByKey.set(code, (created as any).id);
+        return (created as any).id;
+      }
+      return null;
     }
 
     async function resolveCompanyId(name: string, inn: string): Promise<string> {
@@ -330,9 +370,12 @@ export function ImportModal({
           const id = String(get(r, "id") || "").trim();
           const name = String(get(r, "name") || "").trim();
           if (!name) throw new Error("Название компании обязательно");
+          const salesChannelRaw = String(get(r, "sales_channel") || "").trim();
+          const salesChannelId = await resolveSalesChannelId(salesChannelRaw);
           const payload: any = {
             name,
             inn: String(get(r, "inn") || "").trim() || undefined,
+            sales_channel_id: salesChannelId || undefined,
             website: String(get(r, "website") || "").trim() || undefined,
             city: String(get(r, "city") || "").trim() || undefined,
             phone: String(get(r, "phone") || "").trim() || undefined,

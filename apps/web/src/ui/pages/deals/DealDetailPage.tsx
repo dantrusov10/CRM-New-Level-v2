@@ -9,6 +9,7 @@ import { Tabs } from "../../components/Tabs";
 import { pb } from "../../../lib/pb";
 import { useAiInsights, useDeal, useFunnelStages, useTimeline, useUpdateDeal } from "../../data/hooks";
 import { DealKpModule } from "../../modules/kp/DealKpModule";
+import { DynamicEntityFormWithRef, DynamicEntityFormHandle } from "../../components/DynamicEntityForm";
 
 type AnyObj = Record<string, any>;
 
@@ -107,6 +108,7 @@ export function DealDetailPage() {
   const [tab, setTab] = React.useState<string>("overview");
   const [comment, setComment] = React.useState<string>("");
   const [timelineFilter, setTimelineFilter] = React.useState<string>("all");
+  const formRef = React.useRef<DynamicEntityFormHandle | null>(null);
 
   // form state
   const [title, setTitle] = React.useState<string>("");
@@ -201,50 +203,8 @@ export function DealDetailPage() {
 
   async function save() {
     if (!id) return;
-    const data: AnyObj = {
-      title,
-      budget: budget ? Number(budget) : null,
-      turnover: turnover ? Number(turnover) : null,
-      margin_percent: margin ? Number(margin) : null,
-      discount_percent: discount ? Number(discount) : null,
-      sales_channel: salesChannel || null,
-      partner: partner || null,
-      distributor: distributor || null,
-      purchase_format: purchaseFormat || null,
-      activity_type: activityType || null,
-      endpoints: endpoints ? Number(endpoints) : null,
-      infrastructure_size: infrastructureSize || null,
-      presale: presale || null,
-      registration_deadline: registrationDeadline || null,
-      test_start: testStart || null,
-      test_end: testEnd || null,
-      delivery_date: deliveryDate || null,
-      expected_payment_date: expectedPaymentDate || null,
-      payment_received_date: paymentReceivedDate || null,
-      project_map_link: projectMapLink || null,
-      kaiten_link: kaitenLink || null,
-    };
-
-    const prev = initialRef.current;
-    const diff: AnyObj = {};
-    if (prev) {
-      Object.keys(data).forEach((k) => {
-        const a = (prev as any)[k];
-        const b = (data as any)[k];
-        // normalize null/""
-        const na = a === "" ? null : a;
-        const nb = b === "" ? null : b;
-        if (JSON.stringify(na) !== JSON.stringify(nb)) diff[k] = { from: na, to: nb };
-      });
-    }
-
-    await upd.mutateAsync({ id, data });
-    await createTimelineEvent(
-      "update",
-      Object.keys(diff).length ? `Изменены поля: ${Object.keys(diff).join(", ")}` : "Изменены поля сделки",
-      { changed: diff }
-    );
-
+    // New: dynamic, PB-driven form. The whole card is configured in settings_fields/settings_field_sections.
+    await formRef.current?.save();
     await dealQ.refetch();
     tlQ.refetch();
   }
@@ -291,7 +251,7 @@ export function DealDetailPage() {
                 <Badge>{deal?.expand?.company_id?.name ? "Компания: " + deal.expand.company_id.name : "Компания: —"}</Badge>
               </div>
               <div className="mt-3">
-                <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Название сделки" />
+                <div className="text-lg font-semibold truncate">{deal?.title || "—"}</div>
               </div>
             </div>
 
@@ -349,142 +309,23 @@ export function DealDetailPage() {
       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-8 grid gap-4">
           {tab === "overview" ? (
-            <div className="grid gap-4">
-              <Card>
-                <CardHeader>
-                  <div className="text-sm font-semibold">Основное</div>
-                  <div className="text-xs text-text2 mt-1">Поля сгруппированы как в enterprise CRM</div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-3">
-                    <FieldRow label="Компания">
-                      <div className="h-10 rounded-card border border-border bg-rowHover px-3 flex items-center text-sm">
-                        {deal?.expand?.company_id?.name ? (
-                          <Link to={`/companies/${deal.expand.company_id.id}`} className="text-primary hover:underline">
-                            {deal.expand.company_id.name}
-                          </Link>
-                        ) : (
-                          "—"
-                        )}
-                      </div>
-                    </FieldRow>
-
-                    <FieldRow label="Канал продаж">
-                      <Select value={salesChannel} onChange={setSalesChannel}>
-                        <option value="">—</option>
-                        <option value="прямой">Прямой</option>
-                        <option value="партнёр">Партнёрский</option>
-                      </Select>
-                    </FieldRow>
-
-                    <FieldRow label="Партнёр">
-                      <Input value={partner} onChange={(e) => setPartner(e.target.value)} placeholder="Softline" />
-                    </FieldRow>
-
-                    <FieldRow label="Дистрибьютор">
-                      <Input value={distributor} onChange={(e) => setDistributor(e.target.value)} placeholder="—" />
-                    </FieldRow>
-
-                    <FieldRow label="Формат закупки">
-                      <Input value={purchaseFormat} onChange={(e) => setPurchaseFormat(e.target.value)} placeholder="Тендер / Прямой контракт" />
-                    </FieldRow>
-
-                    <FieldRow label="Тип активности">
-                      <Input value={activityType} onChange={(e) => setActivityType(e.target.value)} placeholder="Пилот / PoC / Демо" />
-                    </FieldRow>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <div className="text-sm font-semibold">Финансы</div>
-                  <div className="text-xs text-text2 mt-1">Бюджет / оборот / маржа / скидка</div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-3">
-                    <FieldRow label="Бюджет, ₽">
-                      <Input value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="1000000" />
-                    </FieldRow>
-                    <FieldRow label="Оборот, ₽">
-                      <Input value={turnover} onChange={(e) => setTurnover(e.target.value)} placeholder="800000" />
-                    </FieldRow>
-                    <FieldRow label="Маржа, %">
-                      <Input value={margin} onChange={(e) => setMargin(e.target.value)} placeholder="25" />
-                    </FieldRow>
-                    <FieldRow label="Скидка, %">
-                      <Input value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="10" />
-                    </FieldRow>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <div className="text-sm font-semibold">Проектные параметры</div>
-                  <div className="text-xs text-text2 mt-1">Инфраструктура, endpoints, presale</div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-3">
-                    <FieldRow label="Кол-во endpoints">
-                      <Input value={endpoints} onChange={(e) => setEndpoints(e.target.value)} placeholder="162000" />
-                    </FieldRow>
-                    <FieldRow label="Размер инфраструктуры">
-                      <Input value={infrastructureSize} onChange={(e) => setInfrastructureSize(e.target.value)} placeholder="Общий размер инфраст..." />
-                    </FieldRow>
-                    <FieldRow label="Presale">
-                      <Input value={presale} onChange={(e) => setPresale(e.target.value)} placeholder="Иван Лашин" />
-                    </FieldRow>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <div className="text-sm font-semibold">Сроки</div>
-                  <div className="text-xs text-text2 mt-1">Регистрация, тест, поставка, оплата</div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-3">
-                    <FieldRow label="Дедлайн регистрации">
-                      <Input value={registrationDeadline} onChange={(e) => setRegistrationDeadline(e.target.value)} placeholder="YYYY-MM-DD" />
-                    </FieldRow>
-                    <FieldRow label="Тест: начало">
-                      <Input value={testStart} onChange={(e) => setTestStart(e.target.value)} placeholder="YYYY-MM-DD" />
-                    </FieldRow>
-                    <FieldRow label="Тест: конец">
-                      <Input value={testEnd} onChange={(e) => setTestEnd(e.target.value)} placeholder="YYYY-MM-DD" />
-                    </FieldRow>
-                    <FieldRow label="Дата отгрузки">
-                      <Input value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} placeholder="YYYY-MM-DD" />
-                    </FieldRow>
-                    <FieldRow label="Плановая оплата">
-                      <Input value={expectedPaymentDate} onChange={(e) => setExpectedPaymentDate(e.target.value)} placeholder="YYYY-MM-DD" />
-                    </FieldRow>
-                    <FieldRow label="Оплата получена">
-                      <Input value={paymentReceivedDate} onChange={(e) => setPaymentReceivedDate(e.target.value)} placeholder="YYYY-MM-DD" />
-                    </FieldRow>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <div className="text-sm font-semibold">Ссылки</div>
-                  <div className="text-xs text-text2 mt-1">Карта проекта, Kaiten/Jira</div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-3">
-                    <FieldRow label="Карта проекта">
-                      <Input value={projectMapLink} onChange={(e) => setProjectMapLink(e.target.value)} placeholder="https://..." />
-                    </FieldRow>
-                    <FieldRow label="Kaiten/Jira">
-                      <Input value={kaitenLink} onChange={(e) => setKaitenLink(e.target.value)} placeholder="https://..." />
-                    </FieldRow>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <Card>
+              <CardHeader>
+                <div className="text-sm font-semibold">Карточка сделки</div>
+                <div className="text-xs text-text2 mt-1">Полностью настраивается в Админ → Поля (разделы + поля).</div>
+              </CardHeader>
+              <CardContent>
+                <DynamicEntityFormWithRef
+                  ref={formRef}
+                  entity="deal"
+                  record={deal}
+                  onSaved={async () => {
+                    await dealQ.refetch();
+                    tlQ.refetch();
+                  }}
+                />
+              </CardContent>
+            </Card>
           ) : null}
 
           {tab === "timeline" ? (

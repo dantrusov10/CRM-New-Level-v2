@@ -16,21 +16,72 @@ const FIELD_TYPES = [
   { v: "number", l: "Число" },
   { v: "date", l: "Дата" },
   { v: "email", l: "Email" },
-  { v: "select", l: "Выбор из списка" },
-  { v: "relation", l: "Связь (relation)" },
-  { v: "json", l: "JSON" },
+  // MVP: оставляем только базовые типы. Options/relations будут управляться автоматически на бэке позже.
+  { v: "textarea", l: "Текст (многострочный)" },
 ];
 
-function parseOptions(raw: any): any {
-  if (!raw) return {};
-  if (typeof raw === "string") {
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return {};
-    }
+function translitRuToEn(input: string) {
+  const map: Record<string, string> = {
+    а: "a",
+    б: "b",
+    в: "v",
+    г: "g",
+    д: "d",
+    е: "e",
+    ё: "e",
+    ж: "zh",
+    з: "z",
+    и: "i",
+    й: "y",
+    к: "k",
+    л: "l",
+    м: "m",
+    н: "n",
+    о: "o",
+    п: "p",
+    р: "r",
+    с: "s",
+    т: "t",
+    у: "u",
+    ф: "f",
+    х: "h",
+    ц: "ts",
+    ч: "ch",
+    ш: "sh",
+    щ: "sch",
+    ъ: "",
+    ы: "y",
+    ь: "",
+    э: "e",
+    ю: "yu",
+    я: "ya",
+  };
+
+  return input
+    .trim()
+    .toLowerCase()
+    .split("")
+    .map((ch) => map[ch] ?? ch)
+    .join("");
+}
+
+function makeFieldName(label: string, existing: string[]) {
+  const base = translitRuToEn(label)
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_\-]/g, "")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 42);
+
+  let name = base || `field_${Date.now()}`;
+  if (!/^[a-z_]/.test(name)) name = `f_${name}`;
+
+  let i = 2;
+  while (existing.includes(name)) {
+    name = `${(base || "field")}_${i}`.slice(0, 48);
+    i += 1;
   }
-  return raw;
+  return name;
 }
 
 export function AdminFieldsPage() {
@@ -43,12 +94,10 @@ export function AdminFieldsPage() {
 
   // fields form
   const [sectionId, setSectionId] = React.useState<string>("");
-  const [fieldName, setFieldName] = React.useState("");
   const [label, setLabel] = React.useState("");
   const [fieldType, setFieldType] = React.useState("text");
   const [required, setRequired] = React.useState(false);
   const [visible, setVisible] = React.useState(true);
-  const [options, setOptions] = React.useState("");
 
   async function load() {
     const filter = `entity_type="${entity}"`;
@@ -110,45 +159,23 @@ export function AdminFieldsPage() {
     const collection = ENTITY_MAP[entity].collection;
     const sort_order = fields.filter((x) => x.section_id === sectionId).length + 1;
 
-    let optObj: any = {};
-    if (fieldType === "select") {
-      const values = options
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-      optObj = { values };
-    } else if (fieldType === "relation") {
-      // Expected format: collection=companies;label=name  OR just collection name
-      const o = options.trim();
-      if (o.includes("{") && o.includes("}")) {
-        optObj = parseOptions(o);
-      } else if (o.includes("collection=")) {
-        const parts = Object.fromEntries(
-          o
-            .split(";")
-            .map((p) => p.trim())
-            .filter(Boolean)
-            .map((p) => {
-              const [k, v] = p.split("=");
-              return [k.trim(), (v || "").trim()];
-            })
-        );
-        optObj = { collection: parts.collection || "", labelField: parts.label || "name" };
-      } else {
-        optObj = { collection: o, labelField: "name" };
-      }
-    } else if (fieldType === "json") {
-      optObj = {};
-    }
+    const existing = fields
+      .filter((f) => f.entity_type === entity)
+      .map((f) => String(f.field_name || ""))
+      .filter(Boolean);
+    const autoFieldName = makeFieldName(label, existing);
+
+    // options скрыты из UI: на MVP держим пустыми (не показываем пользователю JSON)
+    const optObj: any = {};
 
     await pb.collection("settings_fields").create({
       entity_type: entity,
       collection,
       section_id: sectionId || null,
-      field_name: fieldName.trim(),
+      field_name: autoFieldName,
       label: label.trim(),
       field_type: fieldType,
-      value_type: fieldType === "number" ? "number" : fieldType === "date" ? "date" : fieldType === "json" ? "json" : "text",
+      value_type: fieldType === "number" ? "number" : fieldType === "date" ? "date" : "text",
       required,
       visible,
       options: optObj,
@@ -158,9 +185,7 @@ export function AdminFieldsPage() {
       help_text: "",
       role_visibility: {},
     });
-    setFieldName("");
     setLabel("");
-    setOptions("");
     load();
   }
 
@@ -193,7 +218,7 @@ export function AdminFieldsPage() {
               <div className="col-span-3">
                 <div className="text-xs text-text2 mb-1">Сущность</div>
                 <select
-                  className="h-10 w-full rounded-card border border-[#9CA3AF] bg-white px-3 text-sm"
+                  className="ui-input h-10 w-full"
                   value={entity}
                   onChange={(e) => setEntity(e.target.value as EntityType)}
                 >
@@ -215,13 +240,13 @@ export function AdminFieldsPage() {
           </div>
 
           {/* Sections list */}
-          <div className="rounded-card border border-border bg-white overflow-auto">
-            <div className="px-3 py-2 border-b border-border bg-[#EEF1F6] text-[#374151] font-semibold text-sm">
+          <div className="rounded-card border border-border bg-card overflow-auto">
+            <div className="px-3 py-2 border-b border-border bg-rowHover text-text1 font-semibold text-sm">
               Разделы ({sections.length})
             </div>
             <table className="w-full text-sm">
               <thead>
-                <tr className="h-10 text-[#374151] font-semibold">
+                <tr className="h-10 text-text1 font-semibold">
                   <th className="text-left px-3">Название</th>
                   <th className="text-left px-3 w-[120px]">Порядок</th>
                   <th className="text-right px-3 w-[160px]">Действия</th>
@@ -260,7 +285,7 @@ export function AdminFieldsPage() {
               <div className="col-span-3">
                 <div className="text-xs text-text2 mb-1">Раздел</div>
                 <select
-                  className="h-10 w-full rounded-card border border-[#9CA3AF] bg-white px-3 text-sm"
+                  className="ui-input h-10 w-full"
                   value={sectionId}
                   onChange={(e) => setSectionId(e.target.value)}
                 >
@@ -276,17 +301,13 @@ export function AdminFieldsPage() {
                 </select>
               </div>
               <div className="col-span-3">
-                <div className="text-xs text-text2 mb-1">Имя поля (field_name)</div>
-                <Input value={fieldName} onChange={(e) => setFieldName(e.target.value)} placeholder="sales_channel_id" />
-              </div>
-              <div className="col-span-3">
                 <div className="text-xs text-text2 mb-1">Название (label)</div>
                 <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Канал продаж" />
               </div>
               <div className="col-span-3">
                 <div className="text-xs text-text2 mb-1">Тип</div>
                 <select
-                  className="h-10 w-full rounded-card border border-[#9CA3AF] bg-white px-3 text-sm"
+                  className="ui-input h-10 w-full"
                   value={fieldType}
                   onChange={(e) => setFieldType(e.target.value)}
                 >
@@ -300,15 +321,7 @@ export function AdminFieldsPage() {
 
               <div className="col-span-12">
                 <div className="grid grid-cols-12 gap-2 items-end">
-                  <div className="col-span-6">
-                    <div className="text-xs text-text2 mb-1">
-                      Опции
-                      {fieldType === "select" ? " (для select: значения через запятую)" : ""}
-                      {fieldType === "relation" ? " (для relation: collection=sales_channels;label=name)" : ""}
-                    </div>
-                    <Input value={options} onChange={(e) => setOptions(e.target.value)} placeholder={fieldType === "relation" ? "collection=companies;label=name" : "FinTech, Retail"} />
-                  </div>
-                  <div className="col-span-4 flex items-center gap-4">
+                  <div className="col-span-10 flex items-center gap-4">
                     <label className="flex items-center gap-2 text-sm">
                       <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} />
                       Обязательное
@@ -319,7 +332,7 @@ export function AdminFieldsPage() {
                     </label>
                   </div>
                   <div className="col-span-2 flex justify-end">
-                    <Button onClick={addField} disabled={!fieldName.trim() || !label.trim()}>
+                    <Button onClick={addField} disabled={!label.trim()}>
                       + Поле
                     </Button>
                   </div>
@@ -329,21 +342,19 @@ export function AdminFieldsPage() {
           </div>
 
           {/* Fields table */}
-          <div className="overflow-auto rounded-card border border-border bg-white">
-            <div className="px-3 py-2 border-b border-border bg-[#EEF1F6] text-[#374151] font-semibold text-sm">
+          <div className="overflow-auto rounded-card border border-border bg-card">
+            <div className="px-3 py-2 border-b border-border bg-rowHover text-text1 font-semibold text-sm">
               Поля ({filteredFields.length})
             </div>
             <table className="min-w-[1200px] w-full text-sm">
               <thead>
-                <tr className="h-10 text-[#374151] font-semibold">
+                <tr className="h-10 text-text1 font-semibold">
                   <th className="text-left px-3">Раздел</th>
-                  <th className="text-left px-3">field_name</th>
-                  <th className="text-left px-3">label</th>
-                  <th className="text-left px-3">type</th>
-                  <th className="text-left px-3 w-[120px]">order</th>
-                  <th className="text-left px-3 w-[70px]">req</th>
-                  <th className="text-left px-3 w-[80px]">vis</th>
-                  <th className="text-left px-3">options</th>
+                  <th className="text-left px-3">Название</th>
+                  <th className="text-left px-3">Тип</th>
+                  <th className="text-left px-3 w-[120px]">Порядок</th>
+                  <th className="text-left px-3 w-[120px]">Обяз.</th>
+                  <th className="text-left px-3 w-[120px]">Видимо</th>
                   <th className="text-right px-3 w-[140px]">Действия</th>
                 </tr>
               </thead>
@@ -352,7 +363,7 @@ export function AdminFieldsPage() {
                   <tr key={f.id} className="h-11 border-t border-border">
                     <td className="px-3">
                       <select
-                        className="h-9 rounded-card border border-[#9CA3AF] bg-white px-2 text-sm"
+                        className="ui-input h-9"
                         value={f.section_id || ""}
                         onChange={(e) => updateField(f.id, { section_id: e.target.value || null })}
                       >
@@ -367,13 +378,12 @@ export function AdminFieldsPage() {
                           ))}
                       </select>
                     </td>
-                    <td className="px-3 font-mono text-xs">{f.field_name}</td>
                     <td className="px-3">
                       <Input value={f.label} onChange={(e) => updateField(f.id, { label: e.target.value })} />
                     </td>
                     <td className="px-3">
                       <select
-                        className="h-9 rounded-card border border-[#9CA3AF] bg-white px-2 text-sm"
+                        className="ui-input h-9"
                         value={f.field_type}
                         onChange={(e) => updateField(f.id, { field_type: e.target.value })}
                       >
@@ -396,21 +406,6 @@ export function AdminFieldsPage() {
                     <td className="px-3">
                       <input type="checkbox" checked={!!f.visible} onChange={(e) => updateField(f.id, { visible: e.target.checked })} />
                     </td>
-                    <td className="px-3">
-                      <Input
-                        value={typeof f.options === "string" ? f.options : JSON.stringify(f.options || {})}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          let obj: any = v;
-                          try {
-                            obj = JSON.parse(v);
-                          } catch {
-                            // keep string
-                          }
-                          updateField(f.id, { options: obj });
-                        }}
-                      />
-                    </td>
                     <td className="px-3 text-right">
                       <Button variant="danger" small onClick={() => deleteField(f.id)}>
                         Удалить
@@ -420,7 +415,7 @@ export function AdminFieldsPage() {
                 ))}
                 {!filteredFields.length ? (
                   <tr>
-                    <td colSpan={9} className="px-3 py-6 text-sm text-text2">
+                    <td colSpan={7} className="px-3 py-6 text-sm text-text2">
                       Поля пока не настроены.
                     </td>
                   </tr>

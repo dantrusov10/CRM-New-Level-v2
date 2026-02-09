@@ -1,5 +1,16 @@
 import React from "react";
 import { TrendingUp, AlertTriangle, CircleDot, Percent, Clock, Users } from "lucide-react";
+import { useDeals, useFunnelStages } from "../data/hooks";
+
+function money(n: number) {
+  if (!Number.isFinite(n)) return "0";
+  return Math.round(n).toLocaleString("ru-RU");
+}
+
+function daysBetween(a: Date, b: Date) {
+  const ms = Math.abs(a.getTime() - b.getTime());
+  return Math.round(ms / (1000 * 60 * 60 * 24));
+}
 
 function MiniBars({ values }: { values: number[] }) {
   const max = Math.max(...values, 1);
@@ -25,7 +36,8 @@ function Donut({ value }: { value: number }) {
   const stroke = 10;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
-  const dash = (value / 100) * c;
+  const clamped = Math.max(0, Math.min(100, value));
+  const dash = (clamped / 100) * c;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
       <circle
@@ -56,7 +68,7 @@ function Donut({ value }: { value: number }) {
         fontSize="16"
         fontWeight="800"
       >
-        {value}%
+        {Math.round(clamped)}%
       </text>
     </svg>
   );
@@ -87,133 +99,248 @@ const StatCard = ({
   </div>
 );
 
+function dealAmount(d: any) {
+  const b = Number(d?.budget ?? 0);
+  const t = Number(d?.turnover ?? 0);
+  return b || t || 0;
+}
+
 export function DashboardPage() {
-  // Пока: визуальный dashboard-макет под референсы.
-  // Данные можно позже подключить из PB (deals, stages, users).
+  const stagesQ = useFunnelStages();
+  const dealsQ = useDeals(); // uses PB full list (batch) in hooks
+
+  const stages = stagesQ.data ?? [];
+  const deals = dealsQ.data ?? [];
+
+  const now = new Date();
+  const days30ago = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  const stats = React.useMemo(() => {
+    const all = deals as any[];
+
+    const pipeline = all.reduce((acc, d) => acc + dealAmount(d), 0);
+    const weighted = all.reduce((acc, d) => {
+      const score = Number(d?.current_score ?? 0);
+      const w = score > 0 ? score / 100 : 0;
+      return acc + dealAmount(d) * w;
+    }, 0);
+
+    // cycle length: avg days from created to updated for active deals (approx MVP)
+    const cycleDaysArr = all
+      .map((d) => {
+        const c = d?.created ? new Date(d.created) : null;
+        const u = d?.updated ? new Date(d.updated) : null;
+        if (!c || !u) return null;
+        return daysBetween(c, u);
+      })
+      .filter((x) => typeof x === "number") as number[];
+    const cycle = cycleDaysArr.length ? Math.round(cycleDaysArr.reduce((a, b) => a + b, 0) / cycleDaysArr.length) : 0;
+
+    // created dynamics: last 8 weeks
+    const weeks = 8;
+    const buckets = Array.from({ length: weeks }, () => 0);
+    const start = new Date(now.getTime() - weeks * 7 * 24 * 60 * 60 * 1000);
+    for (const d of all) {
+      const c = d?.created ? new Date(d.created) : null;
+      if (!c || c < start) continue;
+      const diffDays = Math.floor((c.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+      const idx = Math.min(weeks - 1, Math.max(0, Math.floor(diffDays / 7)));
+      buckets[idx] += 1;
+    }
+
+    // win rate: if stage has is_final=true (and maybe stage_name contains win/успех) - MVP heuristic
+    const finalStageIds = new Set(stages.filter((s: any) => Boolean((s as any).is_final)).map((s: any) => s.id));
+    const finals = all.filter((d) => finalStageIds.has(d.stage_id ?? d.expand?.stage_id?.id));
+    const created30 = all.filter((d) => {
+      const c = d?.created ? new Date(d.created) : null;
+      return c && c >= days30ago;
+    });
+    const finals30 = finals.filter((d) => {
+      const u = d?.updated ? new Date(d.updated) : null;
+      return u && u >= days30ago;
+    });
+    const winRate = created30.length ? (finals30.length / created30.length) * 100 : 0;
+
+    // risks
+    const stale = all.filter((d) => {
+      const u = d?.updated ? new Date(d.updated) : null;
+      if (!u) return false;
+      return daysBetween(now, u) >= 7;
+    });
+    const noBudget = all.filter((d) => !Number.isFinite(Number(d?.budget)) || Number(d?.budget) <= 0);
+    const noCompany = all.filter((d) => !(d?.company_id ?? d?.expand?.company_id?.id));
+
+    return {
+      pipeline,
+      weighted,
+      dealsCount: all.length,
+      cycle,
+      bars: buckets,
+      winRate,
+      riskStale: stale.length,
+      riskNoBudget: noBudget.length,
+      riskNoCompany: noCompany.length,
+    };
+  }, [deals, stages]);
+
+  const stageBreakdown = React.useMemo(() => {
+    const by: Record<string, { name: string; count: number; sum: number }> = {};
+    for (const s of stages as any[]) {
+      by[s.id] = { name: String(s.stage_name ?? "Этап"), count: 0, sum: 0 };
+    }
+    for (const d of deals as any[]) {
+      const sid = d.stage_id ?? d.expand?.stage_id?.id;
+      if (!sid || !by[sid]) continue;
+      by[sid].count += 1;
+      by[sid].sum += dealAmount(d);
+    }
+    return Object.entries(by)
+      .map(([id, v]) => ({ id, ...v }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [deals, stages]);
+
+  const topManagers = React.useMemo(() => {
+    // MVP: group by responsible_id (expand)
+    const m: Record<string, { name: string; deals: number; pipeline: number }> = {};
+    for (const d of deals as any[]) {
+      const rid = d.responsible_id ?? d.expand?.responsible_id?.id;
+      if (!rid) continue;
+      const name = d.expand?.responsible_id?.name || d.expand?.responsible_id?.email || "Менеджер";
+      if (!m[rid]) m[rid] = { name, deals: 0, pipeline: 0 };
+      m[rid].deals += 1;
+      m[rid].pipeline += dealAmount(d);
+    }
+    return Object.values(m)
+      .sort((a, b) => b.pipeline - a.pipeline)
+      .slice(0, 5);
+  }, [deals]);
+
+  const aiInsights = React.useMemo(() => {
+    // Пока без отдельной коллекции AI: формируем полезные подсказки из данных
+    const items: { title: string; desc: string }[] = [];
+
+    if (stats.riskStale > 0) items.push({ title: `${stats.riskStale} сделок без активности`, desc: "Не обновлялись 7+ дней" });
+    if (stats.riskNoBudget > 0) items.push({ title: `${stats.riskNoBudget} сделок без бюджета`, desc: "Нельзя посчитать pipeline корректно" });
+    if (stats.riskNoCompany > 0) items.push({ title: `${stats.riskNoCompany} сделок без компании`, desc: "Проверьте связь deal → company" });
+
+    if (!items.length) items.push({ title: "Риски не обнаружены", desc: "Всё выглядит аккуратно по базовым сигналам" });
+    return items.slice(0, 3);
+  }, [stats]);
+
+  const loading = stagesQ.isLoading || dealsQ.isLoading;
+
   return (
     <div className="grid gap-6">
       <div className="cockpit-panel p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="text-xl font-extrabold">Dashboard</div>
-            <div className="mt-1 text-sm subtle">Сводка пайплайна, динамика и AI-инсайты</div>
+            <div className="mt-1 text-sm subtle">Сводка пайплайна, динамика и инсайты</div>
           </div>
-          <div className="cockpit-glass px-4 py-2 rounded-[18px] text-sm font-bold">
-            Период: последние 30 дней
-          </div>
+          <div className="cockpit-glass px-4 py-2 rounded-[18px] text-sm font-bold">Период: последние 30 дней</div>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          <StatCard title="Pipeline" value="12.05M" icon={TrendingUp} hint="Сумма активных сделок" />
-          <StatCard title="Взвешенный" value="7.42M" icon={Percent} hint="С учётом вероятности" />
-          <StatCard title="Сделки" value="306" icon={CircleDot} hint="Активные в работе" />
-          <StatCard title="Цикл" value="31 д" icon={Clock} hint="Средний срок" />
-        </div>
+        {loading ? (
+          <div className="mt-6 text-sm text-text2">Загрузка данных...</div>
+        ) : (
+          <>
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              <StatCard title="Pipeline" value={`${money(stats.pipeline)} ₽`} icon={TrendingUp} hint="Сумма активных сделок (budget/turnover)" />
+              <StatCard title="Взвешенный" value={`${money(stats.weighted)} ₽`} icon={Percent} hint="С учётом current_score" />
+              <StatCard title="Сделки" value={`${stats.dealsCount}`} icon={CircleDot} hint="Всего в системе" />
+              <StatCard title="Цикл" value={`${stats.cycle} д`} icon={Clock} hint="Средний (created→updated), MVP" />
+            </div>
 
-        <div className="mt-6 grid grid-cols-1 xl:grid-cols-3 gap-4">
-          <div className="ui-card p-4 xl:col-span-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-extrabold">Динамика входящих</div>
-                <div className="text-xs text-text2 mt-1">Новые сделки по неделям</div>
-              </div>
-              <div className="text-xs text-text2">шт.</div>
-            </div>
-            <div className="mt-4">
-              <MiniBars values={[8, 12, 10, 16, 9, 13, 18, 14]} />
-            </div>
-          </div>
-
-          <div className="ui-card p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-extrabold">Win rate</div>
-                <div className="text-xs text-text2 mt-1">Закрытие за период</div>
-              </div>
-            </div>
-            <div className="mt-4 flex items-center justify-center">
-              <Donut value={42} />
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6 grid grid-cols-1 xl:grid-cols-3 gap-4">
-          <div className="ui-card p-4">
-            <div className="text-sm font-extrabold">Воронка (узкие места)</div>
-            <div className="text-xs text-text2 mt-1">Конверсия между этапами</div>
-            <div className="mt-4 space-y-2">
-              {[
-                { label: "Discovery → КП", v: 68 },
-                { label: "КП → Переговоры", v: 44 },
-                { label: "Переговоры → Тендер", v: 31 },
-                { label: "Тендер → Win", v: 18 },
-              ].map((r) => (
-                <div key={r.label}>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-text2">{r.label}</span>
-                    <span className="text-text font-bold">{r.v}%</span>
-                  </div>
-                  <div className="mt-1 h-2 rounded-full bg-[rgba(255,255,255,0.10)] border border-[rgba(255,255,255,0.10)] overflow-hidden">
-                    <div
-                      style={{
-                        width: `${r.v}%`,
-                        height: "100%",
-                        background: "linear-gradient(90deg, rgba(87,183,255,0.95), rgba(34,211,238,0.55))",
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="ui-card p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-extrabold">Менеджеры</div>
-                <div className="text-xs text-text2 mt-1">Активность и результат</div>
-              </div>
-              <Users size={18} className="text-text2" />
-            </div>
-            <div className="mt-4 space-y-3">
-              {[
-                { name: "Иванов", p: 72, deals: 28 },
-                { name: "Петров", p: 61, deals: 19 },
-                { name: "Сидоров", p: 49, deals: 16 },
-              ].map((m) => (
-                <div key={m.name} className="flex items-center justify-between">
+            <div className="mt-6 grid grid-cols-1 xl:grid-cols-3 gap-4">
+              <div className="ui-card p-4 xl:col-span-2">
+                <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-sm font-bold">{m.name}</div>
-                    <div className="text-xs text-text2">Сделок: {m.deals}</div>
+                    <div className="text-sm font-extrabold">Динамика входящих</div>
+                    <div className="text-xs text-text2 mt-1">Новые сделки по неделям (8 недель)</div>
                   </div>
-                  <div className="text-sm font-extrabold">{m.p}%</div>
+                  <div className="text-xs text-text2">шт.</div>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="ui-card p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-extrabold">AI Insights</div>
-                <div className="text-xs text-text2 mt-1">Риски и точки роста</div>
+                <div className="mt-4">
+                  <MiniBars values={stats.bars} />
+                </div>
               </div>
-              <AlertTriangle size={18} className="text-text2" />
-            </div>
-            <div className="mt-4 space-y-3">
-              {[
-                { title: "3 сделки с высоким риском", desc: "Нет активности > 7 дней" },
-                { title: "2 сделки выросли в вероятности", desc: "Появился ЛПР / подтверждение бюджета" },
-                { title: "Узкое место: КП → Переговоры", desc: "Конверсия ниже 45%" },
-              ].map((x) => (
-                <div key={x.title} className="p-3 rounded-[16px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.08)]">
-                  <div className="text-sm font-extrabold">{x.title}</div>
-                  <div className="text-xs text-text2 mt-1">{x.desc}</div>
+
+              <div className="ui-card p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-extrabold">Win rate</div>
+                    <div className="text-xs text-text2 mt-1">По финальным этапам за 30 дней</div>
+                  </div>
                 </div>
-              ))}
+                <div className="mt-4 flex items-center justify-center">
+                  <Donut value={stats.winRate} />
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+
+            <div className="mt-6 grid grid-cols-1 xl:grid-cols-3 gap-4">
+              <div className="ui-card p-4">
+                <div className="text-sm font-extrabold">Воронка</div>
+                <div className="text-xs text-text2 mt-1">Количество и сумма по этапам</div>
+
+                <div className="mt-4 space-y-3">
+                  {stageBreakdown.map((r) => (
+                    <div key={r.id} className="p-3 rounded-[16px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.08)]">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-extrabold">{r.name}</div>
+                        <div className="text-sm font-extrabold">{r.count}</div>
+                      </div>
+                      <div className="text-xs text-text2 mt-1">Сумма: {money(r.sum)} ₽</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="ui-card p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-extrabold">Менеджеры</div>
+                    <div className="text-xs text-text2 mt-1">Топ по пайплайну</div>
+                  </div>
+                  <Users size={18} className="text-text2" />
+                </div>
+                <div className="mt-4 space-y-3">
+                  {topManagers.length ? (
+                    topManagers.map((m) => (
+                      <div key={m.name} className="flex items-center justify-between">
+                        <div>
+                          <div className="text-sm font-bold">{m.name}</div>
+                          <div className="text-xs text-text2">Сделок: {m.deals}</div>
+                        </div>
+                        <div className="text-sm font-extrabold">{money(m.pipeline)} ₽</div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-sm text-text2">Нет данных по ответственным</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="ui-card p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-extrabold">Insights</div>
+                    <div className="text-xs text-text2 mt-1">Быстрые сигналы по данным</div>
+                  </div>
+                  <AlertTriangle size={18} className="text-text2" />
+                </div>
+                <div className="mt-4 space-y-3">
+                  {aiInsights.map((x) => (
+                    <div key={x.title} className="p-3 rounded-[16px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.08)]">
+                      <div className="text-sm font-extrabold">{x.title}</div>
+                      <div className="text-xs text-text2 mt-1">{x.desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

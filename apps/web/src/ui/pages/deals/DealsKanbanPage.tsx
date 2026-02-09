@@ -31,6 +31,42 @@ function dealAmount(d: any) {
 
 export function DealsKanbanPage() {
   const kanbanScrollRef = React.useRef<HTMLDivElement | null>(null);
+  React.useEffect(() => {
+    const el = kanbanScrollRef.current;
+    if (!el) return;
+
+    let dragging = false;
+    let startX = 0;
+    let startLeft = 0;
+
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button !== 1) return; // middle mouse only
+      dragging = true;
+      startX = e.clientX;
+      startLeft = el.scrollLeft;
+      e.preventDefault();
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!dragging) return;
+      const dx = e.clientX - startX;
+      el.scrollLeft = startLeft - dx;
+    };
+
+    const onMouseUp = () => {
+      dragging = false;
+    };
+
+    el.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+
+    return () => {
+      el.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
   const [sp] = useSearchParams();
   const stageOnly = sp.get("stage") ?? "";
   const owner = sp.get("owner") ?? "";
@@ -195,17 +231,6 @@ export function DealsKanbanPage() {
               <div
                 ref={kanbanScrollRef}
                 className="min-w-0 overflow-x-auto neon-scroll"
-                onWheel={(e) => {
-                  // UX: колесико (вертикаль) двигает канбан по горизонтали (как в референсах)
-                  if (!kanbanScrollRef.current) return;
-                  // если пользователь держит Shift — оставляем нативное поведение
-                  if (e.shiftKey) return;
-                  const el = kanbanScrollRef.current;
-                  if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-                    el.scrollLeft += e.deltaY;
-                    e.preventDefault();
-                  }
-                }}
               >
                 <div className="grid auto-cols-[320px] grid-flow-col gap-4 min-w-max">
                   {stages.map((s) => (

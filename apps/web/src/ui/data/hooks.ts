@@ -81,7 +81,7 @@ export function useDeals(params?: { search?: string; filter?: string; sort?: str
       // IMPORTANT: do not send filter=undefined (PocketBase returns 400)
       if (f && String(f).trim().length) options.filter = f;
 
-      const res = await pb.collection("deals").getList(1, 200, options);
+      const res = await pb.collection("deals").getFullList({ ...options, batch: 500 });
       return normalizeListResult(res) as any;
     },
   });}
@@ -128,7 +128,7 @@ export function useCompanies(params?: { search?: string; filter?: string }) {
       // IMPORTANT: do not send filter=undefined (PocketBase returns 400)
       if (f && String(f).trim().length) options.filter = f;
 
-      const res = await pb.collection("companies").getList(1, 200, options);
+      const res = await pb.collection("companies").getFullList({ ...options, batch: 500 });
       return normalizeListResult(res) as any;
     },
   });}

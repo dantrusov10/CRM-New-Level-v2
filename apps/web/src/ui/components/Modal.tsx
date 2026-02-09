@@ -19,7 +19,7 @@ export function Modal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onMouseDown={onClose}>
       <div
-        className={clsx("w-full rounded-card border border-border bg-card", widthClass)}
+        className={clsx("w-full rounded-card border border-border bg-card max-h-[calc(100vh-32px)] overflow-hidden", widthClass)}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -28,7 +28,7 @@ export function Modal({
             <X size={18} />
           </button>
         </div>
-        <div className="p-4">{children}</div>
+        <div className="p-4 overflow-y-auto max-h-[calc(100vh-32px-56px)]">{children}</div>
       </div>
     </div>
   );

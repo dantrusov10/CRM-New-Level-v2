@@ -356,9 +356,15 @@ export function ImportModal({
           const stageId = await resolveStageId(stageName);
 
           const num = (v: any) => {
-            const s = String(v ?? "").replace(/\s/g, "").replace(",", ".");
-            if (!s) return undefined;
-            const n = Number(s);
+            if (v === null || v === undefined) return undefined;
+            const s0 = String(v ?? "").trim();
+            if (!s0 || s0 === "-" || s0 === "—") return undefined;
+            // keep digits, dot, comma, minus. remove currency symbols and text.
+            const cleaned = s0.replace(/[^\d,\.\-]/g, "").replace(/\s+/g, "");
+            if (!cleaned) return undefined;
+            // normalize decimal comma
+            const normalized = cleaned.replace(",", ".");
+            const n = Number(normalized);
             return Number.isFinite(n) ? n : undefined;
           };
 

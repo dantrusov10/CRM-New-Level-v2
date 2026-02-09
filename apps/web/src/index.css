@@ -10,25 +10,27 @@
   -moz-osx-font-smoothing: grayscale;
 
   /* ===== NewLevel CRM — Dark Enterprise (ref-style) ===== */
-  --cp-bg-1:#061023; /* deep navy */
-  --cp-bg-2:#081A32; /* slightly lighter navy */
+  /* base background (deeper + higher contrast) */
+  --cp-bg-1:#040B1A; /* ultra deep navy */
+  --cp-bg-2:#06162E; /* deep navy */
 
   /* primary surfaces */
-  --cp-panel-a:#0B1B35;
-  --cp-panel-b:#0A2440;
-  --cp-panel-c:#061126;
+  /* primary surfaces (more насыщенные) */
+  --cp-panel-a:#071A33;
+  --cp-panel-b:#082A4B;
+  --cp-panel-c:#040E22;
 
   --cp-text: rgba(255,255,255,0.92);
   /* slightly higher contrast for readability on glass */
   --cp-text2: rgba(226,232,240,0.86);
   --cp-text3: rgba(226,232,240,0.72);
 
-  --cp-stroke: rgba(255,255,255,0.14);
-  --cp-stroke2: rgba(255,255,255,0.10);
+  --cp-stroke: rgba(255,255,255,0.16);
+  --cp-stroke2: rgba(255,255,255,0.11);
 
   /* glass */
-  --cp-glass: rgba(255,255,255,0.10);
-  --cp-glass2: rgba(255,255,255,0.14);
+  --cp-glass: rgba(255,255,255,0.09);
+  --cp-glass2: rgba(255,255,255,0.13);
 
   --cp-radius: 22px;
   --cp-radius2: 18px;
@@ -37,8 +39,14 @@
   --cp-shadow: 0 22px 60px rgba(0,0,0,0.40);
   --cp-shadow2: 0 14px 40px rgba(0,0,0,0.34);
 
-  --cp-primary: #57B7FF;
-  --cp-primary2:#2563EB;
+  /* neon accents */
+  --cp-neon-cyan:#33D7FF;
+  --cp-neon-blue:#2D7BFF;
+  --cp-neon-violet:#8B5CF6;
+  --cp-neon-mint:#22C55E;
+
+  --cp-primary: var(--cp-neon-cyan);
+  --cp-primary2: var(--cp-neon-blue);
 }
 
 *{box-sizing:border-box}
@@ -47,10 +55,10 @@
 body{
   /* Deep navy + soft bokeh (as in refs) */
   background:
-    radial-gradient(800px 520px at 20% 18%, rgba(87,183,255,0.26), transparent 62%),
-    radial-gradient(720px 520px at 70% 22%, rgba(34,211,238,0.18), transparent 60%),
-    radial-gradient(760px 560px at 86% 74%, rgba(99,102,241,0.14), transparent 62%),
-    radial-gradient(820px 560px at 12% 78%, rgba(59,130,246,0.12), transparent 60%),
+    radial-gradient(900px 560px at 18% 16%, rgba(51,215,255,0.34), transparent 62%),
+    radial-gradient(820px 560px at 72% 18%, rgba(45,123,255,0.24), transparent 60%),
+    radial-gradient(860px 620px at 84% 78%, rgba(139,92,246,0.18), transparent 62%),
+    radial-gradient(920px 620px at 14% 82%, rgba(34,197,94,0.12), transparent 60%),
     linear-gradient(180deg, var(--cp-bg-1), var(--cp-bg-2));
 }
 
@@ -123,7 +131,7 @@ body:after{
 /* Core surfaces */
 .cockpit-panel{
   background: linear-gradient(135deg, var(--cp-panel-a) 0%, var(--cp-panel-b) 55%, var(--cp-panel-c) 120%);
-  border: 1px solid rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.14);
   border-radius: var(--cp-radius);
   box-shadow: var(--cp-shadow);
   color: var(--cp-text);
@@ -134,19 +142,33 @@ body:after{
   content:"";
   position:absolute; inset:0;
   background:
-    radial-gradient(circle at 18% 12%, rgba(255,255,255,0.14), transparent 52%),
-    radial-gradient(circle at 78% 20%, rgba(87,183,255,0.16), transparent 58%),
-    radial-gradient(circle at 70% 86%, rgba(34,211,238,0.10), transparent 60%);
+    radial-gradient(circle at 18% 12%, rgba(255,255,255,0.16), transparent 52%),
+    radial-gradient(circle at 78% 20%, rgba(51,215,255,0.22), transparent 58%),
+    radial-gradient(circle at 72% 86%, rgba(45,123,255,0.16), transparent 60%),
+    radial-gradient(circle at 38% 92%, rgba(139,92,246,0.12), transparent 55%);
   opacity:.9;
   pointer-events:none;
+}
+.cockpit-panel:after{
+  content:"";
+  position:absolute; inset:0;
+  pointer-events:none;
+  /* subtle inner glow + vignette */
+  background:
+    radial-gradient(500px 220px at 50% 0%, rgba(51,215,255,0.10), transparent 60%),
+    radial-gradient(560px 260px at 20% 100%, rgba(45,123,255,0.10), transparent 62%),
+    radial-gradient(720px 380px at 50% 120%, rgba(0,0,0,0.55), transparent 60%);
+  mix-blend-mode: screen;
+  opacity: 0.55;
 }
 .cockpit-panel > *{ position:relative; }
 
 .cockpit-glass{
-  background: rgba(255,255,255,0.10);
-  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.18);
   border-radius: var(--cp-radius2);
   backdrop-filter: blur(12px);
+  box-shadow: 0 0 0 1px rgba(51,215,255,0.06) inset;
 }
 
 /* Typography on dark glass/panels */
@@ -214,13 +236,63 @@ body:after{
 .ui-card{
   border-radius: var(--cp-radius2);
   border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(17,24,39,0.28);
+  background: rgba(7,26,51,0.30);
   color: var(--cp-text);
 }
 
 /* Hide native scrollbars (keep scroll) */
+/* Custom (pretty) scrollbars for horizontal strips */
+.neon-scroll{ scrollbar-width: thin; scrollbar-color: rgba(51,215,255,0.45) transparent; }
+.neon-scroll::-webkit-scrollbar{ height: 10px; }
+.neon-scroll::-webkit-scrollbar-track{ background: transparent; }
+.neon-scroll::-webkit-scrollbar-thumb{
+  background: linear-gradient(90deg, rgba(51,215,255,0.55), rgba(45,123,255,0.45));
+  border-radius: 999px;
+  border: 2px solid rgba(0,0,0,0.25);
+}
+.neon-scroll::-webkit-scrollbar-thumb:hover{
+  background: linear-gradient(90deg, rgba(51,215,255,0.75), rgba(45,123,255,0.60));
+}
+
+/* Old helper (keep) */
 .no-scrollbar{ scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar{ display:none; }
+
+/* Kanban cards */
+.kanban-card{
+  position: relative;
+  background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.06));
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: 0 14px 44px rgba(0,0,0,0.38);
+  backdrop-filter: blur(14px);
+}
+.kanban-card::before{
+  content:"";
+  position:absolute;
+  left:0; top:0; bottom:0;
+  width:4px;
+  background: var(--stage-color, var(--cp-primary));
+  filter: drop-shadow(0 0 12px var(--stage-color, var(--cp-primary)));
+  border-top-left-radius: var(--cp-radius3);
+  border-bottom-left-radius: var(--cp-radius3);
+  opacity: .95;
+}
+.kanban-card::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  border-radius: var(--cp-radius3);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.08) inset, 0 0 40px rgba(45,123,255,0.08);
+  opacity: .9;
+}
+.kanban-card:hover{
+  border-color: rgba(51,215,255,0.30);
+  box-shadow: 0 18px 56px rgba(0,0,0,0.42), 0 0 0 1px rgba(51,215,255,0.10) inset;
+}
+.kanban-card .kanban-accent{
+  box-shadow: 0 0 18px rgba(51,215,255,0.18);
+}
 
 
 .brand-dot{
@@ -244,9 +316,10 @@ body:after{
 
 /* make “white cards” inside cockpit look slightly glassy (optional but helps consistency) */
 .theme-cockpit .bg-white{
-  /* make "white" surfaces inside cockpit darker glass for contrast */
-  background: rgba(17,24,39,0.26) !important;
-  backdrop-filter: blur(10px);
+  /* make "white" surfaces inside cockpit darker + a bit more neon (refs-style) */
+  background: linear-gradient(135deg, rgba(7,26,51,0.70), rgba(8,42,75,0.42)) !important;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.08) inset, 0 14px 40px rgba(0,0,0,0.40);
 }
 
 /* Native selects: keep inside theme (avoid unreadable system dropdown) */

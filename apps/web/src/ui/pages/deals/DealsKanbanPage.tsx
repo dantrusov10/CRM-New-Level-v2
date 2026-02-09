@@ -30,6 +30,7 @@ function dealAmount(d: any) {
 }
 
 export function DealsKanbanPage() {
+  const kanbanScrollRef = React.useRef<HTMLDivElement | null>(null);
   const [sp] = useSearchParams();
   const stageOnly = sp.get("stage") ?? "";
   const owner = sp.get("owner") ?? "";
@@ -191,7 +192,21 @@ export function DealsKanbanPage() {
               onDragEnd={onDragEnd}
             >
               {/* Horizontal scroll only inside the kanban strip */}
-              <div className="min-w-0 overflow-x-auto no-scrollbar">
+              <div
+                ref={kanbanScrollRef}
+                className="min-w-0 overflow-x-auto neon-scroll"
+                onWheel={(e) => {
+                  // UX: колесико (вертикаль) двигает канбан по горизонтали (как в референсах)
+                  if (!kanbanScrollRef.current) return;
+                  // если пользователь держит Shift — оставляем нативное поведение
+                  if (e.shiftKey) return;
+                  const el = kanbanScrollRef.current;
+                  if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                    el.scrollLeft += e.deltaY;
+                    e.preventDefault();
+                  }
+                }}
+              >
                 <div className="grid auto-cols-[320px] grid-flow-col gap-4 min-w-max">
                   {stages.map((s) => (
                     <SortableContext

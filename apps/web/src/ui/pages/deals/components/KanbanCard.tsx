@@ -31,6 +31,7 @@ export function KanbanCard({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.6 : 1,
+    zIndex: isDragging ? 50 : undefined,
     // makes pointer-based dragging feel more reliable
     touchAction: "none",
   };
@@ -41,14 +42,22 @@ export function KanbanCard({
   return (
     <div
       ref={setNodeRef}
-      style={style}
       {...(overlay ? {} : attributes)}
       {...(overlay ? {} : listeners)}
-      className="rounded-card border border-border bg-white cursor-grab active:cursor-grabbing select-none shadow-sm"
+      className="kanban-card rounded-card cursor-grab active:cursor-grabbing select-none"
+      // IMPORTANT: DragOverlay портится в document.body (вне .theme-cockpit),
+      // поэтому здесь нельзя rely на .bg-white override — задаём “кокпит” стиль прямо.
+      // Stage color применяется как CSS variable, чтобы подсвечивать сделки цветом этапа.
+      style={{
+        ...style,
+        // used by .kanban-card::before
+        // @ts-expect-error CSS custom property
+        "--stage-color": stageColor,
+      }}
       onDoubleClick={() => nav(`/deals/${deal.id}`)}
       title="Двойной клик — открыть карточку"
     >
-      <div data-kanban-card="true" className="h-1 w-full rounded-t-card" style={{ background: stageColor }} />
+      <div data-kanban-card="true" className="h-1 w-full rounded-t-card kanban-accent" style={{ background: stageColor }} />
       <div className="p-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">

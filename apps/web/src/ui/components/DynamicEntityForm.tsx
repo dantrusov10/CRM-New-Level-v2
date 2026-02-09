@@ -94,41 +94,122 @@ export function DynamicEntityForm(
   // Ensure a minimal default config exists (so UI isn't empty on first run)
   async function ensureDefaults() {
     const entityFilter = `entity_type=\"${entity}\"`;
-    const existing = await pb.collection("settings_fields").getList(1, 1, { filter: entityFilter }).catch(() => null);
-    if (existing && existing.totalItems > 0) return;
+    // We used to create just 3-5 fields which was too little.
+    // Now: create/merge a full default set (sections + fields) idempotently.
 
-    // create a default section
-    const sec = await pb.collection("settings_field_sections").create({
-      entity_type: entity,
-      key: "main",
-      title: entity === "company" ? "Основное" : "Основное",
-      order: 1,
-      collapsed: false,
-    });
+    const existingFields = await pb
+      .collection("settings_fields")
+      .getFullList({ filter: entityFilter })
+      .catch(() => [])
+      .then((x: any[]) => x as SettingsField[]);
 
-    const defaults: Array<Partial<SettingsField>> =
-      entity === "company"
-        ? [
-            { field_name: "name", label: "Название", field_type: "text", required: true },
-            { field_name: "inn", label: "ИНН", field_type: "text" },
-            { field_name: "city", label: "Город", field_type: "text" },
-            { field_name: "website", label: "Сайт", field_type: "text" },
-            // configurable sales channel
-            { field_name: "sales_channel_id", label: "Канал продаж", field_type: "relation", options: { collection: "sales_channels", labelField: "name" } },
-          ]
-        : [
-            { field_name: "title", label: "Название сделки", field_type: "text", required: true },
-            // configurable company link
-            { field_name: "company_id", label: "Компания", field_type: "relation", options: { collection: "companies", labelField: "name" } },
-            { field_name: "budget", label: "Бюджет", field_type: "number" },
-          ];
+    const existingSections = await pb
+      .collection("settings_field_sections")
+      .getFullList({ filter: entityFilter })
+      .catch(() => [])
+      .then((x: any[]) => x as SettingsSection[]);
 
-    let order = 1;
-    for (const d of defaults) {
+    const byFieldName = new Map<string, SettingsField>();
+    for (const f of existingFields) if (f?.field_name) byFieldName.set(String(f.field_name), f);
+
+    const bySectionKey = new Map<string, SettingsSection>();
+    for (const s of existingSections) if (s?.key) bySectionKey.set(String(s.key), s);
+
+    type DefaultSection = { key: string; title: string; order: number; collapsed?: boolean };
+    type DefaultField = Partial<SettingsField> & { sectionKey: string; order: number; sort_order: number };
+
+    const defaultsCompany: { sections: DefaultSection[]; fields: DefaultField[] } = {
+      sections: [
+        { key: "main", title: "Основное", order: 1 },
+        { key: "contacts", title: "Контакты", order: 2, collapsed: true },
+        { key: "other", title: "Дополнительно", order: 3, collapsed: true },
+      ],
+      fields: [
+        // Main
+        { sectionKey: "main", order: 1, sort_order: 1, field_name: "name", label: "Название", field_type: "text", required: true },
+        { sectionKey: "main", order: 1, sort_order: 2, field_name: "inn", label: "ИНН", field_type: "text" },
+        { sectionKey: "main", order: 1, sort_order: 3, field_name: "city", label: "Город", field_type: "text" },
+        { sectionKey: "main", order: 1, sort_order: 4, field_name: "website", label: "Сайт", field_type: "text" },
+        { sectionKey: "main", order: 1, sort_order: 5, field_name: "sales_channel_id", label: "Канал продаж", field_type: "relation", options: { collection: "sales_channels", labelField: "name" } },
+        // Contacts
+        { sectionKey: "contacts", order: 2, sort_order: 1, field_name: "email", label: "Email", field_type: "text" },
+        { sectionKey: "contacts", order: 2, sort_order: 2, field_name: "phone", label: "Телефон", field_type: "text" },
+        { sectionKey: "contacts", order: 2, sort_order: 3, field_name: "telegram", label: "Telegram", field_type: "text" },
+        // Other
+        { sectionKey: "other", order: 3, sort_order: 1, field_name: "notes", label: "Заметки", field_type: "text" },
+      ],
+    };
+
+    const defaultsDeal: { sections: DefaultSection[]; fields: DefaultField[] } = {
+      sections: [
+        { key: "main", title: "Основное", order: 1 },
+        { key: "finance", title: "Финансы", order: 2 },
+        { key: "project", title: "Проектные параметры", order: 3, collapsed: true },
+        { key: "dates", title: "Даты", order: 4, collapsed: true },
+        { key: "links", title: "Ссылки", order: 5, collapsed: true },
+      ],
+      fields: [
+        // Main
+        { sectionKey: "main", order: 1, sort_order: 1, field_name: "title", label: "Название сделки", field_type: "text", required: true },
+        { sectionKey: "main", order: 1, sort_order: 2, field_name: "company_id", label: "Компания", field_type: "relation", options: { collection: "companies", labelField: "name" } },
+        { sectionKey: "main", order: 1, sort_order: 3, field_name: "sales_channel_id", label: "Канал продаж", field_type: "relation", options: { collection: "sales_channels", labelField: "name" } },
+        { sectionKey: "main", order: 1, sort_order: 4, field_name: "partner", label: "Партнёр", field_type: "text" },
+        { sectionKey: "main", order: 1, sort_order: 5, field_name: "distributor", label: "Дистрибьютор", field_type: "text" },
+        { sectionKey: "main", order: 1, sort_order: 6, field_name: "purchase_format", label: "Формат закупки", field_type: "text" },
+        { sectionKey: "main", order: 1, sort_order: 7, field_name: "activity_type", label: "Тип активности", field_type: "text" },
+        // Finance
+        { sectionKey: "finance", order: 2, sort_order: 1, field_name: "budget", label: "Бюджет, ₽", field_type: "number" },
+        { sectionKey: "finance", order: 2, sort_order: 2, field_name: "turnover", label: "Оборот, ₽", field_type: "number" },
+        { sectionKey: "finance", order: 2, sort_order: 3, field_name: "margin", label: "Маржа, %", field_type: "number" },
+        { sectionKey: "finance", order: 2, sort_order: 4, field_name: "discount", label: "Скидка, %", field_type: "number" },
+        // Project
+        { sectionKey: "project", order: 3, sort_order: 1, field_name: "infrastructure", label: "Инфраструктура", field_type: "text" },
+        { sectionKey: "project", order: 3, sort_order: 2, field_name: "endpoints", label: "Endpoints", field_type: "number" },
+        { sectionKey: "project", order: 3, sort_order: 3, field_name: "presale", label: "Presale", field_type: "text" },
+        // Dates
+        // NOTE: do NOT include PB system fields like created/updated as editable fields.
+        { sectionKey: "dates", order: 4, sort_order: 1, field_name: "close_date", label: "Дата закрытия", field_type: "date" },
+        // Links
+        { sectionKey: "links", order: 5, sort_order: 1, field_name: "project_map_link", label: "Project map", field_type: "text" },
+        { sectionKey: "links", order: 5, sort_order: 2, field_name: "kaiten_link", label: "Kaiten", field_type: "text" },
+      ],
+    };
+
+    const defaults = entity === "company" ? defaultsCompany : defaultsDeal;
+
+    const isCoreSystemField = (e: EntityType, fieldName?: string) => {
+      if (!fieldName) return false;
+      const companyCore = new Set(["name", "inn", "city", "website"]);
+      const dealCore = new Set(["title", "company_id", "budget", "turnover", "margin", "discount"]);
+      return e === "company" ? companyCore.has(fieldName) : dealCore.has(fieldName);
+    };
+
+    // Ensure sections exist
+    for (const s of defaults.sections) {
+      if (bySectionKey.has(s.key)) continue;
+      const created = (await pb.collection("settings_field_sections").create({
+        entity_type: entity,
+        key: s.key,
+        title: s.title,
+        order: s.order,
+        collapsed: !!s.collapsed,
+      })) as any as SettingsSection;
+      bySectionKey.set(s.key, created);
+    }
+
+    // Ensure fields exist (merge by field_name)
+    for (const d of defaults.fields) {
+      if (!d.field_name) continue;
+      const existing = byFieldName.get(String(d.field_name));
+      if (existing) continue;
+
+      const section = bySectionKey.get(d.sectionKey) || existingSections[0];
+      if (!section?.id) continue;
+
       await pb.collection("settings_fields").create({
         collection: collectionName,
         entity_type: entity,
-        section_id: sec.id,
+        section_id: section.id,
         field_name: d.field_name,
         label: d.label,
         field_type: d.field_type,
@@ -136,13 +217,14 @@ export function DynamicEntityForm(
         required: !!d.required,
         visible: true,
         options: d.options || {},
-        sort_order: order,
-        order,
-        system: true,
+        sort_order: d.sort_order,
+        order: d.order,
+        // Only mark as `system` when the underlying PB collection is expected to contain the field.
+        // Otherwise we store values in *_field_values to avoid breaking saves when field doesn't exist.
+        system: isCoreSystemField(entity, String(d.field_name)),
         help_text: "",
         role_visibility: {},
       });
-      order++;
     }
   }
 

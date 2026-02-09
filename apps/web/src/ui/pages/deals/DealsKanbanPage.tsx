@@ -57,12 +57,28 @@ export function DealsKanbanPage() {
       dragging = false;
     };
 
+    const onWheel = (e: WheelEvent) => {
+      // Keep normal vertical scroll for the page.
+      // Horizontal scroll for kanban: Shift + wheel (common pattern), or trackpad deltaX.
+      if (e.shiftKey) {
+        el.scrollLeft += e.deltaY;
+        e.preventDefault();
+        return;
+      }
+      if (Math.abs(e.deltaX) > 0 && Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        el.scrollLeft += e.deltaX;
+        e.preventDefault();
+      }
+    };
+
     el.addEventListener("mousedown", onMouseDown);
+    el.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
 
     return () => {
       el.removeEventListener("mousedown", onMouseDown);
+      el.removeEventListener("wheel", onWheel as any);
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
     };
@@ -230,7 +246,7 @@ export function DealsKanbanPage() {
               {/* Horizontal scroll only inside the kanban strip */}
               <div
                 ref={kanbanScrollRef}
-                className="min-w-0 overflow-x-auto neon-scroll"
+                className="min-w-0 overflow-x-auto overflow-y-hidden neon-scroll"
               >
                 <div className="grid auto-cols-[320px] grid-flow-col gap-4 min-w-max">
                   {stages.map((s) => (

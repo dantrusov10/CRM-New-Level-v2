@@ -215,6 +215,8 @@ export function DealsKanbanPage() {
   }, [deals]);
 
   const [activeDealId, setActiveDealId] = React.useState<string | null>(null);
+  const [overlayWidth, setOverlayWidth] = React.useState<number | null>(null);
+  const lastOverIdRef = React.useRef<string | null>(null);
   const activeDeal = React.useMemo(() => (activeDealId ? (deals as any[]).find((d) => d.id === activeDealId) : null), [activeDealId, deals]);
 
   function getStageIdByDealId(dealId: string): string | null {
@@ -234,13 +236,30 @@ export function DealsKanbanPage() {
   }
 
   function onDragStart(ev: DragStartEvent) {
-    setActiveDealId(String(ev.active.id));
+    const id = String(ev.active.id);
+    setActiveDealId(id);
+    lastOverIdRef.current = null;
+
+    // Keep DragOverlay the same width as the source card (otherwise it stretches to viewport).
+    const rectW = ev.active?.rect?.current?.initial?.width;
+    if (rectW && Number.isFinite(rectW)) {
+      setOverlayWidth(Math.round(rectW));
+      return;
+    }
+
+    // Fallback: measure DOM node (useful if rect is missing in some browsers)
+    const el = document.querySelector(`[data-kanban-card-id="${CSS.escape(id)}"]`) as HTMLElement | null;
+    if (el) setOverlayWidth(Math.round(el.getBoundingClientRect().width));
   }
 
   function onDragOver(ev: DragOverEvent) {
     const activeId = String(ev.active.id);
     const overId = ev.over?.id ? String(ev.over.id) : null;
     if (!overId) return;
+
+    // Reduce re-renders: only react when the hovered target actually changes.
+    if (lastOverIdRef.current === overId) return;
+    lastOverIdRef.current = overId;
 
     const activeContainer = findContainer(activeId);
     const overContainer = findContainer(overId) ?? (stages.some((s) => s.id === overId) ? overId : null);
@@ -277,6 +296,8 @@ export function DealsKanbanPage() {
     const dealId = String(ev.active.id);
     const overId = ev.over?.id ? String(ev.over.id) : null;
     setActiveDealId(null);
+    setOverlayWidth(null);
+    lastOverIdRef.current = null;
     if (!overId) return;
 
     const newStageId = resolveDestinationStageId(overId);
@@ -365,17 +386,22 @@ export function DealsKanbanPage() {
               </div>
 
               {createPortal(
-              <DragOverlay>
-
-                {activeDeal ? (
-                  <div className="opacity-95">
-                    <KanbanCard deal={activeDeal} stageColor={activeDeal.expand?.stage_id?.color ?? "#004EEB"} overlay />
-                  </div>
-                ) : null}
-              
-              </DragOverlay>,
-              document.body
-            )}
+                <DragOverlay>
+                  {activeDeal ? (
+                    <div
+                      className="opacity-95"
+                      style={{ width: overlayWidth ? `${overlayWidth}px` : undefined }}
+                    >
+                      <KanbanCard
+                        deal={activeDeal}
+                        stageColor={activeDeal.expand?.stage_id?.color ?? "#004EEB"}
+                        overlay
+                      />
+                    </div>
+                  ) : null}
+                </DragOverlay>,
+                document.body
+              )}
             </DndContext>
           </>
         )}

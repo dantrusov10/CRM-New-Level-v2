@@ -1,5 +1,5 @@
 import React from "react";
-import { TrendingUp, AlertTriangle, CircleDot, Percent, Clock, Users, Settings2, SlidersHorizontal, BarChart3 } from "lucide-react";
+import { TrendingUp, AlertTriangle, CircleDot, Percent, Clock, Users, Settings2, BarChart3 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useDeals, useFunnelStages, useUsers } from "../data/hooks";
 import { Button } from "../components/Button";
@@ -394,7 +394,7 @@ export function DashboardPage() {
     subtitle,
     widgetId,
     children,
-    onDrill,
+    onDrill: _onDrill,
   }: {
     title: string;
     subtitle?: string;
@@ -410,15 +410,6 @@ export function DashboardPage() {
             {subtitle ? <div className="text-xs text-text2 mt-1">{subtitle}</div> : null}
           </div>
           <div className="flex items-center gap-2">
-            {onDrill ? (
-              <button
-                className="h-9 w-9 rounded-2xl border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.08)] flex items-center justify-center"
-                title="Провалиться в сделки"
-                onClick={onDrill}
-              >
-                <SlidersHorizontal size={16} className="text-text" />
-              </button>
-            ) : null}
             <button
               className="h-9 w-9 rounded-2xl border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.08)] flex items-center justify-center"
               title="Настроить виджет"

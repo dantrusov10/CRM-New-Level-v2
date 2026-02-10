@@ -1,13 +1,26 @@
 import React from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import dayjs from "dayjs";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
 import { Badge } from "../../components/Badge";
 import { Tabs } from "../../components/Tabs";
+import { Modal } from "../../components/Modal";
 import { pb } from "../../../lib/pb";
-import { useAiInsights, useDeal, useFunnelStages, useTimeline, useUpdateDeal } from "../../data/hooks";
+import {
+  useAiInsights,
+  useContactsFound,
+  useCreateContactFound,
+  useDeleteContactFound,
+  useDeal,
+  useEntityFiles,
+  useAddWorkspaceFile,
+  useDeleteEntityFileLink,
+  useFunnelStages,
+  useTimeline,
+  useUpdateDeal,
+} from "../../data/hooks";
 import { DealKpModule } from "../../modules/kp/DealKpModule";
 import { DynamicEntityFormWithRef, DynamicEntityFormHandle } from "../../components/DynamicEntityForm";
 
@@ -90,6 +103,7 @@ function TimelineItemRow({ item }: { item: any }) {
         </div>
         <div className="text-sm mt-1 whitespace-pre-wrap">{item.comment || item.action}</div>
       </div>
+
     </div>
   );
 }
@@ -100,6 +114,12 @@ export function DealDetailPage() {
   const stagesQ = useFunnelStages();
   const tlQ = useTimeline("deal", id!);
   const aiQ = useAiInsights(id!);
+  const contactsQ = useContactsFound(id!);
+  const createContactM = useCreateContactFound();
+  const deleteContactM = useDeleteContactFound();
+  const entityFilesQ = useEntityFiles("deal", id!);
+  const addWorkspaceFileM = useAddWorkspaceFile();
+  const deleteEntityFileM = useDeleteEntityFileLink();
   const upd = useUpdateDeal();
 
   const deal = dealQ.data as any;
@@ -109,6 +129,23 @@ export function DealDetailPage() {
   const [comment, setComment] = React.useState<string>("");
   const [timelineFilter, setTimelineFilter] = React.useState<string>("all");
   const formRef = React.useRef<DynamicEntityFormHandle | null>(null);
+
+  // Contacts modal
+  const [contactModal, setContactModal] = React.useState(false);
+  const [cFullName, setCFullName] = React.useState("");
+  const [cPosition, setCPosition] = React.useState("");
+  const [cPhone, setCPhone] = React.useState("");
+  const [cEmail, setCEmail] = React.useState("");
+  const [cTelegram, setCTelegram] = React.useState("");
+  const [cInfluence, setCInfluence] = React.useState<string>("");
+  const [cError, setCError] = React.useState<string>("");
+
+  // Workspace add file/link
+  const [wsUrl, setWsUrl] = React.useState("");
+  const [wsTitle, setWsTitle] = React.useState("");
+  const [wsTag, setWsTag] = React.useState("");
+  const [wsLinkUrl, setWsLinkUrl] = React.useState("");
+  const [wsLinkTitle, setWsLinkTitle] = React.useState("");
 
   // form state
   const [title, setTitle] = React.useState<string>("");
@@ -224,6 +261,71 @@ export function DealDetailPage() {
     if (!text || !id) return;
     await createTimelineEvent("comment", text);
     setComment("");
+    tlQ.refetch();
+  }
+
+  async function addContact() {
+    if (!id) return;
+    const full_name = cFullName.trim();
+    const phone = cPhone.trim();
+    const email = cEmail.trim();
+    const telegram = cTelegram.trim();
+    const position = cPosition.trim();
+    if (!full_name) {
+      setCError("Укажите имя контакта");
+      return;
+    }
+    if (!phone && !email && !telegram) {
+      setCError("Укажите хотя бы один контакт: телефон / email / Telegram");
+      return;
+    }
+    setCError("");
+    await createContactM
+      .mutateAsync({
+        deal_id: id,
+        company_id: deal?.company_id || deal?.expand?.company_id?.id || null,
+        full_name,
+        position: position || "",
+        phone: phone || "",
+        email: email || "",
+        telegram: telegram || "",
+        influence_type: cInfluence || "",
+        source_type: "manual",
+        source_url: "",
+        confidence: 1,
+        is_verified: true,
+      } as any)
+      .catch(() => null);
+    setContactModal(false);
+    setCFullName("");
+    setCPosition("");
+    setCPhone("");
+    setCEmail("");
+    setCTelegram("");
+    setCInfluence("");
+    contactsQ.refetch();
+  }
+
+  async function addWorkspaceFile() {
+    if (!id) return;
+    const url = wsUrl.trim();
+    if (!url) return;
+    await addWorkspaceFileM
+      .mutateAsync({ entityType: "deal", entityId: id, url, title: wsTitle.trim(), tag: wsTag.trim() })
+      .catch(() => null);
+    setWsUrl("");
+    setWsTitle("");
+    setWsTag("");
+    entityFilesQ.refetch();
+  }
+
+  async function addWorkspaceLink() {
+    if (!id) return;
+    const url = wsLinkUrl.trim();
+    if (!url) return;
+    await createTimelineEvent("workspace_link", wsLinkTitle.trim() || url, { url });
+    setWsLinkUrl("");
+    setWsLinkTitle("");
     tlQ.refetch();
   }
 
@@ -368,8 +470,59 @@ export function DealDetailPage() {
                 <div className="text-xs text-text2 mt-1">ЛПР/влияющие/блокеры + что важно + “что говорить”</div>
               </CardHeader>
               <CardContent>
-                <div className="text-sm text-text2">
-                  Каркас. Дальше подключим контакты из <code>contacts_found</code> и карту ролей (ЛПР/ЛВР).
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-xs text-text2">
+                    Контакты по сделке (ручные + из парсера). Можно добавлять вручную.
+                  </div>
+                  <Button onClick={() => setContactModal(true)}>
+                    + Контакт
+                  </Button>
+                </div>
+
+                <div className="mt-4 grid gap-3">
+                  {(contactsQ.data || []).map((c: any) => {
+                    const src = String(c.source_type || "");
+                    const isManual = src === "manual";
+                    const meta = [c.position, c.influence_type].filter(Boolean).join(" · ");
+                    return (
+                      <div key={c.id} className="rounded-card border border-border bg-white p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <div className="text-sm font-semibold truncate">{c.full_name || "—"}</div>
+                              {src ? <Badge>{src === "manual" ? "manual" : src}</Badge> : null}
+                              {c.is_verified ? <Badge>verified</Badge> : null}
+                            </div>
+                            {meta ? <div className="text-xs text-text2 mt-1">{meta}</div> : null}
+                            <div className="mt-2 grid gap-1 text-sm">
+                              {c.phone ? <div>📞 {c.phone}</div> : null}
+                              {c.email ? <div>✉️ {c.email}</div> : null}
+                              {c.telegram ? <div>💬 {c.telegram}</div> : null}
+                              {c.source_url ? (
+                                <a className="text-sm text-primary underline" href={c.source_url} target="_blank" rel="noreferrer">
+                                  источник
+                                </a>
+                              ) : null}
+                            </div>
+                          </div>
+                          {isManual ? (
+                            <Button
+                              variant="ghost"
+                              onClick={async () => {
+                                await deleteContactM.mutateAsync({ id: c.id, dealId: id! } as any).catch(() => null);
+                                contactsQ.refetch();
+                              }}
+                            >
+                              Удалить
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {!contactsQ.isLoading && !(contactsQ.data || []).length ? (
+                    <div className="text-sm text-text2">Контактов пока нет. Нажми “+ Контакт”.</div>
+                  ) : null}
                 </div>
               </CardContent>
             </Card>
@@ -379,11 +532,28 @@ export function DealDetailPage() {
             <Card>
               <CardHeader>
                 <div className="text-sm font-semibold">Заметки</div>
-                <div className="text-xs text-text2 mt-1">Быстрые заметки менеджера (пишем в timeline как note)</div>
+                <div className="text-xs text-text2 mt-1">Здесь отображаются заметки и комментарии из правого блока.</div>
               </CardHeader>
               <CardContent>
-                <div className="text-sm text-text2">
-                  MVP: добавляй заметки через блок комментариев справа (тип — “Комментарий”).
+                <div className="grid gap-3">
+                  {tlAll
+                    .filter((t) => {
+                      const a = String(t.action || "");
+                      return a === "comment" || a === "note";
+                    })
+                    .map((t) => (
+                      <div key={t.id} className="rounded-card border border-border bg-white p-3">
+                        <div className="text-xs text-text2">
+                          {dayjs(t.timestamp || t.created).format("DD.MM.YYYY HH:mm")}
+                          {t.expand?.user_id?.name ? ` · ${t.expand.user_id.name}` : ""}
+                          {String(t.action) === "note" ? " · note" : ""}
+                        </div>
+                        <div className="text-sm mt-2 whitespace-pre-wrap">{t.comment}</div>
+                      </div>
+                    ))}
+                  {!tlAll.some((t) => String(t.action) === "comment" || String(t.action) === "note") ? (
+                    <div className="text-sm text-text2">Заметок пока нет. Добавь комментарий справа — он появится здесь.</div>
+                  ) : null}
                 </div>
               </CardContent>
             </Card>
@@ -400,8 +570,86 @@ export function DealDetailPage() {
                 <div className="text-xs text-text2 mt-1">Документы, ссылки, материалы по сделке</div>
               </CardHeader>
               <CardContent>
-                <div className="text-sm text-text2">
-                  Каркас. Дальше подключим <code>entity_files</code> и <code>product_materials</code>.
+                <div className="grid gap-4">
+                  <div className="grid grid-cols-12 gap-3">
+                    <div className="col-span-6">
+                      <div className="text-xs text-text2 mb-2">Ссылки</div>
+                      <div className="flex gap-2">
+                        <Input value={wsLinkTitle} onChange={(e) => setWsLinkTitle(e.target.value)} placeholder="Название (опционально)" />
+                        <Input value={wsLinkUrl} onChange={(e) => setWsLinkUrl(e.target.value)} placeholder="https://..." />
+                        <Button onClick={addWorkspaceLink} disabled={!wsLinkUrl.trim()}>
+                          Добавить
+                        </Button>
+                      </div>
+                      <div className="mt-3 grid gap-2">
+                        {tlAll
+                          .filter((t) => String(t.action) === "workspace_link")
+                          .map((t) => {
+                            const url = (t.payload && (t.payload as any).url) || "";
+                            return (
+                              <div key={t.id} className="rounded-card border border-border bg-white p-3">
+                                <div className="text-xs text-text2">{dayjs(t.timestamp || t.created).format("DD.MM.YYYY HH:mm")}</div>
+                                <a className="text-sm text-primary underline break-all" href={url} target="_blank" rel="noreferrer">
+                                  {t.comment || url}
+                                </a>
+                              </div>
+                            );
+                          })}
+                        {!tlAll.some((t) => String(t.action) === "workspace_link") ? (
+                          <div className="text-sm text-text2">Пока нет ссылок. Добавь первую сверху.</div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="col-span-6">
+                      <div className="text-xs text-text2 mb-2">Документы (ссылкой)</div>
+                      <div className="grid gap-2">
+                        <Input value={wsTitle} onChange={(e) => setWsTitle(e.target.value)} placeholder="Название" />
+                        <div className="flex gap-2">
+                          <Input value={wsUrl} onChange={(e) => setWsUrl(e.target.value)} placeholder="URL на файл (S3/Selectel/диск)" />
+                          <Input value={wsTag} onChange={(e) => setWsTag(e.target.value)} placeholder="Тэг (опционально)" />
+                          <Button onClick={addWorkspaceFile} disabled={!wsUrl.trim()}>
+                            Добавить
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-2">
+                        {(entityFilesQ.data || []).map((ef: any) => {
+                          const f = ef.expand?.file_id;
+                          const url = f?.path || "";
+                          return (
+                            <div key={ef.id} className="rounded-card border border-border bg-white p-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-semibold truncate">{f?.filename || "Файл"}</div>
+                                  {ef.tag ? <div className="text-xs text-text2 mt-1">{ef.tag}</div> : null}
+                                  {url ? (
+                                    <a className="text-sm text-primary underline break-all" href={url} target="_blank" rel="noreferrer">
+                                      {url}
+                                    </a>
+                                  ) : null}
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  onClick={async () => {
+                                    await deleteEntityFileM
+                                      .mutateAsync({ id: ef.id, entityType: "deal", entityId: id! } as any)
+                                      .catch(() => null);
+                                    entityFilesQ.refetch();
+                                  }}
+                                >
+                                  Удалить
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {!entityFilesQ.isLoading && !(entityFilesQ.data || []).length ? (
+                          <div className="text-sm text-text2">Документов пока нет. Добавь файл ссылкой сверху.</div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -494,6 +742,54 @@ export function DealDetailPage() {
           </Card>
         </div>
       </div>
+
+      <Modal
+        open={contactModal}
+        title="Новый контакт"
+        onClose={() => {
+          setContactModal(false);
+          setCError("");
+        }}
+      >
+        <div className="grid gap-3">
+          {cError ? <div className="text-sm text-danger">{cError}</div> : null}
+          <FieldRow label="ФИО *">
+            <Input value={cFullName} onChange={(e) => setCFullName(e.target.value)} placeholder="Иванов Иван" />
+          </FieldRow>
+          <FieldRow label="Должность">
+            <Input value={cPosition} onChange={(e) => setCPosition(e.target.value)} placeholder="Начальник отдела..." />
+          </FieldRow>
+          <FieldRow label="Раб. телефон">
+            <Input value={cPhone} onChange={(e) => setCPhone(e.target.value)} placeholder="+7 ..." />
+          </FieldRow>
+          <FieldRow label="Email">
+            <Input value={cEmail} onChange={(e) => setCEmail(e.target.value)} placeholder="name@company.ru" />
+          </FieldRow>
+          <FieldRow label="Мессенджер">
+            <Input value={cTelegram} onChange={(e) => setCTelegram(e.target.value)} placeholder="@username / tg" />
+          </FieldRow>
+          <FieldRow label="Роль">
+            <Select value={cInfluence} onChange={setCInfluence}>
+              <option value="">—</option>
+              <option value="lpr">ЛПР</option>
+              <option value="lvr">ЛВР</option>
+              <option value="blocker">Блокер</option>
+              <option value="influencer">Влияющий</option>
+            </Select>
+          </FieldRow>
+          <div className="flex justify-end gap-2 mt-2">
+            <Button variant="ghost" onClick={() => setContactModal(false)}>
+              Отмена
+            </Button>
+            <Button onClick={addContact} disabled={createContactM.isPending}>
+              Создать
+            </Button>
+          </div>
+          <div className="text-xs text-text2">
+            Обязательное: ФИО + хотя бы один контакт (телефон/email/telegram). Контакт сохранится в <code>contacts_found</code> как <code>source_type=manual</code>.
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

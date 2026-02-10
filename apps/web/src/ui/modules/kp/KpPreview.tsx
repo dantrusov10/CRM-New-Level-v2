@@ -28,6 +28,12 @@ export function KpPreview({
   const currency = template?.defaults?.currency || "RUB";
   const vatPercent = Number(template?.defaults?.vatPercent ?? 20);
 
+  const pdfDesign = template?.pdfDesign || {};
+  const paperBg = pdfDesign.paperBg || "#ffffff";
+  const textColor = pdfDesign.textColor || "#111827";
+  const tableHeaderBg = pdfDesign.tableHeaderBg || "#EEF1F6";
+  const tableHeaderText = pdfDesign.tableHeaderText || "#374151";
+
   const partner = Number(input?.discountPartnerPercent || 0);
   const manual = Number(input?.discountManualPercent || 0);
   const computed = React.useMemo(
@@ -53,7 +59,10 @@ export function KpPreview({
   };
 
   return (
-    <div className={mode === "pdf" ? "bg-white p-6" : ""}>
+    <div
+      className={mode === "pdf" ? "p-6" : ""}
+      style={mode === "pdf" ? { background: paperBg, color: textColor } : undefined}
+    >
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="text-xs text-text2">Коммерческое предложение</div>
@@ -89,7 +98,10 @@ export function KpPreview({
         <div className="mt-2 overflow-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="h-10 bg-[#EEF1F6] text-[#374151] font-semibold">
+              <tr
+                className="h-10 font-semibold"
+                style={mode === "pdf" ? { background: tableHeaderBg, color: tableHeaderText } : { background: "#EEF1F6", color: "#374151" }}
+              >
                 <th className="text-left px-3">Наименование</th>
                 <th className="text-right px-3">Кол-во</th>
                 <th className="text-right px-3">Цена</th>

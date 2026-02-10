@@ -5,6 +5,7 @@ import { Input } from "../../components/Input";
 import { pb } from "../../../lib/pb";
 import { KpTemplateEditor } from "../../modules/kp/KpTemplateEditor";
 import { DEFAULT_KP_TEMPLATE_V1 } from "../../modules/kp/defaultTemplate";
+import { PriceListAdmin } from "../../modules/kp/PriceListAdmin";
 
 type Tab = "contacts" | "media" | "tenders" | "kp";
 
@@ -482,7 +483,10 @@ function KpSettings() {
           </CardContent>
         </Card>
       ) : (
-        <KpTemplateEditor templateRecord={tpl} onSave={save} onReload={load} />
+        <>
+          <KpTemplateEditor templateRecord={tpl} onSave={save} onReload={load} />
+          <PriceListAdmin />
+        </>
       )}
     </div>
   );

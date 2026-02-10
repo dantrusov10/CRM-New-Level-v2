@@ -108,10 +108,10 @@ export function DealKpModule({ deal, onTimeline }: { deal: any; onTimeline?: (ac
     // price items lazy load
     (async () => {
       const q = priceSearch.trim();
-      const filter = q ? `name~"${q.replace(/"/g, "\\\"")}"` : "";
+      const filter = q ? `product_name~"${q.replace(/"/g, "\\\"")}"` : "";
       const res = await pb
         .collection("price_list_items")
-        .getList(1, 30, { sort: "name", filter: filter || undefined })
+        .getList(1, 30, { sort: "product_name", filter: filter || undefined })
         .catch(() => ({ items: [] as any[] }));
       setPriceItems(res.items || []);
     })();
@@ -150,13 +150,19 @@ export function DealKpModule({ deal, onTimeline }: { deal: any; onTimeline?: (ac
   }
 
   async function addFromPrice(pi: any) {
+    const meta = pi.meta || {};
+    const vatMode = meta.vat_mode || "with_vat";
+    const name = pi.product_name || pi.name || "";
+    const price = Number(pi.price || 0);
+    // Сейчас храним цену как есть (как в прайсе). vat_mode влияет на интерпретацию, если понадобится.
+    const unitPrice = price;
     setItems((prev) => [
       ...prev,
       {
         id: uid("p"),
-        name: pi.name,
+        name,
         qty: 1,
-        unitPrice: Number(pi.price || 0),
+        unitPrice,
         vatPercent: Number(pi.vat_percent ?? vatPercent),
         source: "price",
         price_list_item_id: pi.id,
@@ -312,7 +318,7 @@ export function DealKpModule({ deal, onTimeline }: { deal: any; onTimeline?: (ac
                     {priceItems.map((pi) => (
                       <div key={pi.id} className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border last:border-b-0">
                         <div className="text-sm">
-                          <div className="font-medium">{pi.name}</div>
+                          <div className="font-medium">{pi.product_name || pi.name}</div>
                           <div className="text-xs text-text2">{Number(pi.price || 0)} {currency}</div>
                         </div>
                         <Button variant="secondary" onClick={() => addFromPrice(pi)}>Добавить</Button>

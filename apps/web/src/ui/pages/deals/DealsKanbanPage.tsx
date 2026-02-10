@@ -8,7 +8,9 @@ import {
   DragOverlay,
   DragStartEvent,
   PointerSensor,
-  closestCorners,
+  pointerWithin,
+  rectIntersection,
+  CollisionDetection,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
@@ -125,6 +127,13 @@ export function DealsKanbanPage() {
     })
   );
 
+  // Better drop into empty columns: prioritize pointer collisions, fallback to rectangle intersection.
+  const collisionDetection: CollisionDetection = React.useCallback((args) => {
+    const pointer = pointerWithin(args);
+    if (pointer.length) return pointer;
+    return rectIntersection(args);
+  }, []);
+
   const stagesQ = useFunnelStages();
   const filter = [
     owner ? `responsible_id="${owner}"` : "",
@@ -240,16 +249,27 @@ export function DealsKanbanPage() {
     setActiveDealId(id);
     lastOverIdRef.current = null;
 
-    // Keep DragOverlay the same width as the source card (otherwise it stretches to viewport).
-    const rectW = ev.active?.rect?.current?.initial?.width;
-    if (rectW && Number.isFinite(rectW)) {
-      setOverlayWidth(Math.round(rectW));
+    // DragOverlay is rendered in document.body; if we don't pin width, it can stretch across columns.
+    // We measure the *column content* width (column width minus padding), so the grabbed card is always the same size.
+    const el = document.querySelector(`[data-kanban-card-id="${CSS.escape(id)}"]`) as HTMLElement | null;
+    if (el) {
+      const col = el.closest(`[data-kanban-column="true"]`) as HTMLElement | null;
+      if (col) {
+        const colRect = col.getBoundingClientRect();
+        const styles = window.getComputedStyle(col);
+        const padL = parseFloat(styles.paddingLeft || "0") || 0;
+        const padR = parseFloat(styles.paddingRight || "0") || 0;
+        const w = Math.max(200, Math.round(colRect.width - padL - padR));
+        setOverlayWidth(w);
+        return;
+      }
+      setOverlayWidth(Math.round(el.getBoundingClientRect().width));
       return;
     }
 
-    // Fallback: measure DOM node (useful if rect is missing in some browsers)
-    const el = document.querySelector(`[data-kanban-card-id="${CSS.escape(id)}"]`) as HTMLElement | null;
-    if (el) setOverlayWidth(Math.round(el.getBoundingClientRect().width));
+    // Fallback: dnd-kit rect
+    const rectW = ev.active?.rect?.current?.initial?.width;
+    if (rectW && Number.isFinite(rectW)) setOverlayWidth(Math.round(rectW));
   }
 
   function onDragOver(ev: DragOverEvent) {
@@ -362,7 +382,7 @@ export function DealsKanbanPage() {
 
             <DndContext
               sensors={sensors}
-              collisionDetection={closestCorners}
+              collisionDetection={collisionDetection}
               onDragStart={onDragStart}
               onDragOver={onDragOver}
               onDragEnd={onDragEnd}

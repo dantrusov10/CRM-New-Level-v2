@@ -49,7 +49,16 @@ export function KanbanColumn({
         <div className="text-xs text-text2 tabular-nums">{deals.length}</div>
       </div>
 
-      <div className="grid gap-2 flex-1 min-h-[140px]">
+      {/*
+        IMPORTANT:
+        Don't use CSS grid for the cards list.
+        When the column is tall (flex-1), CSS grid can stretch rows to fill
+        the available height. As a result, in columns with fewer deals the
+        cards become "толще" (higher) and the UI looks inconsistent and jerky.
+        A simple flex-column keeps each card the same height regardless of
+        the number of items in the stage.
+      */}
+      <div className="flex flex-col gap-2 flex-1 min-h-[140px] justify-start">
         {deals.map((d) => (
           <KanbanCard key={d.id} deal={d} stageColor={(stage as any).color ?? "#004EEB"} />
         ))}

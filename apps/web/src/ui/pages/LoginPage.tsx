@@ -36,7 +36,7 @@ export function LoginPage() {
       <Card className="w-full max-w-lg">
         <CardHeader>
           <div className="flex items-center gap-3">
-            <img src={logo} alt="NewLevel CRM" className="w-10 h-10 rounded-2xl border border-[rgba(255,255,255,0.12)]" />
+            <img src={logo} alt="NewLevel CRM" className="w-14 h-14 rounded-2xl border border-[rgba(255,255,255,0.12)]" />
             <div>
               <div className="text-xl font-extrabold">NewLevel CRM</div>
               <div className="text-xs text-text2 mt-1">Вход</div>

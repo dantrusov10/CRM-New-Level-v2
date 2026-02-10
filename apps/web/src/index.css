@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Hide native scrollbars (keep scroll via mouse wheel / trackpad)
+   Used in DateTimePicker time lists to avoid "slider" covering values. */
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
+}
+
 /* ========= Calm Power UI (Cockpit) — Global ========= */
 :root{
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
@@ -255,8 +265,7 @@ body:after{
 }
 
 /* Old helper (keep) */
-.no-scrollbar{ scrollbar-width: none; }
-.no-scrollbar::-webkit-scrollbar{ display:none; }
+
 
 /* Kanban cards */
 .kanban-card{

@@ -105,17 +105,17 @@
         "allowOAuth2Auth": false,
         "allowUsernameAuth": false,
         "exceptEmailDomains": null,
-        "manageRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || @request.auth.role_name = \"admin\")",
+        "manageRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
         "minPasswordLength": 8,
         "onlyEmailDomains": null,
         "onlyVerified": false,
         "requireEmail": true
       },
-      "listRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || @request.auth.role_name = \"admin\")",
-      "viewRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || @request.auth.role_name = \"admin\")",
-      "createRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || @request.auth.role_name = \"admin\")",
-      "updateRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || @request.auth.role_name = \"admin\")",
-      "deleteRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || @request.auth.role_name = \"admin\")"
+      "listRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
+      "viewRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
+      "createRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
+      "updateRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
+      "deleteRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")"
     },
     {
       "id": "jgdgjti9w9xun1i",

@@ -106,3 +106,16 @@ export type Role = {
   name: string;
   permissions_json: any; // {section:{read,create,update,delete}}
 };
+
+// --- Tasks (manager reminders) ---
+export type TaskItem = {
+  id: Id;
+  title: string;
+  due_at: string; // ISO datetime
+  is_done?: boolean;
+  deal_id?: Id;
+  company_id?: Id;
+  created_by: Id;
+  created?: string;
+  updated?: string;
+};

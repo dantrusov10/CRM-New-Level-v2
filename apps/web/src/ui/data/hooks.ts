@@ -3,6 +3,36 @@ import { pb } from "../../lib/pb";
 import type { Deal, Company, FunnelStage, TimelineItem, AiInsight } from "../../lib/types";
 import type { PermissionMatrix } from "../../lib/rbac";
 
+export type ContactFound = {
+  id: string;
+  deal_id?: string;
+  company_id?: string;
+  parser_run_id?: string;
+  role_map_item_id?: string;
+  position?: string;
+  influence_type?: string;
+  full_name?: string;
+  phone?: string;
+  telegram?: string;
+  email?: string;
+  source_url?: string;
+  source_type?: string;
+  confidence?: number;
+  is_verified?: boolean;
+  created?: string;
+  updated?: string;
+};
+
+export type EntityFileLink = {
+  id: string;
+  entity_type: string;
+  entity_id: string;
+  file_id: string;
+  tag?: string;
+  created_at?: string;
+  expand?: { file_id?: any };
+};
+
 function normalizeListResult<T>(res: any): T[] {
   if (!res) return [] as T[];
   if (Array.isArray(res)) return res as T[];
@@ -182,6 +212,116 @@ export function useAiInsights(dealId: string) {
       return normalizeListResult(res) as any;
     },
     enabled: !!dealId,
+  });
+}
+
+// --- Contacts (manual + parser results) ---
+export function useContactsFound(dealId: string) {
+  return useQuery({
+    queryKey: ["contacts_found", dealId],
+    queryFn: async (): Promise<ContactFound[]> => {
+      const res = await pb
+        .collection("contacts_found")
+        .getList(1, 200, {
+          filter: `deal_id="${dealId}"`,
+          sort: "-created",
+        })
+        .catch(() => ({ items: [] as any[] }));
+      return normalizeListResult(res) as any;
+    },
+    enabled: !!dealId,
+  });
+}
+
+export function useCreateContactFound() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: Partial<ContactFound>) => {
+      return pb.collection("contacts_found").create(data as any);
+    },
+    onSuccess: (_rec, vars) => {
+      if (vars.deal_id) qc.invalidateQueries({ queryKey: ["contacts_found", vars.deal_id] });
+    },
+  });
+}
+
+export function useDeleteContactFound() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id }: { id: string; dealId?: string }) => {
+      await pb.collection("contacts_found").delete(id);
+      return { id };
+    },
+    onSuccess: (_rec, vars) => {
+      if (vars.dealId) qc.invalidateQueries({ queryKey: ["contacts_found", vars.dealId] });
+    },
+  });
+}
+
+// --- Workspace files linked to an entity (deal/company/etc.) ---
+export function useEntityFiles(entityType: string, entityId: string) {
+  return useQuery({
+    queryKey: ["entity_files", entityType, entityId],
+    queryFn: async (): Promise<EntityFileLink[]> => {
+      const res = await pb
+        .collection("entity_files")
+        .getList(1, 200, {
+          filter: `entity_type="${entityType}" && entity_id="${entityId}"`,
+          sort: "-created",
+          expand: "file_id",
+        })
+        .catch(() => ({ items: [] as any[] }));
+      return normalizeListResult(res) as any;
+    },
+    enabled: !!entityId,
+  });
+}
+
+export function useAddWorkspaceFile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { entityType: string; entityId: string; url: string; title?: string; tag?: string }) => {
+      const url = (vars.url || "").trim();
+      const title = (vars.title || "").trim() || url.split("/").pop() || "file";
+      const file = await pb
+        .collection("files")
+        .create({
+          path: url,
+          filename: title,
+          mime: "text/uri-list",
+          size_bytes: 0,
+        })
+        .catch(() => null);
+      if (!file?.id) throw new Error("Не удалось создать files");
+      const link = await pb
+        .collection("entity_files")
+        .create({
+          entity_type: vars.entityType,
+          entity_id: vars.entityId,
+          file_id: file.id,
+          tag: vars.tag || "",
+          created_at: new Date().toISOString(),
+        })
+        .catch(() => null);
+      if (!link?.id) throw new Error("Не удалось создать entity_files");
+      return link;
+    },
+    onSuccess: (_rec, vars) => {
+      qc.invalidateQueries({ queryKey: ["entity_files", vars.entityType, vars.entityId] });
+    },
+  });
+}
+
+export function useDeleteEntityFileLink() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { id: string; entityType: string; entityId: string }) => {
+      await pb.collection("entity_files").delete(vars.id);
+      return vars;
+    },
+    onSuccess: (_rec, vars) => {
+      qc.invalidateQueries({ queryKey: ["entity_files", vars.entityType, vars.entityId] });
+    },
   });
 }
 

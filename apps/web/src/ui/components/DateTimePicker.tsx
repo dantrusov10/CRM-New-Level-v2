@@ -169,7 +169,7 @@ export function DateTimePicker({
             <div className="border-l border-[rgba(255,255,255,0.10)] p-3">
               <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-2xl border border-[rgba(255,255,255,0.10)] overflow-hidden">
-                  <div className="max-h-56 overflow-auto">
+                  <div className="max-h-56 overflow-auto no-scrollbar">
                     {hours.map((h) => (
                       <button
                         key={h}
@@ -186,7 +186,7 @@ export function DateTimePicker({
                   </div>
                 </div>
                 <div className="rounded-2xl border border-[rgba(255,255,255,0.10)] overflow-hidden">
-                  <div className="max-h-56 overflow-auto">
+                  <div className="max-h-56 overflow-auto no-scrollbar">
                     {minutes.map((m) => (
                       <button
                         key={m}

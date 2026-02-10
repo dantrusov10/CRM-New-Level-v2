@@ -26,7 +26,7 @@ export function Sidebar({ perms }: { perms: PermissionMatrix }) {
           className="flex items-center gap-3 text-left w-full hover:opacity-95 active:opacity-90"
           title="На главную (Dashboard)"
         >
-          <img src={logo} alt="NewLevel CRM" className="w-10 h-10 rounded-2xl border border-[rgba(255,255,255,0.12)]" />
+          <img src={logo} alt="NewLevel CRM" className="w-11 h-11 rounded-2xl border border-[rgba(255,255,255,0.12)]" />
           <div>
             <div className="text-base font-extrabold leading-none">NewLevel CRM</div>
             <div className="text-xs mt-1 muted font-semibold">Command center для продаж</div>

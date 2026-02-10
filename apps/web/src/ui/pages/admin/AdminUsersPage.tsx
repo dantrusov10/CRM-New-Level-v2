@@ -8,7 +8,7 @@ import { notifyPbError } from "../../../lib/pbError";
 
 export function AdminUsersPage() {
   const [users, setUsers] = React.useState<any[]>([]);
-  // MVP: роли храним как enum в auth-коллекции `users.role_name`.
+  // Роль хранится в auth-коллекции `users.role` (в некоторых старых сборках могла быть `role_name`).
   // settings_roles остаётся для матрицы прав и лейблов.
   const ROLE_FALLBACK = [
     { value: "admin", label: "Админ" },
@@ -41,9 +41,20 @@ export function AdminUsersPage() {
     if (!role) { alert("Выберите роль"); return; }
     const data: any = { email, password, passwordConfirm: password };
     if (name.trim()) data.name = name.trim();
-    if (role) data.role_name = role;
+    // Prefer canonical field `role` (required in PB). If backend still uses `role_name`, fallback below.
+    data.role = role;
     try {
-      await pb.collection("users").create(data);
+      try {
+        await pb.collection("users").create(data);
+      } catch (e: any) {
+        // fallback for older schema
+        const msg = String(e?.message ?? "");
+        if (msg.includes("role") && !msg.includes("role_name")) {
+          await pb.collection("users").create({ ...data, role_name: role, role: undefined });
+        } else {
+          throw e;
+        }
+      }
       setOpen(false);
       setName(""); setEmail(""); setPassword(""); setRole("");
       load();
@@ -81,10 +92,16 @@ export function AdminUsersPage() {
                   <td className="px-3">
                     <select
                       className="h-9 rounded-card border border-[#9CA3AF] bg-white px-2 text-sm"
-                      value={u.role_name ?? ""}
+                      value={u.role ?? u.role_name ?? ""}
                       onChange={async (e) => {
+                        const nextRole = e.target.value || null;
                         try {
-                          await pb.collection("users").update(u.id, { role_name: e.target.value || null });
+                          // Prefer canonical field `role`.
+                          try {
+                            await pb.collection("users").update(u.id, { role: nextRole });
+                          } catch {
+                            await pb.collection("users").update(u.id, { role_name: nextRole as any });
+                          }
                           load();
                         } catch (err) {
                           notifyPbError(err, "Не удалось сменить роль");

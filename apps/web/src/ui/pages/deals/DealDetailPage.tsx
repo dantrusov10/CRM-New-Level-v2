@@ -7,7 +7,7 @@ import { Input } from "../../components/Input";
 import { Badge } from "../../components/Badge";
 import { Tabs } from "../../components/Tabs";
 import { Modal } from "../../components/Modal";
-import { pb } from "../../../lib/pb";
+import { pb, getAuthUser } from "../../../lib/pb";
 import {
   useAiInsights,
   useContactsFound,
@@ -20,6 +20,7 @@ import {
   useFunnelStages,
   useTimeline,
   useUpdateDeal,
+  useCreateTask,
 } from "../../data/hooks";
 import { DealKpModule } from "../../modules/kp/DealKpModule";
 import { DynamicEntityFormWithRef, DynamicEntityFormHandle } from "../../components/DynamicEntityForm";
@@ -126,9 +127,14 @@ export function DealDetailPage() {
   const stages = stagesQ.data ?? [];
 
   const [tab, setTab] = React.useState<string>("overview");
+  const [composerType, setComposerType] = React.useState<"comment" | "note" | "task">("comment");
   const [comment, setComment] = React.useState<string>("");
+  const [taskDueAt, setTaskDueAt] = React.useState<string>("");
   const [timelineFilter, setTimelineFilter] = React.useState<string>("all");
   const formRef = React.useRef<DynamicEntityFormHandle | null>(null);
+
+  const auth = getAuthUser();
+  const createTaskM = useCreateTask();
 
   // Contacts modal
   const [contactModal, setContactModal] = React.useState(false);
@@ -256,10 +262,38 @@ export function DealDetailPage() {
     tlQ.refetch();
   }
 
-  async function addComment() {
+  async function submitComposer() {
     const text = comment.trim();
-    if (!text || !id) return;
-    await createTimelineEvent("comment", text);
+    if (!id) return;
+
+    if (composerType === "task") {
+      const due = taskDueAt ? new Date(taskDueAt) : null;
+      if (!text) return;
+      if (!due || Number.isNaN(due.getTime())) return;
+      if (!auth?.id) return;
+
+      // create task record
+      await createTaskM
+        .mutateAsync({
+          title: text,
+          due_at: due.toISOString(),
+          deal_id: id,
+          company_id: deal?.company_id || deal?.expand?.company_id?.id,
+          created_by: auth.id,
+        })
+        .catch(() => null);
+
+      // add event to timeline (optional, for audit)
+      await createTimelineEvent("task_created", `Задача: ${text}`, { due_at: due.toISOString() }).catch(() => null);
+      setComment("");
+      setTaskDueAt("");
+      setComposerType("comment");
+      tlQ.refetch();
+      return;
+    }
+
+    if (!text) return;
+    await createTimelineEvent(composerType === "note" ? "note" : "comment", text);
     setComment("");
     tlQ.refetch();
   }
@@ -667,9 +701,49 @@ export function DealDetailPage() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-3">
-                <div className="flex gap-2">
-                  <Input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Напишите комментарий…" />
-                  <Button onClick={addComment} disabled={!comment.trim()}>Добавить</Button>
+                <div className="grid gap-2">
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={composerType}
+                      onChange={(e) => setComposerType(e.target.value as any)}
+                      className="ui-input max-w-[140px]"
+                      title="Тип"
+                    >
+                      <option value="comment">Чат</option>
+                      <option value="note">Примечание</option>
+                      <option value="task">Задача</option>
+                    </select>
+
+                    {composerType === "task" ? (
+                      <input
+                        type="datetime-local"
+                        value={taskDueAt}
+                        onChange={(e) => setTaskDueAt(e.target.value)}
+                        className="ui-input"
+                        title="Когда выполнить"
+                      />
+                    ) : null}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Input
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                      placeholder={composerType === "task" ? "Текст задачи (например: Связаться)" : "Напишите комментарий…"}
+                    />
+                    <Button
+                      onClick={submitComposer}
+                      disabled={composerType === "task" ? !(comment.trim() && taskDueAt) : !comment.trim()}
+                    >
+                      {composerType === "task" ? "Поставить" : "Добавить"}
+                    </Button>
+                  </div>
+
+                  {composerType === "task" ? (
+                    <div className="text-xs muted">
+                      Задача появится в колокольчике в нужное время и в календаре.
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="grid gap-3">

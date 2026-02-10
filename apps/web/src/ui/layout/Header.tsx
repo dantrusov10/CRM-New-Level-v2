@@ -7,9 +7,11 @@ import { useAuth } from "../../app/AuthProvider";
 import { FiltersModal } from "../modals/FiltersModal";
 import type { PermissionMatrix } from "../../lib/rbac";
 import { can } from "../../lib/rbac";
+import { NotificationsBell } from "../components/NotificationsBell";
 
 function titleByPath(pathname: string) {
   if (pathname.startsWith("/dashboard")) return "Dashboard";
+  if (pathname.startsWith("/calendar")) return "Календарь";
   if (pathname.startsWith("/kanban")) return "Канбан";
   if (pathname.startsWith("/companies")) return "Компании";
   if (pathname.startsWith("/admin")) return "Админ";
@@ -73,6 +75,7 @@ export function Header({
         </div>
 
         <div className="flex items-center gap-2">
+          <NotificationsBell />
           {can(perms, "import_export", "read") ? (
             <Button variant="secondary" onClick={onImport} disabled={!can(perms, "import_export", "create")}>
               <Upload size={16} />

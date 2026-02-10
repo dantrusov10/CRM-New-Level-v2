@@ -1,6 +1,6 @@
 import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { Building2, KanbanSquare, LayoutDashboard, LayoutGrid, Settings, Upload } from "lucide-react";
+import { Building2, KanbanSquare, LayoutDashboard, LayoutGrid, Settings, Upload, CalendarDays } from "lucide-react";
 import type { PermissionMatrix } from "../../lib/rbac";
 import { can } from "../../lib/rbac";
 import logo from "../../assets/newlevel-logo.png";
@@ -38,6 +38,8 @@ export function Sidebar({ perms }: { perms: PermissionMatrix }) {
         {can(perms, "deals", "read") ? <Item to="/dashboard" icon={LayoutDashboard} label="Dashboard" /> : null}
         {can(perms, "deals", "read") ? <Item to="/deals" icon={LayoutGrid} label="Сделки" /> : null}
         {can(perms, "deals", "read") ? <Item to="/kanban" icon={KanbanSquare} label="Канбан" /> : null}
+        {can(perms, "deals", "read") ? <Item to="/calendar" icon={CalendarDays} label="Календарь" /> : null}
+        {can(perms, "deals", "read") ? <Item to="/calendar" icon={CalendarDays} label="Календарь" /> : null}
         {can(perms, "companies", "read") ? <Item to="/companies" icon={Building2} label="Компании" /> : null}
         {can(perms, "import_export", "read") ? <Item to="/import-export" icon={Upload} label="Импорт/Экспорт" /> : null}
       </div>

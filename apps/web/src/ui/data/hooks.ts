@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { pb } from "../../lib/pb";
-import type { Deal, Company, FunnelStage, TimelineItem, AiInsight } from "../../lib/types";
+import type { Deal, Company, FunnelStage, TimelineItem, AiInsight, TaskItem } from "../../lib/types";
 import type { PermissionMatrix } from "../../lib/rbac";
 
 export type ContactFound = {
@@ -212,6 +212,79 @@ export function useAiInsights(dealId: string) {
       return normalizeListResult(res) as any;
     },
     enabled: !!dealId,
+  });
+}
+
+// --- Tasks (manager reminders) ---
+export function useMyTasksInRange(params: { userId: string; fromIso: string; toIso: string }) {
+  const { userId, fromIso, toIso } = params;
+  return useQuery({
+    queryKey: ["tasks", "range", userId, fromIso, toIso],
+    queryFn: async (): Promise<TaskItem[]> => {
+      const filter = `created_by="${userId}" && due_at>="${fromIso}" && due_at<="${toIso}"`;
+      const res = await pb.collection("tasks").getList(1, 200, {
+        filter,
+        sort: "due_at",
+        expand: "deal_id,company_id",
+      });
+      return normalizeListResult(res) as any;
+    },
+    enabled: !!userId && !!fromIso && !!toIso,
+    staleTime: 15_000,
+  });
+}
+
+export function useMyTasksForBell(params: { userId: string; windowHours?: number }) {
+  const { userId, windowHours = 48 } = params;
+  return useQuery({
+    queryKey: ["tasks", "bell", userId, windowHours],
+    queryFn: async (): Promise<TaskItem[]> => {
+      // We fetch a small window (overdue + upcoming) and then compute counters client-side.
+      const now = new Date();
+      const from = new Date(now.getTime() - 7 * 24 * 3600 * 1000); // include overdue last 7 days
+      const to = new Date(now.getTime() + windowHours * 3600 * 1000);
+      const filter = `created_by="${userId}" && is_done=false && due_at>="${from.toISOString()}" && due_at<="${to.toISOString()}"`;
+      const res = await pb.collection("tasks").getList(1, 200, {
+        filter,
+        sort: "due_at",
+        expand: "deal_id,company_id",
+      });
+      return normalizeListResult(res) as any;
+    },
+    enabled: !!userId,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+}
+
+export function useCreateTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { title: string; due_at: string; deal_id?: string; company_id?: string; created_by: string }) => {
+      return pb.collection("tasks").create({
+        title: payload.title,
+        due_at: payload.due_at,
+        deal_id: payload.deal_id,
+        company_id: payload.company_id,
+        created_by: payload.created_by,
+        is_done: false,
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+    },
+  });
+}
+
+export function useSetTaskDone() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { id: string; is_done: boolean }) => {
+      return pb.collection("tasks").update(payload.id, { is_done: payload.is_done });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+    },
   });
 }
 

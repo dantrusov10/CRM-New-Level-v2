@@ -266,6 +266,8 @@ body:after{
   margin-left: auto;
   margin-right: auto;
   box-sizing: border-box;
+  /* keep all deal cards the same visual size across all columns */
+  min-height: 92px;
   background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.06));
   border: 1px solid rgba(255,255,255,0.14);
   /* Lighter shadow for performance (400+ cards) */

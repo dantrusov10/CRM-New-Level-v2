@@ -410,7 +410,10 @@ export function DealsKanbanPage() {
                   {activeDeal ? (
                     <div
                       className="opacity-95"
-                      style={{ width: overlayWidth ? `${overlayWidth}px` : undefined }}
+                      // If width is not pinned, the overlay is rendered in <body>
+                      // and `width: 100%` cards will stretch across multiple columns.
+                      // Fallback to the column width (320) minus paddings.
+                      style={{ width: `${overlayWidth ?? 296}px` }}
                     >
                       <KanbanCard
                         deal={activeDeal}

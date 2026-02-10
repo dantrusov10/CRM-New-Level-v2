@@ -4,6 +4,7 @@ import dayjs from "dayjs";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
+import { DateTimePicker } from "../../components/DateTimePicker";
 import { Badge } from "../../components/Badge";
 import { Tabs } from "../../components/Tabs";
 import { Modal } from "../../components/Modal";
@@ -715,13 +716,7 @@ export function DealDetailPage() {
                     </select>
 
                     {composerType === "task" ? (
-                      <input
-                        type="datetime-local"
-                        value={taskDueAt}
-                        onChange={(e) => setTaskDueAt(e.target.value)}
-                        className="ui-input"
-                        title="Когда выполнить"
-                      />
+                      <DateTimePicker value={taskDueAt} onChange={setTaskDueAt} className="w-full" />
                     ) : null}
                   </div>
 

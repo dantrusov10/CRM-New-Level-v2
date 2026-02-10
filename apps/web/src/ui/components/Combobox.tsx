@@ -75,7 +75,7 @@ export function Combobox({
       />
 
       {open ? (
-        <div className="absolute z-50 mt-1 w-full rounded-card border border-border bg-card shadow-card overflow-hidden">
+        <div className="absolute z-50 mt-1 w-full rounded-card border border-[rgba(255,255,255,0.14)] bg-[rgba(10,20,32,0.92)] backdrop-blur-xl shadow-card overflow-hidden">
           <div className="max-h-64 overflow-auto">
             {loading ? (
               <div className="px-3 py-2 text-sm text-text2">Загрузка...</div>

@@ -39,7 +39,6 @@ export function Sidebar({ perms }: { perms: PermissionMatrix }) {
         {can(perms, "deals", "read") ? <Item to="/deals" icon={LayoutGrid} label="Сделки" /> : null}
         {can(perms, "deals", "read") ? <Item to="/kanban" icon={KanbanSquare} label="Канбан" /> : null}
         {can(perms, "deals", "read") ? <Item to="/calendar" icon={CalendarDays} label="Календарь" /> : null}
-        {can(perms, "deals", "read") ? <Item to="/calendar" icon={CalendarDays} label="Календарь" /> : null}
         {can(perms, "companies", "read") ? <Item to="/companies" icon={Building2} label="Компании" /> : null}
         {can(perms, "import_export", "read") ? <Item to="/import-export" icon={Upload} label="Импорт/Экспорт" /> : null}
       </div>

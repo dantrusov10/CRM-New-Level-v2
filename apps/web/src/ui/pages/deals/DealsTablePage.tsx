@@ -17,12 +17,25 @@ export function DealsTablePage() {
   const stage = sp.get("stage") ?? "";
   const owner = sp.get("owner") ?? "";
   const channel = sp.get("channel") ?? "";
+  const budgetMin = sp.get("budgetMin") ?? "";
+  const budgetMax = sp.get("budgetMax") ?? "";
+  const scoreMin = sp.get("scoreMin") ?? "";
+  const scoreMax = sp.get("scoreMax") ?? "";
+  const fromIso = sp.get("from") ?? "";
+
+  // PocketBase filter uses datetime strings; keep it simple with ISO.
+  const createdFrom = fromIso ? new Date(fromIso) : null;
 
   const filter = [
     // PocketBase schema
     stage ? `stage_id="${stage}"` : "",
     owner ? `responsible_id="${owner}"` : "",
     channel ? `sales_channel="${channel.replace(/\"/g, "\\\"")}"` : "",
+    budgetMin ? `budget >= ${Number(budgetMin)}` : "",
+    budgetMax ? `budget <= ${Number(budgetMax)}` : "",
+    scoreMin ? `current_score >= ${Number(scoreMin)}` : "",
+    scoreMax ? `current_score <= ${Number(scoreMax)}` : "",
+    createdFrom ? `created >= "${dayjs(createdFrom).format("YYYY-MM-DD HH:mm:ss")}"` : "",
   ].filter(Boolean).join(" && ");
 
   const dealsQ = useDealsList({ search, filter, page, perPage: 25 });

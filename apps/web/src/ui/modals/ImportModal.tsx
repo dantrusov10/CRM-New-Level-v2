@@ -7,7 +7,7 @@ import { parseTabularFile, downloadCsv, downloadXlsx, guessMapping } from "../..
 import { pb } from "../../lib/pb";
 import { useAuth } from "../../app/AuthProvider";
 
-type EntityType = "deal" | "company";
+type EntityType = "deal" | "company" | "bundle";
 
 type ImportErrorRow = {
   row: number;
@@ -194,6 +194,41 @@ export function ImportModal({
     []
   );
 
+  const aliasesBundle = React.useMemo(
+    () => ({
+      // Core (prefixed) columns used by the template "deal+company+contacts"
+      deal_id: ["Сделка: ID", "deal_id", "ID сделки"],
+      deal_title: ["Сделка: Название сделки", "Сделка: Название", "deal_title", "Название сделки"],
+      stage: ["Сделка: Этап", "stage", "Этап"],
+      company_id: ["Компания: ID", "company_id", "ID компании"],
+      company_name: ["Компания: Название компании", "Компания: Название", "company_name", "Компания", "Название компании"],
+      company_inn: ["Компания: ИНН", "inn", "ИНН"],
+      company_city: ["Компания: Город", "city", "Город"],
+      company_website: ["Компания: Сайт", "website", "Сайт"],
+      company_phone: ["Компания: Телефон", "phone", "Телефон"],
+      company_email: ["Компания: Email", "email", "E-mail"],
+      // Contacts (1..3)
+      c1_full_name: ["Контакт 1: ФИО", "Контакт1: ФИО", "contact1_full_name"],
+      c1_position: ["Контакт 1: Должность", "contact1_position"],
+      c1_phone: ["Контакт 1: Телефон", "contact1_phone"],
+      c1_email: ["Контакт 1: Email", "contact1_email"],
+      c1_telegram: ["Контакт 1: Telegram", "contact1_telegram", "Контакт 1: ТГ"],
+      c2_full_name: ["Контакт 2: ФИО", "contact2_full_name"],
+      c2_position: ["Контакт 2: Должность", "contact2_position"],
+      c2_phone: ["Контакт 2: Телефон", "contact2_phone"],
+      c2_email: ["Контакт 2: Email", "contact2_email"],
+      c2_telegram: ["Контакт 2: Telegram", "contact2_telegram", "Контакт 2: ТГ"],
+      c3_full_name: ["Контакт 3: ФИО", "contact3_full_name"],
+      c3_position: ["Контакт 3: Должность", "contact3_position"],
+      c3_phone: ["Контакт 3: Телефон", "contact3_phone"],
+      c3_email: ["Контакт 3: Email", "contact3_email"],
+      c3_telegram: ["Контакт 3: Telegram", "contact3_telegram", "Контакт 3: ТГ"],
+    }),
+    []
+  );
+
+
+
   async function onPickFile(f: File) {
     setFile(f);
     setProgress("Читаем файл...");
@@ -205,13 +240,95 @@ export function ImportModal({
     setRowNums(parsed.rowNumbers);
 
     // prefill mapping
-    const auto = guessMapping(parsed.headers, entity === "deal" ? aliasesDeal : aliasesCompany);
+    const auto = guessMapping(parsed.headers, entity === "bundle" ? aliasesBundle : entity === "deal" ? aliasesDeal : aliasesCompany);
     setMapping(auto);
     setStep(3);
     setProgress("");
   }
 
   async function downloadTemplate() {
+    if (entity === "bundle") {
+      // Template: 1 row = 1 company + 1 deal + 1..3 contacts, with dynamic fields from admin settings
+      const dealFields = (await pb
+        .collection("settings_fields")
+        .getFullList({ filter: `entity_type="deal" && (visible=true || required=true)`, sort: "order,sort_order" })
+        .catch(() => [])) as any[];
+
+      const companyFields = (await pb
+        .collection("settings_fields")
+        .getFullList({ filter: `entity_type="company" && (visible=true || required=true)`, sort: "order,sort_order" })
+        .catch(() => [])) as any[];
+
+      const seen = new Set<string>();
+      const headers: string[] = [];
+
+      const pushH = (h0: string) => {
+        const base = String(h0 || "").trim();
+        if (!base) return;
+        let h = base;
+        let i = 2;
+        while (seen.has(h)) {
+          h = `${base} (${i})`;
+          i += 1;
+        }
+        seen.add(h);
+        headers.push(h);
+      };
+
+      // Company core
+      pushH("Компания: Название компании");
+      pushH("Компания: ИНН");
+      pushH("Компания: Город");
+      pushH("Компания: Сайт");
+      pushH("Компания: Телефон");
+      pushH("Компания: Email");
+
+      // Company dynamic
+      for (const f of companyFields) {
+        const lbl = String(f?.label ?? "").trim();
+        const fieldName = String(f?.field_name ?? "").trim();
+        if (!lbl || !fieldName) continue;
+        // avoid duplicates with core columns
+        if (["name", "inn", "city", "website", "phone", "email"].includes(fieldName)) continue;
+        pushH(`Компания: ${lbl}`);
+      }
+
+      // Deal core
+      pushH("Сделка: Название сделки");
+      pushH("Сделка: Этап");
+      pushH("Сделка: Бюджет");
+      pushH("Сделка: Оборот");
+      pushH("Сделка: Маржа, %");
+      pushH("Сделка: Скидка, %");
+
+      // Deal dynamic
+      for (const f of dealFields) {
+        const lbl = String(f?.label ?? "").trim();
+        const fieldName = String(f?.field_name ?? "").trim();
+        if (!lbl || !fieldName) continue;
+        if (["title", "stage_id", "budget", "turnover", "margin_percent", "discount_percent", "company_id", "responsible_id"].includes(fieldName)) continue;
+        pushH(`Сделка: ${lbl}`);
+      }
+
+      // Notes -> timeline
+      for (let i = 1; i <= 5; i++) pushH(`Примечание ${i}`);
+
+      // Contacts 1..3
+      for (let i = 1; i <= 3; i++) {
+        pushH(`Контакт ${i}: ФИО`);
+        pushH(`Контакт ${i}: Должность`);
+        pushH(`Контакт ${i}: Телефон`);
+        pushH(`Контакт ${i}: Email`);
+        pushH(`Контакт ${i}: Telegram`);
+      }
+
+      const row: Record<string, any> = {};
+      for (const h of headers) row[h] = "";
+
+      downloadXlsx([row], "bundle", "template_deal_company_contacts.xlsx");
+      return;
+    }
+
     if (entity === "deal") {
       // Dynamic template: all active deal fields (visible OR required) + 5 notes columns
       const filter = `entity_type="deal" && (visible=true || required=true)`;
@@ -276,12 +393,27 @@ export function ImportModal({
 
 
     // Active deal fields (for dynamic import + template parity)
-    const dealFields = entity === "deal"
+    const dealFields = (entity === "deal" || entity === "bundle")
       ? (((await pb
           .collection("settings_fields")
           .getFullList({ filter: `entity_type="deal" && (visible=true || required=true)`, sort: "order,sort_order" })
           .catch(() => [])) as any[]) ?? [])
       : [];
+
+    // Active company fields (for bundle import)
+    const companyFields = entity === "bundle"
+      ? (((await pb
+          .collection("settings_fields")
+          .getFullList({ filter: `entity_type="company" && (visible=true || required=true)`, sort: "order,sort_order" })
+          .catch(() => [])) as any[]) ?? [])
+      : [];
+
+    const companyFieldByLabel = new Map<string, any>();
+    for (const f of companyFields) {
+      const lbl = String(f?.label ?? "").trim();
+      if (!lbl) continue;
+      if (!companyFieldByLabel.has(lbl)) companyFieldByLabel.set(lbl, f);
+    }
 
     const dealFieldByLabel = new Map<string, any>();
     for (const f of dealFields) {
@@ -416,6 +548,213 @@ export function ImportModal({
           };
           if (id) await pb.collection("companies").update(id, payload);
           else await pb.collection("companies").create(payload);
+        
+        } else if (entity === "bundle") {
+          // Bundle import: 1 row = 1 company + 1 deal + 0..3 contacts (all linked)
+          const esc = (s: string) => s.replace(/"/g, "\\\"");
+
+          const num = (v: any) => {
+            if (v === null || v === undefined) return undefined;
+            const s0 = String(v ?? "").trim();
+            if (!s0 || s0 === "-" || s0 === "—") return undefined;
+            const cleaned = s0.replace(/[^\d,\.\-]/g, "").replace(/\s+/g, "");
+            if (!cleaned) return undefined;
+            const normalized = cleaned.replace(",", ".");
+            const n = Number(normalized);
+            return Number.isFinite(n) ? n : undefined;
+          };
+
+          // --- Company ---
+          const companyName = String(get(r, "company_name") || "").trim();
+          const companyInn = String(get(r, "company_inn") || "").trim();
+          if (!companyName && !companyInn) throw new Error("Компания: не указано название или ИНН");
+
+          const companyPayload: any = {
+            name: companyName || companyInn,
+            inn: companyInn || undefined,
+            city: String(get(r, "company_city") || "").trim() || undefined,
+            website: String(get(r, "company_website") || "").trim() || undefined,
+            phone: String(get(r, "company_phone") || "").trim() || undefined,
+            email: String(get(r, "company_email") || "").trim() || undefined,
+            responsible_id: user?.id || undefined,
+          };
+
+          // dynamic company fields: columns "Компания: <label>"
+          for (const [lbl, f] of companyFieldByLabel.entries()) {
+            const fieldName = String(f?.field_name ?? "").trim();
+            if (!fieldName) continue;
+            if (["name", "inn", "city", "website", "phone", "email", "responsible_id"].includes(fieldName)) continue;
+
+            const col = `Компания: ${lbl}`;
+            const raw = (r as any)[col];
+            if (raw === null || raw === undefined) continue;
+            const s = String(raw).trim();
+            if (!s || s === "-" || s === "—") continue;
+
+            const ft = String(f?.field_type ?? f?.value_type ?? "").toLowerCase();
+            if (ft === "number") companyPayload[fieldName] = num(s);
+            else if (ft === "checkbox" || ft === "bool" || ft === "boolean") {
+              const v = s.toLowerCase();
+              companyPayload[fieldName] = v === "1" || v === "true" || v === "да" || v === "yes" || v === "y";
+            } else {
+              companyPayload[fieldName] = s;
+            }
+          }
+
+          // upsert company by INN then by name
+          let companyId: string | null = null;
+          if (companyInn) {
+            if (companyByInn.has(companyInn)) companyId = companyByInn.get(companyInn)!;
+            else {
+              const found = await pb
+                .collection("companies")
+                .getList(1, 1, { filter: `inn="${esc(companyInn)}"` })
+                .then((x) => x.items?.[0])
+                .catch(() => null);
+              if (found) companyId = (found as any).id;
+            }
+          }
+          if (!companyId && companyName) {
+            if (companyByName.has(companyName)) companyId = companyByName.get(companyName)!;
+            else {
+              const found = await pb
+                .collection("companies")
+                .getList(1, 1, { filter: `name="${esc(companyName)}"` })
+                .then((x) => x.items?.[0])
+                .catch(() => null);
+              if (found) companyId = (found as any).id;
+            }
+          }
+          if (companyId) {
+            await pb.collection("companies").update(companyId, companyPayload);
+          } else {
+            const created = await pb.collection("companies").create(companyPayload);
+            companyId = created.id;
+          }
+          if (companyInn) companyByInn.set(companyInn, companyId);
+          if (companyName) companyByName.set(companyName, companyId);
+
+          // --- Deal ---
+          const title = String(get(r, "deal_title") || "").trim();
+          if (!title) throw new Error("Сделка: название сделки обязательно");
+
+          const stageName = String(get(r, "stage") || "").trim();
+          const stageId = await resolveStageId(stageName);
+
+          const dealPayload: any = {
+            title,
+            company_id: companyId,
+            responsible_id: user?.id || undefined,
+            stage_id: stageId || undefined,
+            budget: num((r as any)["Сделка: Бюджет"] ?? ""),
+            turnover: num((r as any)["Сделка: Оборот"] ?? ""),
+            margin_percent: num((r as any)["Сделка: Маржа, %"] ?? ""),
+            discount_percent: num((r as any)["Сделка: Скидка, %"] ?? ""),
+          };
+
+          // dynamic deal fields: columns "Сделка: <label>"
+          for (const [lbl, f] of dealFieldByLabel.entries()) {
+            const fieldName = String(f?.field_name ?? "").trim();
+            if (!fieldName) continue;
+            if (["title", "company_id", "stage_id", "responsible_id", "budget", "turnover", "margin_percent", "discount_percent"].includes(fieldName)) continue;
+
+            const col = `Сделка: ${lbl}`;
+            const raw = (r as any)[col];
+            if (raw === null || raw === undefined) continue;
+            const s = String(raw).trim();
+            if (!s || s === "-" || s === "—") continue;
+
+            const ft = String(f?.field_type ?? f?.value_type ?? "").toLowerCase();
+            if (ft === "number") dealPayload[fieldName] = num(s);
+            else if (ft === "checkbox" || ft === "bool" || ft === "boolean") {
+              const v = s.toLowerCase();
+              dealPayload[fieldName] = v === "1" || v === "true" || v === "да" || v === "yes" || v === "y";
+            } else if (ft === "relation") {
+              const maybeId = s;
+              if (/^[a-z0-9]{15}$/.test(maybeId)) {
+                dealPayload[fieldName] = maybeId;
+              } else {
+                const opt = (f?.options ?? {}) as any;
+                const relCollection = String(opt?.collection ?? "").trim();
+                if (relCollection) {
+                  const found = await pb
+                    .collection(relCollection)
+                    .getList(1, 1, { filter: `name="${esc(maybeId)}"` })
+                    .then((x) => x.items?.[0])
+                    .catch(() => null);
+                  const found2 = found
+                    ? found
+                    : await pb
+                        .collection(relCollection)
+                        .getList(1, 1, { filter: `title="${esc(maybeId)}"` })
+                        .then((x) => x.items?.[0])
+                        .catch(() => null);
+                  if (found2) dealPayload[fieldName] = (found2 as any).id;
+                }
+              }
+            } else {
+              dealPayload[fieldName] = s;
+            }
+          }
+
+          const dealRec = await pb.collection("deals").create(dealPayload);
+          const dealIdFinal = dealRec.id;
+
+          // Notes columns -> timeline comments
+          const notes: string[] = [];
+          for (let i = 1; i <= 5; i++) {
+            const v = (r as any)[`Примечание ${i}`];
+            const s = v === null || v === undefined ? "" : String(v).trim();
+            if (s) notes.push(s);
+          }
+          if (notes.length) {
+            for (let i = 0; i < notes.length; i++) {
+              const note = notes[i];
+              await pb
+                .collection("timeline")
+                .create({
+                  deal_id: dealIdFinal,
+                  user_id: user?.id || pb.authStore.model?.id || null,
+                  action: "comment",
+                  comment: note,
+                  payload: { source: "import", kind: "note", index: i + 1 },
+                  timestamp: new Date().toISOString(),
+                })
+                .catch(() => {});
+            }
+          }
+
+          // Contacts 1..3 -> contacts_found (manual/import)
+          const makeContact = async (i: 1 | 2 | 3) => {
+            const full_name = String(get(r, `c${i}_full_name`) || "").trim();
+            const position = String(get(r, `c${i}_position`) || "").trim();
+            const phone = String(get(r, `c${i}_phone`) || "").trim();
+            const email = String(get(r, `c${i}_email`) || "").trim();
+            const telegram = String(get(r, `c${i}_telegram`) || "").trim();
+
+            if (!full_name && !phone && !email && !telegram && !position) return;
+
+            await pb
+              .collection("contacts_found")
+              .create({
+                deal_id: dealIdFinal,
+                company_id: companyId,
+                full_name: full_name || undefined,
+                position: position || undefined,
+                phone: phone || undefined,
+                email: email || undefined,
+                telegram: telegram || undefined,
+                source_type: "import",
+                is_verified: true,
+                confidence: 1,
+              })
+              .catch(() => {});
+          };
+
+          await makeContact(1);
+          await makeContact(2);
+          await makeContact(3);
+
         } else {
           const id = String(get(r, "id") || "").trim();
           const title = String(get(r, "title") || "").trim();
@@ -557,6 +896,7 @@ export function ImportModal({
 
   const canRun = React.useMemo(() => {
     if (!rows.length) return false;
+    if (entity === "bundle") return Boolean(mapping.deal_title) && (Boolean(mapping.company_name) || Boolean(mapping.company_inn));
     if (entity === "deal") return Boolean(mapping.title) && (Boolean(mapping.company_name) || Boolean(mapping.company_inn));
     return Boolean(mapping.name);
   }, [rows.length, entity, mapping]);
@@ -568,9 +908,10 @@ export function ImportModal({
         {step === 1 ? (
           <div className="grid gap-3">
             <div className="text-sm font-semibold">1) Что импортируем?</div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Button variant={entity === "deal" ? "primary" : "secondary"} onClick={() => setEntity("deal")}>Сделки</Button>
               <Button variant={entity === "company" ? "primary" : "secondary"} onClick={() => setEntity("company")}>Компании</Button>
+              <Button variant={entity === "bundle" ? "primary" : "secondary"} onClick={() => setEntity("bundle")}>Сделка + компания + контакты</Button>
             </div>
 
             <div className="flex items-center justify-between pt-2">
@@ -591,7 +932,11 @@ export function ImportModal({
             <DropZone
               accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
               onFile={onPickFile}
-              hint={entity === "deal" ? "Минимум: Название сделки + Компания (название или ИНН)." : "Минимум: Название компании."}
+              hint={entity === "bundle"
+                ? "Шаблон: 1 строка = 1 компания + 1 сделка + 0–3 контакта. Минимум: Сделка (название) + Компания (название или ИНН)."
+                : entity === "deal"
+                ? "Минимум: Название сделки + Компания (название или ИНН)."
+                : "Минимум: Название компании."}
             />
             {progress ? <div className="text-sm text-text2">{progress}</div> : null}
 
@@ -615,7 +960,19 @@ export function ImportModal({
             </div>
 
             <div className="grid gap-3">
-              {entity === "deal" ? (
+              {entity === "bundle" ? (
+                <>
+
+                  <FieldRow label="Сделка: Название сделки" required value={mapping.deal_title || ""} onChange={(v) => setMapping((mm) => ({ ...mm, deal_title: v }))} headers={headers} />
+                  <FieldRow label="Сделка: Этап" value={mapping.stage || ""} onChange={(v) => setMapping((mm) => ({ ...mm, stage: v }))} headers={headers} />
+                  <FieldRow label="Компания: Название" required={!mapping.company_inn} value={mapping.company_name || ""} onChange={(v) => setMapping((mm) => ({ ...mm, company_name: v }))} headers={headers} />
+                  <FieldRow label="Компания: ИНН" required={!mapping.company_name} value={mapping.company_inn || ""} onChange={(v) => setMapping((mm) => ({ ...mm, company_inn: v }))} headers={headers} />
+                  <div className="text-xs text-text2 mt-2">
+                    Динамические поля подтянутся автоматически, если в файле есть колонки вида <span className="font-medium">Компания: ...</span> и <span className="font-medium">Сделка: ...</span> (как в шаблоне).
+                  </div>
+
+                </>
+              ) : entity === "deal" ? (
                 <>
                   <FieldRow label="ID (для массового обновления)" value={mapping.id || ""} onChange={(v) => setMapping((m) => ({ ...m, id: v }))} headers={headers} />
                   <FieldRow label="Название сделки" required value={mapping.title || ""} onChange={(v) => setMapping((m) => ({ ...m, title: v }))} headers={headers} />

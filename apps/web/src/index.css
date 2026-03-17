@@ -220,6 +220,15 @@ body:after{
 .ui-btn-secondary{
   background: rgba(255,255,255,0.10);
 }
+.ui-btn-ghost{
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.ui-btn-ghost:hover{
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.10);
+}
 
 /* Icon button */
 .ui-icon-btn{

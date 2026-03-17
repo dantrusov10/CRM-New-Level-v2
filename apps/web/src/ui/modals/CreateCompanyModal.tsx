@@ -31,6 +31,8 @@ export function CreateCompanyModal({ open, onClose }: { open: boolean; onClose: 
       if (inn.trim()) data.inn = inn.trim();
       if (website.trim()) data.website = website.trim();
       if (city.trim()) data.city = city.trim();
+      const uid = (pb.authStore.model as any)?.id;
+      if (uid) data.responsible_id = uid;
       const rec = await pb.collection("companies").create(data);
       onClose();
       nav(`/companies/${rec.id}`);

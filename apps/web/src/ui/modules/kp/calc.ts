@@ -1,7 +1,7 @@
-import type { SpecItem } from "./types";
+import type { SpecItem } from './types';
 
-function round2(v: number) {
-  return Math.round(v * 100) / 100;
+function round2(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 export function computeSpecification(params: {
@@ -25,35 +25,40 @@ export function computeSpecification(params: {
     : [discountManualPercent, discountPartnerPercent];
 
   const computedItems = items.map((it) => {
-    const base = (it.qty || 0) * (it.unitPrice || 0);
-    const itemDisc = it.discountPercent ?? 0;
+    const baseSubtotal = (it.qty || 0) * (it.unitPrice || 0);
+    const itemDiscountPercent = it.discountPercent ?? 0;
 
-    let subtotal = base;
-    // item discount first
-    if (itemDisc > 0) subtotal = subtotal * (1 - itemDisc / 100);
-    // global discounts
-    for (const d of globalDiscounts) {
-      if (d > 0) subtotal = subtotal * (1 - d / 100);
+    let preciseSubtotal = baseSubtotal;
+    if (itemDiscountPercent > 0) preciseSubtotal *= 1 - itemDiscountPercent / 100;
+    for (const discount of globalDiscounts) {
+      if (discount > 0) preciseSubtotal *= 1 - discount / 100;
     }
 
-    const lineVat = (it.vatPercent ?? vatPercent) / 100;
-    const vat = subtotal * lineVat;
-    const total = subtotal + vat;
+    const lineVatRate = (it.vatPercent ?? vatPercent) / 100;
+    const preciseVat = preciseSubtotal * lineVatRate;
+    const preciseTotal = preciseSubtotal + preciseVat;
 
     return {
       ...it,
-      lineSubtotal: round2(subtotal),
-      lineVat: round2(vat),
-      lineTotal: round2(total),
+      _preciseSubtotal: preciseSubtotal,
+      _preciseVat: preciseVat,
+      _preciseTotal: preciseTotal,
+      lineSubtotal: round2(preciseSubtotal),
+      lineVat: round2(preciseVat),
+      lineTotal: round2(preciseTotal),
     };
   });
 
-  const subtotal = round2(computedItems.reduce((s, it: any) => s + (it.lineSubtotal || 0), 0));
-  const vat = round2(computedItems.reduce((s, it: any) => s + (it.lineVat || 0), 0));
-  const total = round2(subtotal + vat);
+  const subtotalRaw = computedItems.reduce((sum, item) => sum + item._preciseSubtotal, 0);
+  const vatRaw = computedItems.reduce((sum, item) => sum + item._preciseVat, 0);
+  const totalRaw = subtotalRaw + vatRaw;
 
   return {
-    items: computedItems,
-    totals: { subtotal, vat, total },
+    items: computedItems.map(({ _preciseSubtotal, _preciseVat, _preciseTotal, ...item }) => item),
+    totals: {
+      subtotal: round2(subtotalRaw),
+      vat: round2(vatRaw),
+      total: round2(totalRaw),
+    },
   };
 }

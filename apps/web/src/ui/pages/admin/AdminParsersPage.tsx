@@ -18,7 +18,7 @@ type RoleMapItem = { id: string; position_title: string; influence_type: string;
 type MediaParserSettings = { id: string; enabled?: boolean; schedule_cron?: string; keywords?: ParserKeywordBag };
 type MediaSource = { id: string; name: string; is_official?: boolean };
 type MediaLink = { id: string; source_id: string };
-type TenderParserSettings = { id: string; enabled?: boolean; schedule_cron?: string; keywords?: ParserKeywordBag; platform_tokens?: Record<string, unknown> };
+type TenderParserSettings = { id: string; enabled?: boolean; schedule_cron?: string; keywords?: ParserKeywordBag }; // secrets are server-managed
 type TenderPlatform = { id: string; name: string; integration_type?: string };
 type TenderLink = { id: string; platform_id: string };
 
@@ -351,11 +351,10 @@ function TenderParser() {
   const [platforms, setPlatforms] = React.useState<TenderPlatform[]>([]);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [keywords, setKeywords] = React.useState("");
-  const [tokens, setTokens] = React.useState("");
 
   async function load() {
     const sList = await pb.collection("settings_tender_parser").getList(1, 1).catch(() => ({ items: [] as TenderParserSettings[] }));
-    const s = sList.items[0] ?? (await pb.collection("settings_tender_parser").create({ enabled: true, schedule_cron: "0 9 * * *", keywords: { phrases: [] }, platform_tokens: {} }));
+    const s = sList.items[0] ?? (await pb.collection("settings_tender_parser").create({ enabled: true, schedule_cron: "0 9 * * *", keywords: { phrases: [] } }));
     setSettings(s);
 
     const p = await pb.collection("parser_sources_tender").getFullList({ filter: "is_active=true", sort: "name" });
@@ -364,7 +363,6 @@ function TenderParser() {
     const links = await pb.collection("settings_tender_parser_platforms").getFullList({ filter: `settings_id="${s.id}"` }).catch(() => []);
     setSelected(new Set((links as TenderLink[]).map((l) => l.platform_id)));
     setKeywords((s.keywords?.phrases ?? []).join(", "));
-    setTokens(JSON.stringify(s.platform_tokens ?? {}, null, 2));
   }
 
   React.useEffect(() => { load(); }, []);
@@ -389,16 +387,12 @@ function TenderParser() {
     await saveSettings({ keywords: { phrases } });
   }
 
-  async function saveTokens() {
-    const obj = JSON.parse(tokens || "{}");
-    await saveSettings({ platform_tokens: obj });
-  }
 
   return (
     <Card>
       <CardHeader>
         <div className="text-sm font-semibold">Тендерный парсер</div>
-        <div className="text-xs text-text2 mt-1">Выбор площадок + токены/логины + ключевые слова</div>
+        <div className="text-xs text-text2 mt-1">Выбор площадок + ключевые слова. Секреты и токены хранятся только на сервере и не редактируются из UI.</div>
       </CardHeader>
       <CardContent>
         {!settings ? <div className="text-sm text-text2">Загрузка...</div> : (
@@ -441,11 +435,8 @@ function TenderParser() {
             </div>
 
             <div className="rounded-card border border-border bg-rowHover p-3">
-              <div className="text-sm font-semibold mb-2">Токены доступа (JSON)</div>
-              <textarea className="w-full min-h-[160px] rounded-card border border-[#9CA3AF] bg-white p-3 font-mono text-xs" value={tokens} onChange={(e) => setTokens(e.target.value)} />
-              <div className="flex justify-end mt-2">
-                <Button onClick={saveTokens}>Сохранить</Button>
-              </div>
+              <div className="text-sm font-semibold mb-2">Секреты интеграций</div>
+              <div className="text-sm text-text2">Токены, логины и ключи площадок больше не хранятся в PocketBase и не редактируются из CRM. Используйте серверные переменные окружения или защищённый backend-secret store.</div>
             </div>
           </div>
         )}

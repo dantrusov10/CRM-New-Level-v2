@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { pb } from "../../lib/pb";
+import { api } from "../../lib/api";
 import type { Deal, Company, FunnelStage, TimelineItem, AiInsight, TaskItem, UserSummary } from "../../lib/types";
 import type { PermissionMatrix } from "../../lib/rbac";
 
@@ -33,15 +34,6 @@ export type EntityFileLink = {
   expand?: { file_id?: Record<string, unknown> | null };
 };
 
-type ListResultLike<T> = T[] | { items?: T[] } | null | undefined;
-
-function normalizeListResult<T>(res: ListResultLike<T>): T[] {
-  if (!res) return [];
-  if (Array.isArray(res)) return res;
-  if (Array.isArray(res.items)) return res.items;
-  return [];
-}
-
 function defaultMatrixByRole(role?: string): PermissionMatrix {
   const r = (role || "").toLowerCase();
   if (r === "admin" || r === "админ") {
@@ -60,7 +52,6 @@ function defaultMatrixByRole(role?: string): PermissionMatrix {
       admin: { read: false },
     };
   }
-  // manager (default)
   return {
     deals: { read: true, create: true, update: true },
     companies: { read: true, create: true, update: true },
@@ -74,11 +65,7 @@ export function usePermissions(role?: string) {
     queryKey: ["permissions", role],
     queryFn: async (): Promise<PermissionMatrix> => {
       if (!role) return defaultMatrixByRole(role);
-      // best-effort: role can be text in users; map to settings_roles.role_name
-      const rec = await pb
-        .collection("settings_roles")
-        .getFirstListItem(`role_name="${role.replace(/"/g, "\\\"")}"`)
-        .catch(() => null);
+      const rec = await pb.collection("settings_roles").getFirstListItem(`role_name="${role.replace(/"/g, "\"")}"`).catch(() => null);
       const matrix = (rec as { perms?: PermissionMatrix } | null)?.perms;
       return matrix && Object.keys(matrix).length ? matrix : defaultMatrixByRole(role);
     },
@@ -87,150 +74,59 @@ export function usePermissions(role?: string) {
 }
 
 export function useFunnelStages() {
-  return useQuery({
-    queryKey: ["funnelStages"],
-    queryFn: async (): Promise<FunnelStage[]> => {
-      // PocketBase schema: stage_name + position
-      const res = await pb.collection("settings_funnel_stages").getFullList({ sort: "position" });
-      return res as FunnelStage[];
-    },
-  });
+  return useQuery({ queryKey: ["funnelStages"], queryFn: () => api.funnelStages.list() });
 }
 
 export function useDeals(params?: { search?: string; filter?: string; sort?: string }) {
-  const { search, filter, sort } = params ?? {};
-  // PocketBase schema: title (not name)
-  const q = search ? `title~"${search.replace(/\"/g, "\\\"")}"` : "";
-  const f = [filter, q].filter(Boolean).join(" && ");
   return useQuery({
-    queryKey: ["deals", f, sort],
-    queryFn: async (): Promise<Deal[]> => {
-      // Relations in PB: company_id, stage_id, responsible_id
-      const options: Record<string, unknown> = {
-        sort: sort ?? "-updated",
-        expand: "company_id,stage_id,responsible_id",
-      };
-      // IMPORTANT: do not send filter=undefined (PocketBase returns 400)
-      if (f && String(f).trim().length) options.filter = f;
+    queryKey: ["deals", params?.search, params?.filter, params?.sort],
+    queryFn: (): Promise<Deal[]> => api.deals.list(params),
+  });
+}
 
-      const res = await pb.collection("deals").getFullList({ ...options, batch: 500 });
-      return normalizeListResult<Deal>(res);
-    },
-  });}
-
-/**
- * Paged list for table views (so we can render pagination UI).
- * Returns PocketBase list result: { page, perPage, totalItems, totalPages, items }.
- */
 export function useDealsList(params?: { search?: string; filter?: string; sort?: string; page?: number; perPage?: number }) {
-  const { search, filter, sort, page = 1, perPage = 25 } = params ?? {};
-  const q = search ? `title~"${search.replace(/\"/g, "\\\"")}"` : "";
-  const f = [filter, q].filter(Boolean).join(" && ");
   return useQuery({
-    queryKey: ["dealsList", f, sort, page, perPage],
-    queryFn: async () => {
-      const options: Record<string, unknown> = {
-        sort: sort ?? "-updated",
-        expand: "company_id,stage_id,responsible_id",
-      };
-      if (f && String(f).trim().length) options.filter = f;
-      return pb.collection("deals").getList(page, perPage, options);
-    },
+    queryKey: ["dealsList", params?.search, params?.filter, params?.sort, params?.page, params?.perPage],
+    queryFn: () => api.deals.paged(params),
   });
 }
 
 export function useDeal(id: string) {
-  return useQuery({
-    queryKey: ["deal", id],
-    queryFn: async (): Promise<Deal> => {
-      const rec = await pb.collection("deals").getOne<Deal>(id, { expand: "company_id,stage_id,responsible_id" });
-      return rec;
-    },
-    enabled: !!id,
-  });
+  return useQuery({ queryKey: ["deal", id], queryFn: (): Promise<Deal> => api.deals.get(id), enabled: !!id });
 }
 
 export function useCompanies(params?: { search?: string; filter?: string }) {
-  const q = params?.search ? `name~"${params.search}"` : "";
-  const f = [params?.filter, q].filter(Boolean).join(" && ");
-  return useQuery({
-    queryKey: ["companies", f],
-    queryFn: async (): Promise<Company[]> => {
-      const options: Record<string, unknown> = { sort: "name" };
-      // IMPORTANT: do not send filter=undefined (PocketBase returns 400)
-      if (f && String(f).trim().length) options.filter = f;
+  return useQuery({ queryKey: ["companies", params?.search, params?.filter], queryFn: (): Promise<Company[]> => api.companies.list(params) });
+}
 
-      const res = await pb.collection("companies").getFullList({ ...options, batch: 500 });
-      return normalizeListResult<Company>(res);
-    },
-  });}
-
-/** Paged companies list for table views (pagination UI). */
 export function useCompaniesList(params?: { search?: string; filter?: string; page?: number; perPage?: number }) {
-  const { search, filter, page = 1, perPage = 25 } = params ?? {};
-  const q = search ? `name~"${search.replace(/\"/g, "\\\"")}"` : "";
-  const f = [filter, q].filter(Boolean).join(" && ");
   return useQuery({
-    queryKey: ["companiesList", f, page, perPage],
-    queryFn: async () => {
-      const options: Record<string, unknown> = { sort: "name" };
-      if (f && String(f).trim().length) options.filter = f;
-      return pb.collection("companies").getList(page, perPage, options);
-    },
+    queryKey: ["companiesList", params?.search, params?.filter, params?.page, params?.perPage],
+    queryFn: () => api.companies.paged(params),
   });
 }
 
 export function useCompany(id: string) {
-  return useQuery({
-    queryKey: ["company", id],
-    queryFn: async () => pb.collection("companies").getOne(id),
-    enabled: !!id,
-  });
+  return useQuery({ queryKey: ["company", id], queryFn: (): Promise<Company> => api.companies.get(id), enabled: !!id });
 }
 
 export function useTimeline(entityType: "deal" | "company", entityId: string) {
   return useQuery({
     queryKey: ["timeline", entityType, entityId],
-    queryFn: async (): Promise<TimelineItem[]> => {
-      // PocketBase schema for timeline: deal_id + user_id + action + comment + payload + timestamp
-      // (company timeline can be added later; for now we only support deal timeline)
-      if (entityType !== "deal") return [];
-      const res = await pb.collection("timeline").getList(1, 200, {
-        filter: `deal_id="${entityId}"`,
-        sort: "-created",
-        expand: "user_id",
-      });
-      return normalizeListResult<TimelineItem>(res);
-    },
+    queryFn: async (): Promise<TimelineItem[]> => (entityType === "deal" ? api.timeline.listForDeal(entityId) : []),
     enabled: !!entityId,
   });
 }
 
 export function useAiInsights(dealId: string) {
-  return useQuery({
-    queryKey: ["ai_insights", dealId],
-    queryFn: async (): Promise<AiInsight[]> => {
-      const res = await pb.collection("ai_insights").getList(1, 50, { filter: `deal_id="${dealId}"`, sort: "-created" });
-      return normalizeListResult<AiInsight>(res);
-    },
-    enabled: !!dealId,
-  });
+  return useQuery({ queryKey: ["ai_insights", dealId], queryFn: (): Promise<AiInsight[]> => api.aiInsights.listForDeal(dealId), enabled: !!dealId });
 }
 
-// --- Tasks (manager reminders) ---
 export function useMyTasksInRange(params: { userId: string; fromIso: string; toIso: string }) {
   const { userId, fromIso, toIso } = params;
   return useQuery({
     queryKey: ["tasks", "range", userId, fromIso, toIso],
-    queryFn: async (): Promise<TaskItem[]> => {
-      const filter = `created_by="${userId}" && due_at>="${fromIso}" && due_at<="${toIso}"`;
-      const res = await pb.collection("tasks").getList(1, 200, {
-        filter,
-        sort: "due_at",
-        expand: "deal_id,company_id",
-      });
-      return normalizeListResult<TaskItem>(res);
-    },
+    queryFn: (): Promise<TaskItem[]> => api.tasks.listRange(userId, fromIso, toIso),
     enabled: !!userId && !!fromIso && !!toIso,
     staleTime: 15_000,
   });
@@ -240,188 +136,51 @@ export function useMyTasksForBell(params: { userId: string; windowHours?: number
   const { userId, windowHours = 48 } = params;
   return useQuery({
     queryKey: ["tasks", "bell", userId, windowHours],
-    queryFn: async (): Promise<TaskItem[]> => {
-      // We fetch a small window (overdue + upcoming) and then compute counters client-side.
-      const now = new Date();
-      const from = new Date(now.getTime() - 7 * 24 * 3600 * 1000); // include overdue last 7 days
-      const to = new Date(now.getTime() + windowHours * 3600 * 1000);
-      const filter = `created_by="${userId}" && is_done=false && due_at>="${from.toISOString()}" && due_at<="${to.toISOString()}"`;
-      const res = await pb.collection("tasks").getList(1, 200, {
-        filter,
-        sort: "due_at",
-        expand: "deal_id,company_id",
-      });
-      return normalizeListResult<TaskItem>(res);
-    },
+    queryFn: (): Promise<TaskItem[]> => api.tasks.listBell(userId, windowHours),
     enabled: !!userId,
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
 }
 
-export function useCreateTask() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: { title: string; due_at: string; deal_id?: string; company_id?: string; created_by: string }) => {
-      return pb.collection("tasks").create({
-        title: payload.title,
-        due_at: payload.due_at,
-        deal_id: payload.deal_id,
-        company_id: payload.company_id,
-        created_by: payload.created_by,
-        is_done: false,
-      });
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["tasks"] });
-    },
-  });
+export function useUsers() {
+  return useQuery({ queryKey: ["users"], queryFn: (): Promise<UserSummary[]> => api.users.list(), staleTime: 60_000 });
 }
 
-export function useSetTaskDone() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: { id: string; is_done: boolean }) => {
-      return pb.collection("tasks").update(payload.id, { is_done: payload.is_done });
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["tasks"] });
-    },
-  });
-}
-
-// --- Contacts (manual + parser results) ---
-export function useContactsFound(dealId: string) {
+export function useEntityFiles(entityType: "deal" | "company", entityId: string) {
   return useQuery({
-    queryKey: ["contacts_found", dealId],
-    queryFn: async (): Promise<ContactFound[]> => {
-      const res = await pb
-        .collection("contacts_found")
-        .getList(1, 200, {
-          filter: `deal_id="${dealId}"`,
-          sort: "-created",
-        })
-        .catch(() => ({ items: [] as ContactFound[] }));
-      return normalizeListResult<ContactFound>(res);
-    },
-    enabled: !!dealId,
-  });
-}
-
-export function useCreateContactFound() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (data: Partial<ContactFound>) => {
-      return pb.collection("contacts_found").create(data);
-    },
-    onSuccess: (_rec, vars) => {
-      if (vars.deal_id) qc.invalidateQueries({ queryKey: ["contacts_found", vars.deal_id] });
-    },
-  });
-}
-
-export function useDeleteContactFound() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id }: { id: string; dealId?: string }) => {
-      await pb.collection("contacts_found").delete(id);
-      return { id };
-    },
-    onSuccess: (_rec, vars) => {
-      if (vars.dealId) qc.invalidateQueries({ queryKey: ["contacts_found", vars.dealId] });
-    },
-  });
-}
-
-// --- Workspace files linked to an entity (deal/company/etc.) ---
-export function useEntityFiles(entityType: string, entityId: string) {
-  return useQuery({
-    queryKey: ["entity_files", entityType, entityId],
+    queryKey: ["entityFiles", entityType, entityId],
     queryFn: async (): Promise<EntityFileLink[]> => {
-      const res = await pb
-        .collection("entity_files")
-        .getList(1, 200, {
-          filter: `entity_type="${entityType}" && entity_id="${entityId}"`,
-          sort: "-created",
-          expand: "file_id",
-        })
-        .catch(() => ({ items: [] as ContactFound[] }));
-      return normalizeListResult<EntityFileLink>(res);
+      const res = await pb.collection("entity_files").getFullList({ filter: `entity_type="${entityType}" && entity_id="${entityId}"`, expand: "file_id", sort: "-created" }).catch(() => []);
+      return Array.isArray(res) ? (res as EntityFileLink[]) : [];
     },
     enabled: !!entityId,
   });
 }
 
-export function useAddWorkspaceFile() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (vars: { entityType: string; entityId: string; url: string; title?: string; tag?: string }) => {
-      const url = (vars.url || "").trim();
-      const title = (vars.title || "").trim() || url.split("/").pop() || "file";
-      const file = await pb
-        .collection("files")
-        .create({
-          path: url,
-          filename: title,
-          mime: "text/uri-list",
-          size_bytes: 0,
-        })
-        .catch(() => null);
-      if (!file?.id) throw new Error("Не удалось создать files");
-      const link = await pb
-        .collection("entity_files")
-        .create({
-          entity_type: vars.entityType,
-          entity_id: vars.entityId,
-          file_id: file.id,
-          tag: vars.tag || "",
-          created_at: new Date().toISOString(),
-        })
-        .catch(() => null);
-      if (!link?.id) throw new Error("Не удалось создать entity_files");
-      return link;
+export function useContactsFound(params: { dealId?: string; companyId?: string }) {
+  const { dealId, companyId } = params;
+  return useQuery({
+    queryKey: ["contactsFound", dealId, companyId],
+    queryFn: async (): Promise<ContactFound[]> => {
+      const filters = [dealId ? `deal_id="${dealId}"` : "", companyId ? `company_id="${companyId}"` : ""].filter(Boolean).join(" && ");
+      if (!filters) return [];
+      const res = await pb.collection("contacts_found").getFullList({ filter: filters, sort: "-created" }).catch(() => []);
+      return Array.isArray(res) ? (res as ContactFound[]) : [];
     },
-    onSuccess: (_rec, vars) => {
-      qc.invalidateQueries({ queryKey: ["entity_files", vars.entityType, vars.entityId] });
-    },
-  });
-}
-
-export function useDeleteEntityFileLink() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (vars: { id: string; entityType: string; entityId: string }) => {
-      await pb.collection("entity_files").delete(vars.id);
-      return vars;
-    },
-    onSuccess: (_rec, vars) => {
-      qc.invalidateQueries({ queryKey: ["entity_files", vars.entityType, vars.entityId] });
-    },
+    enabled: Boolean(dealId || companyId),
   });
 }
 
 export function useUpdateDeal() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<Deal> }) => {
-      const rec = await pb.collection("deals").update(id, data);
-      return rec;
-    },
-    onSuccess: (_rec, vars) => {
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Deal> }) => pb.collection("deals").update(id, data),
+    onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["deal", vars.id] });
       qc.invalidateQueries({ queryKey: ["deals"] });
+      qc.invalidateQueries({ queryKey: ["dealsList"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
 }
-
-export function useUsers() {
-  return useQuery({
-    queryKey: ["users"],
-    queryFn: async (): Promise<UserSummary[]> => {
-      const res = await pb.collection("users").getFullList<UserSummary>({ sort: "email", batch: 500 });
-      return normalizeListResult<UserSummary>(res);
-    },
-    staleTime: 60_000,
-  });
-}
-

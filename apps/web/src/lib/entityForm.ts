@@ -1,4 +1,5 @@
 import { pb } from './pb';
+import { api } from './api';
 
 export type EntityType = 'company' | 'deal';
 
@@ -59,6 +60,7 @@ export type SaveEntityFormInput = {
 
 export type SaveEntityFormResult = {
   createdRowsByField: Record<string, FieldValueRow>;
+  rolledBack?: boolean;
 };
 
 export function parseFieldOptions(raw: SettingsField['options']): FieldOptionConfig {
@@ -149,24 +151,48 @@ export async function saveEntityFormData(input: SaveEntityFormInput): Promise<Sa
     }
   }
 
-  if (Object.keys(updatePayload).length > 0) {
-    await pb.collection(collectionName).update(recordId, updatePayload);
-  }
-
+  const beforeRecord = Object.keys(updatePayload).length > 0 ? await pb.collection(collectionName).getOne(recordId) : null;
   const createdRowsByField: Record<string, FieldValueRow> = {};
+  const updatedSnapshots: Array<{ id: string; snapshot: Record<string, unknown> }> = [];
 
-  for (const item of customFields) {
-    const existing = valueRowByField[item.field.id];
-    const payload = buildValuePayload(entity, recordId, item.field, item.value);
-
-    if (existing?.id) {
-      await pb.collection(valueCollectionName).update(existing.id, payload);
-      continue;
+  try {
+    if (Object.keys(updatePayload).length > 0) {
+      await pb.collection(collectionName).update(recordId, updatePayload);
     }
 
-    const created = await pb.collection(valueCollectionName).create(payload);
-    createdRowsByField[item.field.id] = created as FieldValueRow;
-  }
+    for (const item of customFields) {
+      const existing = valueRowByField[item.field.id];
+      const payload = buildValuePayload(entity, recordId, item.field, item.value);
 
-  return { createdRowsByField };
+      if (existing?.id) {
+        const snapshot = await pb.collection(valueCollectionName).getOne(existing.id).catch(() => existing);
+        updatedSnapshots.push({ id: existing.id, snapshot: snapshot as Record<string, unknown> });
+        await pb.collection(valueCollectionName).update(existing.id, payload);
+        continue;
+      }
+
+      const created = await pb.collection(valueCollectionName).create(payload);
+      createdRowsByField[item.field.id] = created as FieldValueRow;
+    }
+
+    return { createdRowsByField, rolledBack: false };
+  } catch (error) {
+    for (const row of Object.values(createdRowsByField)) {
+      if (row?.id) await pb.collection(valueCollectionName).delete(row.id).catch(() => null);
+    }
+    for (const item of updatedSnapshots.reverse()) {
+      const { id, snapshot } = item;
+      const rollbackPayload = Object.fromEntries(
+        Object.entries(snapshot).filter(([key]) => !['id', 'collectionId', 'collectionName', 'created', 'updated', 'expand'].includes(key))
+      );
+      await pb.collection(valueCollectionName).update(id, rollbackPayload).catch(() => null);
+    }
+    if (beforeRecord) {
+      const rollbackRecord = Object.fromEntries(
+        Object.entries(beforeRecord as Record<string, unknown>).filter(([key]) => !['id', 'collectionId', 'collectionName', 'created', 'updated', 'expand'].includes(key))
+      );
+      await pb.collection(collectionName).update(recordId, rollbackRecord).catch(() => null);
+    }
+    throw error;
+  }
 }

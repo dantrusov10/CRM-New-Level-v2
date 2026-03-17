@@ -2,7 +2,7 @@ import React from "react";
 import { Modal } from "../components/Modal";
 import { Input } from "../components/Input";
 import { Button } from "../components/Button";
-import { pb } from "../../lib/pb";
+import { pb, getAuthUser } from "../../lib/pb";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "../components/Badge";
 import { Combobox, type ComboOption } from "../components/Combobox";
@@ -26,7 +26,7 @@ export function CreateDealModal({ open, onClose }: { open: boolean; onClose: () 
   const loadCompanies = React.useCallback(async (q: string) => {
     const filter = q?.trim() ? `name~"${q.replace(/\"/g, "\\\"")}"` : "";
     const res = await pb.collection("companies").getList(1, 10, { filter: filter || undefined, sort: "name" });
-    return res.items.map((c: any) => ({ value: c.id, label: c.name, meta: c }));
+    return res.items.map((c) => ({ value: String(c.id), label: String((c as { name?: string }).name || ""), meta: c }));
   }, []);
 
   async function submit() {
@@ -41,9 +41,9 @@ export function CreateDealModal({ open, onClose }: { open: boolean; onClose: () 
       if (!name.trim()) { alert("Введите название сделки"); return; }
       if (!company?.value) { alert("Выберите компанию из списка"); return; }
 
-      const data: any = { title: name.trim(), company_id: company.value };
-      if (stage?.id) data.stage_id = stage.id;
-      const uid = (pb.authStore.model as any)?.id;
+      const data: Record<string, string> = { title: name.trim(), company_id: company.value };
+      if (stage?.id) data.stage_id = String(stage.id);
+      const uid = getAuthUser()?.id;
       if (uid) data.responsible_id = uid;
 
       const rec = await pb.collection("deals").create(data);
@@ -51,7 +51,7 @@ export function CreateDealModal({ open, onClose }: { open: boolean; onClose: () 
       // log timeline (deal only)
       await pb.collection("timeline").create({
         deal_id: rec.id,
-        user_id: (pb.authStore.model as any)?.id,
+        user_id: getAuthUser()?.id,
         action: "create",
         comment: "Сделка создана",
         payload: {},
@@ -71,7 +71,7 @@ export function CreateDealModal({ open, onClose }: { open: boolean; onClose: () 
 
         await pb.collection("timeline").create({
           deal_id: rec.id,
-          user_id: (pb.authStore.model as any)?.id,
+          user_id: getAuthUser()?.id,
           action: "enrich",
           comment: "Запущено обогащение за последние 6 месяцев (контакты/медиа/тендеры)",
           payload: { kind: "enrich_6m" },

@@ -2,7 +2,7 @@ import React from "react";
 import clsx from "clsx";
 import { Input } from "./Input";
 
-export type ComboOption = { value: string; label: string; meta?: any };
+export type ComboOption = { value: string; label: string; meta?: unknown };
 
 function useDebounced<T>(value: T, ms: number) {
   const [v, setV] = React.useState(value);

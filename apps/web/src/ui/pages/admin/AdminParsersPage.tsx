@@ -6,8 +6,23 @@ import { pb } from "../../../lib/pb";
 import { KpTemplateEditor } from "../../modules/kp/KpTemplateEditor";
 import { DEFAULT_KP_TEMPLATE_V1 } from "../../modules/kp/defaultTemplate";
 import { PriceListAdmin } from "../../modules/kp/PriceListAdmin";
+import type { KpTemplateConfig, KpTemplateRecord } from "../../modules/kp/types";
 
 type Tab = "contacts" | "media" | "tenders" | "kp";
+
+type TabButtonProps = { active: boolean; children: React.ReactNode; onClick: () => void };
+type ParserKeywordBag = { phrases?: string[] };
+type ContactParserSettings = { id: string; enabled?: boolean; schedule_cron?: string; sources_policy?: string; role_map_id?: string | null };
+type RoleMap = { id: string; title: string; segment: string };
+type RoleMapItem = { id: string; position_title: string; influence_type: string; weight?: number; is_active?: boolean };
+type MediaParserSettings = { id: string; enabled?: boolean; schedule_cron?: string; keywords?: ParserKeywordBag };
+type MediaSource = { id: string; name: string; is_official?: boolean };
+type MediaLink = { id: string; source_id: string };
+type TenderParserSettings = { id: string; enabled?: boolean; schedule_cron?: string; keywords?: ParserKeywordBag; platform_tokens?: Record<string, unknown> };
+type TenderPlatform = { id: string; name: string; integration_type?: string };
+type TenderLink = { id: string; platform_id: string };
+
+type KpTemplatePatch = { template_json?: KpTemplateConfig; name?: string };
 
 export function AdminParsersPage() {
   const [tab, setTab] = React.useState<Tab>("contacts");
@@ -37,7 +52,7 @@ export function AdminParsersPage() {
   );
 }
 
-function TabButton({ active, children, onClick }: any) {
+function TabButton({ active, children, onClick }: TabButtonProps) {
   return (
     <button
       className={
@@ -53,9 +68,9 @@ function TabButton({ active, children, onClick }: any) {
 
 /** CONTACTS */
 function ContactsParser() {
-  const [settings, setSettings] = React.useState<any>(null);
-  const [maps, setMaps] = React.useState<any[]>([]);
-  const [items, setItems] = React.useState<any[]>([]);
+  const [settings, setSettings] = React.useState<ContactParserSettings | null>(null);
+  const [maps, setMaps] = React.useState<RoleMap[]>([]);
+  const [items, setItems] = React.useState<RoleMapItem[]>([]);
   const [title, setTitle] = React.useState("");
   const [segment, setSegment] = React.useState("default");
   const [currentMap, setCurrentMap] = React.useState<string>("");
@@ -65,18 +80,18 @@ function ContactsParser() {
   const [weight, setWeight] = React.useState("1");
 
   async function load() {
-    const sList = await pb.collection("settings_contact_parser").getList(1, 1).catch(() => ({ items: [] as any[] }));
+    const sList = await pb.collection("settings_contact_parser").getList(1, 1).catch(() => ({ items: [] as ContactParserSettings[] }));
     const s = sList.items[0] ?? (await pb.collection("settings_contact_parser").create({ enabled: true, schedule_cron: "0 9 * * *", sources_policy: "official_only" }));
     setSettings(s);
 
     const m = await pb.collection("role_maps").getFullList({ sort: "-created" });
-    setMaps(m as any);
+    setMaps(m as RoleMap[]);
 
-    const mapId = (s as any).role_map_id ?? (m[0] as any)?.id ?? "";
+    const mapId = s.role_map_id ?? (m[0] as RoleMap | undefined)?.id ?? "";
     setCurrentMap(mapId);
     if (mapId) {
       const it = await pb.collection("role_map_items").getFullList({ filter: `role_map_id="${mapId}"`, sort: "-is_active, -weight, position_title" });
-      setItems(it as any);
+      setItems(it as RoleMapItem[]);
     } else {
       setItems([]);
     }
@@ -84,7 +99,7 @@ function ContactsParser() {
 
   React.useEffect(() => { load(); }, []);
 
-  async function saveSettings(patch: any) {
+  async function saveSettings(patch: Partial<ContactParserSettings>) {
     const upd = await pb.collection("settings_contact_parser").update(settings.id, patch);
     setSettings(upd);
   }
@@ -238,27 +253,27 @@ function ContactsParser() {
 
 /** MEDIA */
 function MediaParser() {
-  const [settings, setSettings] = React.useState<any>(null);
-  const [sources, setSources] = React.useState<any[]>([]);
+  const [settings, setSettings] = React.useState<MediaParserSettings | null>(null);
+  const [sources, setSources] = React.useState<MediaSource[]>([]);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [keywords, setKeywords] = React.useState("");
 
   async function load() {
-    const sList = await pb.collection("settings_media_parser").getList(1, 1).catch(() => ({ items: [] as any[] }));
+    const sList = await pb.collection("settings_media_parser").getList(1, 1).catch(() => ({ items: [] as MediaParserSettings[] }));
     const s = sList.items[0] ?? (await pb.collection("settings_media_parser").create({ enabled: true, schedule_cron: "0 9 * * *", keywords: { phrases: [] } }));
     setSettings(s);
 
     const src = await pb.collection("parser_sources_media").getFullList({ filter: "is_active=true", sort: "name" });
-    setSources(src as any);
+    setSources(src as MediaSource[]);
 
     const links = await pb.collection("settings_media_parser_sources").getFullList({ filter: `settings_id="${s.id}"` }).catch(() => []);
-    setSelected(new Set((links as any[]).map((l) => l.source_id)));
-    setKeywords(((s.keywords?.phrases ?? []) as any[]).join(", "));
+    setSelected(new Set((links as MediaLink[]).map((l) => l.source_id)));
+    setKeywords((s.keywords?.phrases ?? []).join(", "));
   }
 
   React.useEffect(() => { load(); }, []);
 
-  async function saveSettings(patch: any) {
+  async function saveSettings(patch: Partial<MediaParserSettings>) {
     const upd = await pb.collection("settings_media_parser").update(settings.id, patch);
     setSettings(upd);
   }
@@ -268,7 +283,7 @@ function MediaParser() {
       await pb.collection("settings_media_parser_sources").create({ settings_id: settings.id, source_id: id });
     } else {
       const rec = await pb.collection("settings_media_parser_sources").getFirstListItem(`settings_id="${settings.id}" && source_id="${id}"`).catch(() => null);
-      if (rec) await pb.collection("settings_media_parser_sources").delete((rec as any).id);
+      if (rec) await pb.collection("settings_media_parser_sources").delete(rec.id);
     }
     load();
   }
@@ -332,29 +347,29 @@ function MediaParser() {
 
 /** TENDERS */
 function TenderParser() {
-  const [settings, setSettings] = React.useState<any>(null);
-  const [platforms, setPlatforms] = React.useState<any[]>([]);
+  const [settings, setSettings] = React.useState<TenderParserSettings | null>(null);
+  const [platforms, setPlatforms] = React.useState<TenderPlatform[]>([]);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [keywords, setKeywords] = React.useState("");
   const [tokens, setTokens] = React.useState("");
 
   async function load() {
-    const sList = await pb.collection("settings_tender_parser").getList(1, 1).catch(() => ({ items: [] as any[] }));
+    const sList = await pb.collection("settings_tender_parser").getList(1, 1).catch(() => ({ items: [] as TenderParserSettings[] }));
     const s = sList.items[0] ?? (await pb.collection("settings_tender_parser").create({ enabled: true, schedule_cron: "0 9 * * *", keywords: { phrases: [] }, platform_tokens: {} }));
     setSettings(s);
 
     const p = await pb.collection("parser_sources_tender").getFullList({ filter: "is_active=true", sort: "name" });
-    setPlatforms(p as any);
+    setPlatforms(p as TenderPlatform[]);
 
     const links = await pb.collection("settings_tender_parser_platforms").getFullList({ filter: `settings_id="${s.id}"` }).catch(() => []);
-    setSelected(new Set((links as any[]).map((l) => l.platform_id)));
-    setKeywords(((s.keywords?.phrases ?? []) as any[]).join(", "));
+    setSelected(new Set((links as TenderLink[]).map((l) => l.platform_id)));
+    setKeywords((s.keywords?.phrases ?? []).join(", "));
     setTokens(JSON.stringify(s.platform_tokens ?? {}, null, 2));
   }
 
   React.useEffect(() => { load(); }, []);
 
-  async function saveSettings(patch: any) {
+  async function saveSettings(patch: Partial<TenderParserSettings>) {
     const upd = await pb.collection("settings_tender_parser").update(settings.id, patch);
     setSettings(upd);
   }
@@ -364,7 +379,7 @@ function TenderParser() {
       await pb.collection("settings_tender_parser_platforms").create({ settings_id: settings.id, platform_id: id });
     } else {
       const rec = await pb.collection("settings_tender_parser_platforms").getFirstListItem(`settings_id="${settings.id}" && platform_id="${id}"`).catch(() => null);
-      if (rec) await pb.collection("settings_tender_parser_platforms").delete((rec as any).id);
+      if (rec) await pb.collection("settings_tender_parser_platforms").delete(rec.id);
     }
     load();
   }
@@ -441,13 +456,13 @@ function TenderParser() {
 
 /** KP SETTINGS (skeleton) */
 function KpSettings() {
-  const [tpl, setTpl] = React.useState<any>(null);
+  const [tpl, setTpl] = React.useState<KpTemplateRecord | null>(null);
 
   async function ensureDefault() {
     const list = await pb
       .collection("settings_kp_templates")
       .getList(1, 1, { filter: "is_default=true && is_active=true" })
-      .catch(() => ({ items: [] as any[] }));
+      .catch(() => ({ items: [] as KpTemplateRecord[] }));
 
     if (list.items[0]) return list.items[0];
 
@@ -465,7 +480,7 @@ function KpSettings() {
   }
   React.useEffect(() => { load(); }, []);
 
-  async function save(patch: any) {
+  async function save(patch: KpTemplatePatch) {
     if (!tpl?.id) return;
     await pb.collection("settings_kp_templates").update(tpl.id, patch);
   }

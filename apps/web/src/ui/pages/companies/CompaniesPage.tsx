@@ -6,6 +6,7 @@ import { Input } from "../../components/Input";
 import { Pagination } from "../../components/Pagination";
 import { Button } from "../../components/Button";
 import { pb } from "../../../lib/pb";
+import type { Company, UserSummary } from "../../../lib/types";
 
 export function CompaniesPage() {
   const nav = useNavigate();
@@ -23,11 +24,11 @@ export function CompaniesPage() {
   ].filter(Boolean).join(" && ");
 
   const companiesQ = useCompaniesList({ search: q || undefined, filter, page, perPage: 25 });
-  const companies: any[] = (companiesQ.data as any)?.items ?? [];
+  const companies = companiesQ.data?.items ?? [];
   const usersQ = useUsers();
 
   const selectedCount = selected.size;
-  const allPageSelected = companies.length > 0 && companies.every((c) => selected.has(String(c.id)));
+  const allPageSelected = companies.length > 0 && companies.every((c: Company) => selected.has(String(c.id)));
 
   React.useEffect(() => {
     setSelected(new Set());
@@ -48,8 +49,8 @@ export function CompaniesPage() {
     setSelected((prev) => {
       const n = new Set(prev);
       const want = next ?? !allPageSelected;
-      if (want) companies.forEach((c) => n.add(String(c.id)));
-      else companies.forEach((c) => n.delete(String(c.id)));
+      if (want) companies.forEach((c: Company) => n.add(String(c.id)));
+      else companies.forEach((c: Company) => n.delete(String(c.id)));
       return n;
     });
   }
@@ -57,10 +58,10 @@ export function CompaniesPage() {
   async function selectAllMatching() {
     const qf = q ? `name~"${q.replace(/\"/g, "\\\"")}"` : "";
     const fAll = [filter, qf].filter(Boolean).join(" && ");
-    const options: any = { fields: "id", batch: 500 };
+    const options: Record<string, unknown> = { fields: "id", batch: 500 };
     if (fAll && String(fAll).trim().length) options.filter = fAll;
-    const res = await pb.collection("companies").getFullList(options);
-    const ids = (res as any[]).map((r) => String(r.id));
+    const res = await pb.collection("companies").getFullList<Pick<Company, "id">>(options);
+    const ids = res.map((r) => String(r.id));
     setSelected(new Set(ids));
   }
 
@@ -120,7 +121,7 @@ export function CompaniesPage() {
                 <div className="flex items-center gap-2">
                   <select className="h-9 rounded-card border border-[#9CA3AF] bg-white px-2 text-sm" value={ownerTo} onChange={(e) => setOwnerTo(e.target.value)}>
                     <option value="">Сменить ответственного…</option>
-                    {(usersQ.data ?? []).map((u: any) => (
+                    {(usersQ.data ?? []).map((u: UserSummary) => (
                       <option key={u.id} value={u.id}>{u.name ?? u.email}</option>
                     ))}
                   </select>
@@ -147,7 +148,7 @@ export function CompaniesPage() {
                 </tr>
               </thead>
               <tbody>
-                {(companies ?? []).map((c: any) => (
+                {companies.map((c: Company) => (
                   <tr key={c.id} className="h-11 border-b border-border hover:bg-rowHover cursor-pointer" onClick={() => nav(`/companies/${c.id}`)}>
                     <td className="px-3" onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={selected.has(String(c.id))} onChange={(e) => toggleOne(String(c.id), e.target.checked)} aria-label="Выбрать компанию" />
@@ -160,11 +161,11 @@ export function CompaniesPage() {
                 ))}
               </tbody>
             </table>
-            {!(companies ?? []).length ? <div className="text-sm text-text2 py-6">Компаний пока нет.</div> : null}
+            {!companies.length ? <div className="text-sm text-text2 py-6">Компаний пока нет.</div> : null}
 
             <Pagination
-              page={(companiesQ.data as any)?.page ?? page}
-              totalPages={(companiesQ.data as any)?.totalPages ?? 1}
+              page={companiesQ.data?.page ?? page}
+              totalPages={companiesQ.data?.totalPages ?? 1}
               onPage={(next) => {
                 const sp2 = new URLSearchParams(sp);
                 sp2.set("page", String(Math.max(1, next)));

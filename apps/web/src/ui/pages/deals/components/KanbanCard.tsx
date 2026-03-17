@@ -1,3 +1,4 @@
+import type { Deal } from "../../../../lib/types";
 import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -7,7 +8,7 @@ function money(n: number) {
   return n.toLocaleString("ru-RU");
 }
 
-function dealAmount(d: any) {
+function dealAmount(d: Deal) {
   const b = Number(d?.budget ?? 0);
   const t = Number(d?.turnover ?? 0);
   return b || t || 0;
@@ -18,7 +19,7 @@ export function KanbanCard({
   stageColor,
   overlay,
 }: {
-  deal: any;
+  deal: Deal;
   stageColor: string;
   overlay?: boolean;
 }) {

@@ -17,6 +17,7 @@ import {
 import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import { useFunnelStages, useDeals } from "../../data/hooks";
+import type { Deal, FunnelStage } from "../../../lib/types";
 import { KanbanColumn } from "./components/KanbanColumn";
 import { KanbanCard } from "./components/KanbanCard";
 import { pb } from "../../../lib/pb";
@@ -25,7 +26,7 @@ function money(n: number) {
   return n.toLocaleString("ru-RU");
 }
 
-function dealAmount(d: any) {
+function dealAmount(d: Deal) {
   // For MVP: show/aggregate by budget; fallback to turnover.
   const b = Number(d?.budget ?? 0);
   const t = Number(d?.turnover ?? 0);
@@ -110,8 +111,8 @@ export function DealsKanbanPage() {
 
     return () => {
       el.removeEventListener("mousedown", onMouseDown);
-      el.removeEventListener("auxclick", onAuxClick as any);
-      el.removeEventListener("wheel", onWheel as any);
+      el.removeEventListener("auxclick", onAuxClick as EventListener);
+      el.removeEventListener("wheel", onWheel as EventListener);
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
     };
@@ -149,9 +150,9 @@ export function DealsKanbanPage() {
   const deals = dealsQ.data ?? [];
 
   const dealsByStage = React.useMemo(() => {
-    const m: Record<string, any[]> = {};
+    const m: Record<string, Deal[]> = {};
     for (const s of stages) m[s.id] = [];
-    for (const d of deals as any[]) {
+    for (const d of deals) {
       const sid = d.stage_id ?? d.expand?.stage_id?.id;
       if (sid && m[sid]) m[sid].push(d);
     }
@@ -162,8 +163,8 @@ export function DealsKanbanPage() {
   const [itemsByStage, setItemsByStage] = React.useState<Record<string, string[]>>({});
 
   const dealsMap = React.useMemo(() => {
-    const m: Record<string, any> = {};
-    for (const d of deals as any[]) m[String(d.id)] = d;
+    const m: Record<string, Deal> = {};
+    for (const d of deals) m[String(d.id)] = d;
     return m;
   }, [deals]);
 
@@ -183,7 +184,7 @@ export function DealsKanbanPage() {
   }
 
   const orderedDealsByStage = React.useMemo(() => {
-    const out: Record<string, any[]> = {};
+    const out: Record<string, Deal[]> = {};
     for (const s of stages) {
       const ids = itemsByStage[s.id] ?? [];
       out[s.id] = ids.map((id) => dealsMap[id]).filter(Boolean);
@@ -208,7 +209,7 @@ export function DealsKanbanPage() {
 
   // Top analytics (like in your prototype): simple and useful.
   const topStats = React.useMemo(() => {
-    const all = deals as any[];
+    const all = deals;
     const openCount = all.length;
     const pipeline = all.reduce((acc, d) => acc + dealAmount(d), 0);
 
@@ -226,7 +227,7 @@ export function DealsKanbanPage() {
   const [activeDealId, setActiveDealId] = React.useState<string | null>(null);
   const [overlayWidth, setOverlayWidth] = React.useState<number | null>(null);
   const lastOverIdRef = React.useRef<string | null>(null);
-  const activeDeal = React.useMemo(() => (activeDealId ? (deals as any[]).find((d) => d.id === activeDealId) : null), [activeDealId, deals]);
+  const activeDeal = React.useMemo(() => (activeDealId ? deals.find((d) => d.id === activeDealId) ?? null : null), [activeDealId, deals]);
 
   function getStageIdByDealId(dealId: string): string | null {
     for (const s of stages) {
@@ -323,7 +324,7 @@ export function DealsKanbanPage() {
     const newStageId = resolveDestinationStageId(overId);
     if (!newStageId) return;
 
-    const deal = (deals as any[]).find((x) => x.id === dealId);
+    const deal = deals.find((x) => x.id === dealId);
     if (!deal || deal.stage_id === newStageId) return;
 
     await pb.collection("deals").update(dealId, { stage_id: newStageId });
@@ -335,7 +336,7 @@ export function DealsKanbanPage() {
         deal_id: dealId,
         user_id: pb.authStore.model?.id ?? null,
         action: "stage_change",
-        comment: `Смена этапа: ${String(deal.expand?.stage_id?.stage_name ?? "").trim()} → ${(stages.find((s) => s.id === newStageId) as any)?.stage_name ?? ""}`,
+        comment: `Смена этапа: ${String(deal.expand?.stage_id?.stage_name ?? "").trim()} → ${stages.find((s) => s.id === newStageId)?.stage_name ?? ""}`,
         payload: { from: deal.stage_id ?? null, to: newStageId },
         timestamp: new Date().toISOString(),
       })

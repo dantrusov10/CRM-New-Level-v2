@@ -85,7 +85,7 @@ export type TimelineItem = {
   user_id?: Id;
   action: string;
   comment?: string;
-  payload?: any;
+  payload?: Record<string, unknown> | null;
   timestamp?: string;
   created?: string;
 };
@@ -96,10 +96,10 @@ export type AiInsight = {
   score?: number; // 0..100
   summary?: string;
   suggestions?: string;
-  risks?: any;
+  risks?: Record<string, unknown> | null;
   explainability?: string;
   model?: string;
-  token_usage?: any;
+  token_usage?: Record<string, unknown> | null;
   trigger_event_id?: Id;
   created_by?: Id;
   created_at?: string;
@@ -109,7 +109,7 @@ export type AiInsight = {
 export type Role = {
   id: Id;
   name: string;
-  permissions_json: any; // {section:{read,create,update,delete}}
+  permissions_json: Record<string, unknown>; // {section:{read,create,update,delete}}
 };
 
 // --- Tasks (manager reminders) ---

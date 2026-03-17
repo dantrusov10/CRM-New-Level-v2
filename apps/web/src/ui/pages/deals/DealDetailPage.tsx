@@ -25,8 +25,11 @@ import {
 } from "../../data/hooks";
 import { DealKpModule } from "../../modules/kp/DealKpModule";
 import { DynamicEntityFormWithRef, DynamicEntityFormHandle } from "../../components/DynamicEntityForm";
+import type { AiInsight, Deal, FunnelStage, TimelineItem } from "../../../lib/types";
+import type { ContactFound, EntityFileLink } from "../../data/hooks";
 
-type AnyObj = Record<string, any>;
+type AnyObj = Record<string, unknown>;
+type TimelinePayload = Record<string, unknown>;
 
 function formatMoney(v?: number | null) {
   if (typeof v !== "number") return "";
@@ -79,7 +82,7 @@ function Select({
   );
 }
 
-function TimelineItemRow({ item }: { item: any }) {
+function TimelineItemRow({ item }: { item: TimelineItem & { expand?: { user_id?: { name?: string; email?: string } } } }) {
   const ts = item.timestamp || item.created;
   const when = ts ? dayjs(ts).format("DD.MM.YYYY HH:mm") : "";
   const by = item.expand?.user_id?.name || item.expand?.user_id?.email || "";
@@ -124,7 +127,7 @@ export function DealDetailPage() {
   const deleteEntityFileM = useDeleteEntityFileLink();
   const upd = useUpdateDeal();
 
-  const deal = dealQ.data as any;
+  const deal = (dealQ.data ?? null) as Deal | null;
   const stages = stagesQ.data ?? [];
 
   const [tab, setTab] = React.useState<string>("overview");
@@ -229,9 +232,9 @@ export function DealDetailPage() {
     };
   }, [deal?.id]);
 
-  async function createTimelineEvent(action: string, commentText?: string, payload?: any) {
+  async function createTimelineEvent(action: string, commentText?: string, payload?: TimelinePayload) {
     if (!id) return;
-    const userId = (pb.authStore.model as any)?.id;
+    const userId = pb.authStore.model?.id;
     await pb
       .collection("timeline")
       .create({
@@ -256,7 +259,7 @@ export function DealDetailPage() {
   async function changeStage(stageId: string) {
     if (!id) return;
     const prevName = deal?.expand?.stage_id?.stage_name ?? "";
-    const nextName = stages.find((s: any) => s.id === stageId)?.stage_name ?? "";
+    const nextName = stages.find((s) => s.id === stageId)?.stage_name ?? "";
     await pb.collection("deals").update(id, { stage_id: stageId }).catch(() => {});
     await createTimelineEvent("stage_change", `Этап изменён: ${prevName} → ${nextName}`, { from: prevName, to: nextName });
     await dealQ.refetch();
@@ -329,7 +332,7 @@ export function DealDetailPage() {
         source_url: "",
         confidence: 1,
         is_verified: true,
-      } as any)
+      })
       .catch(() => null);
     setContactModal(false);
     setCFullName("");
@@ -364,11 +367,11 @@ export function DealDetailPage() {
     tlQ.refetch();
   }
 
-  const latestAi = (aiQ.data ?? [])[0] as any;
+  const latestAi = ((aiQ.data ?? [])[0] ?? null) as AiInsight | null;
   const score = typeof latestAi?.score === "number" ? latestAi.score : typeof latestAi?.score_percent === "number" ? latestAi.score_percent : null;
   const sb = scoreBadge(score);
 
-  const tlAll = (tlQ.data ?? []) as any[];
+  const tlAll = (tlQ.data ?? []) as Array<TimelineItem & { expand?: { user_id?: { name?: string; email?: string } } }>;
   const tlFiltered = tlAll.filter((t) => {
     if (timelineFilter === "comments") return String(t.action) === "comment";
     if (timelineFilter === "ai") return String(t.action).startsWith("ai") || String(t.action) === "ai";
@@ -395,7 +398,7 @@ export function DealDetailPage() {
             <div className="flex items-center gap-2">
               <Select value={deal?.stage_id || ""} onChange={changeStage}>
                 <option value="">Этап</option>
-                {stages.map((s: any) => (
+                {stages.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.stage_name}
                   </option>
@@ -488,7 +491,7 @@ export function DealDetailPage() {
                   <div className="text-sm text-text2">Загрузка...</div>
                 ) : (
                   <div className="grid gap-3">
-                    {tlFiltered.map((t: any) => (
+                    {tlFiltered.map((t) => (
                       <TimelineItemRow key={t.id} item={t} />
                     ))}
                     {!tlFiltered.length ? <div className="text-sm text-text2">Событий пока нет.</div> : null}
@@ -515,7 +518,7 @@ export function DealDetailPage() {
                 </div>
 
                 <div className="mt-4 grid gap-3">
-                  {(contactsQ.data || []).map((c: any) => {
+                  {(contactsQ.data || []).map((c: ContactFound) => {
                     const src = String(c.source_type || "");
                     const isManual = src === "manual";
                     const meta = [c.position, c.influence_type].filter(Boolean).join(" · ");
@@ -544,7 +547,7 @@ export function DealDetailPage() {
                             <Button
                               variant="ghost"
                               onClick={async () => {
-                                await deleteContactM.mutateAsync({ id: c.id, dealId: id! } as any).catch(() => null);
+                                await deleteContactM.mutateAsync({ id: c.id, dealId: id! }).catch(() => null);
                                 contactsQ.refetch();
                               }}
                             >
@@ -620,7 +623,7 @@ export function DealDetailPage() {
                         {tlAll
                           .filter((t) => String(t.action) === "workspace_link")
                           .map((t) => {
-                            const url = (t.payload && (t.payload as any).url) || "";
+                            const url = (t.payload && typeof t.payload === "object" && "url" in t.payload ? String((t.payload as Record<string, unknown>).url ?? "") : "");
                             return (
                               <div key={t.id} className="rounded-card border border-border bg-white p-3">
                                 <div className="text-xs text-text2">{dayjs(t.timestamp || t.created).format("DD.MM.YYYY HH:mm")}</div>
@@ -649,7 +652,7 @@ export function DealDetailPage() {
                         </div>
                       </div>
                       <div className="mt-3 grid gap-2">
-                        {(entityFilesQ.data || []).map((ef: any) => {
+                        {(entityFilesQ.data || []).map((ef: EntityFileLink) => {
                           const f = ef.expand?.file_id;
                           const url = f?.path || "";
                           return (
@@ -668,7 +671,7 @@ export function DealDetailPage() {
                                   variant="ghost"
                                   onClick={async () => {
                                     await deleteEntityFileM
-                                      .mutateAsync({ id: ef.id, entityType: "deal", entityId: id! } as any)
+                                      .mutateAsync({ id: ef.id, entityType: "deal", entityId: id! })
                                       .catch(() => null);
                                     entityFilesQ.refetch();
                                   }}
@@ -706,7 +709,7 @@ export function DealDetailPage() {
                   <div className="flex items-center gap-2">
                     <select
                       value={composerType}
-                      onChange={(e) => setComposerType(e.target.value as any)}
+                      onChange={(e) => setComposerType(e.target.value as "comment" | "note" | "task")}
                       className="ui-input max-w-[140px]"
                       title="Тип"
                     >

@@ -5,6 +5,9 @@ import { Input } from "../../components/Input";
 import { pb } from "../../../lib/pb";
 
 type EntityType = "company" | "deal";
+type FieldSection = { id: string; entity_type: EntityType; key: string; title: string; order?: number; collapsed?: boolean };
+type FieldOptionMap = Record<string, unknown>;
+type DynamicField = { id: string; entity_type: EntityType; collection: string; section_id?: string | null; field_name?: string; label: string; field_type: string; value_type?: string; required?: boolean; visible?: boolean; options?: FieldOptionMap; sort_order?: number; order?: number; system?: boolean; help_text?: string; role_visibility?: Record<string, unknown> };
 
 const ENTITY_MAP: Record<EntityType, { label: string; collection: string }> = {
   company: { label: "Компании", collection: "companies" },
@@ -86,8 +89,8 @@ function makeFieldName(label: string, existing: string[]) {
 
 export function AdminFieldsPage() {
   const [entity, setEntity] = React.useState<EntityType>("company");
-  const [sections, setSections] = React.useState<any[]>([]);
-  const [fields, setFields] = React.useState<any[]>([]);
+  const [sections, setSections] = React.useState<FieldSection[]>([]);
+  const [fields, setFields] = React.useState<DynamicField[]>([]);
 
   // sections form
   const [sectionTitle, setSectionTitle] = React.useState("");
@@ -105,10 +108,10 @@ export function AdminFieldsPage() {
       pb.collection("settings_field_sections").getFullList({ filter, sort: "order" }).catch(() => []),
       pb.collection("settings_fields").getFullList({ filter, sort: "order,sort_order" }).catch(() => []),
     ]);
-    setSections(sec as any);
-    setFields(flds as any);
+    setSections(sec as FieldSection[]);
+    setFields(flds as DynamicField[]);
     if (!sectionId) {
-      const first = (sec as any[])[0]?.id;
+      const first = (sec as FieldSection[])[0]?.id;
       if (first) setSectionId(first);
     }
   }
@@ -138,7 +141,7 @@ export function AdminFieldsPage() {
     load();
   }
 
-  async function updateSection(id: string, data: any) {
+  async function updateSection(id: string, data: Partial<FieldSection>) {
     await pb.collection("settings_field_sections").update(id, data);
     load();
   }
@@ -166,7 +169,7 @@ export function AdminFieldsPage() {
     const autoFieldName = makeFieldName(label, existing);
 
     // options скрыты из UI: на MVP держим пустыми (не показываем пользователю JSON)
-    const optObj: any = {};
+    const optObj: FieldOptionMap = {};
 
     await pb.collection("settings_fields").create({
       entity_type: entity,
@@ -189,7 +192,7 @@ export function AdminFieldsPage() {
     load();
   }
 
-  async function updateField(id: string, data: any) {
+  async function updateField(id: string, data: Partial<DynamicField>) {
     await pb.collection("settings_fields").update(id, data);
     load();
   }

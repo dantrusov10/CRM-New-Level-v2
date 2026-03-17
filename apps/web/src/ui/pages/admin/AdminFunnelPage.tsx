@@ -16,13 +16,13 @@ type FunnelStage = {
   default_prob?: number;
 };
 
-function normalizeStage(raw: any): Partial<FunnelStage> {
+function normalizeStage(raw: Record<string, unknown>): Partial<FunnelStage> {
   // поддержка старого формата (name/order/win/loss) + нового (stage_name/position/won/lost)
   const stage_name = raw.stage_name ?? raw.name ?? "";
   const position = Number(raw.position ?? raw.order ?? 0);
   const color = raw.color ?? "#004EEB";
 
-  let final_type: any = raw.final_type ?? "none";
+  let final_type: FunnelStage["final_type"] | string = String(raw.final_type ?? "none");
   if (final_type === "win") final_type = "won";
   if (final_type === "loss") final_type = "lost";
   if (!["none", "won", "lost"].includes(final_type)) final_type = "none";
@@ -46,7 +46,7 @@ export function AdminFunnelPage() {
   async function load() {
     // PocketBase schema: stage_name + position
     const s = await pb.collection("settings_funnel_stages").getFullList({ sort: "position" });
-    setStages(s as any);
+    setStages(s as FunnelStage[]);
   }
   React.useEffect(() => {
     load();
@@ -70,7 +70,7 @@ export function AdminFunnelPage() {
     }
   }
 
-  async function updateStage(id: string, data: any) {
+  async function updateStage(id: string, data: Partial<FunnelStage>) {
     try {
       await pb.collection("settings_funnel_stages").update(id, data);
       load();
@@ -112,7 +112,7 @@ export function AdminFunnelPage() {
   }
 
   async function importJson(file: File) {
-    let arr: any;
+    let arr: unknown;
     try {
       const txt = await file.text();
       arr = JSON.parse(txt);

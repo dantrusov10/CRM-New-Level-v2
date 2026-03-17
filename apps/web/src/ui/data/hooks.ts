@@ -30,14 +30,16 @@ export type EntityFileLink = {
   file_id: string;
   tag?: string;
   created_at?: string;
-  expand?: { file_id?: any };
+  expand?: { file_id?: Record<string, unknown> | null };
 };
 
-function normalizeListResult<T>(res: any): T[] {
-  if (!res) return [] as T[];
-  if (Array.isArray(res)) return res as T[];
-  if (Array.isArray(res.items)) return res.items as T[];
-  return [] as T[];
+type ListResultLike<T> = T[] | { items?: T[] } | null | undefined;
+
+function normalizeListResult<T>(res: ListResultLike<T>): T[] {
+  if (!res) return [];
+  if (Array.isArray(res)) return res;
+  if (Array.isArray(res.items)) return res.items;
+  return [];
 }
 
 function defaultMatrixByRole(role?: string): PermissionMatrix {
@@ -77,7 +79,7 @@ export function usePermissions(role?: string) {
         .collection("settings_roles")
         .getFirstListItem(`role_name="${role.replace(/"/g, "\\\"")}"`)
         .catch(() => null);
-      const matrix = (rec as any)?.perms as PermissionMatrix | undefined;
+      const matrix = (rec as { perms?: PermissionMatrix } | null)?.perms;
       return matrix && Object.keys(matrix).length ? matrix : defaultMatrixByRole(role);
     },
     staleTime: 60_000,
@@ -90,7 +92,7 @@ export function useFunnelStages() {
     queryFn: async (): Promise<FunnelStage[]> => {
       // PocketBase schema: stage_name + position
       const res = await pb.collection("settings_funnel_stages").getFullList({ sort: "position" });
-      return res as any;
+      return res as FunnelStage[];
     },
   });
 }
@@ -104,7 +106,7 @@ export function useDeals(params?: { search?: string; filter?: string; sort?: str
     queryKey: ["deals", f, sort],
     queryFn: async (): Promise<Deal[]> => {
       // Relations in PB: company_id, stage_id, responsible_id
-      const options: Record<string, any> = {
+      const options: Record<string, unknown> = {
         sort: sort ?? "-updated",
         expand: "company_id,stage_id,responsible_id",
       };
@@ -112,7 +114,7 @@ export function useDeals(params?: { search?: string; filter?: string; sort?: str
       if (f && String(f).trim().length) options.filter = f;
 
       const res = await pb.collection("deals").getFullList({ ...options, batch: 500 });
-      return normalizeListResult(res) as any;
+      return normalizeListResult<Deal>(res);
     },
   });}
 
@@ -127,7 +129,7 @@ export function useDealsList(params?: { search?: string; filter?: string; sort?:
   return useQuery({
     queryKey: ["dealsList", f, sort, page, perPage],
     queryFn: async () => {
-      const options: Record<string, any> = {
+      const options: Record<string, unknown> = {
         sort: sort ?? "-updated",
         expand: "company_id,stage_id,responsible_id",
       };
@@ -154,12 +156,12 @@ export function useCompanies(params?: { search?: string; filter?: string }) {
   return useQuery({
     queryKey: ["companies", f],
     queryFn: async (): Promise<Company[]> => {
-      const options: Record<string, any> = { sort: "name" };
+      const options: Record<string, unknown> = { sort: "name" };
       // IMPORTANT: do not send filter=undefined (PocketBase returns 400)
       if (f && String(f).trim().length) options.filter = f;
 
       const res = await pb.collection("companies").getFullList({ ...options, batch: 500 });
-      return normalizeListResult(res) as any;
+      return normalizeListResult<Company>(res);
     },
   });}
 
@@ -171,7 +173,7 @@ export function useCompaniesList(params?: { search?: string; filter?: string; pa
   return useQuery({
     queryKey: ["companiesList", f, page, perPage],
     queryFn: async () => {
-      const options: Record<string, any> = { sort: "name" };
+      const options: Record<string, unknown> = { sort: "name" };
       if (f && String(f).trim().length) options.filter = f;
       return pb.collection("companies").getList(page, perPage, options);
     },
@@ -192,13 +194,13 @@ export function useTimeline(entityType: "deal" | "company", entityId: string) {
     queryFn: async (): Promise<TimelineItem[]> => {
       // PocketBase schema for timeline: deal_id + user_id + action + comment + payload + timestamp
       // (company timeline can be added later; for now we only support deal timeline)
-      if (entityType !== "deal") return [] as any;
+      if (entityType !== "deal") return [];
       const res = await pb.collection("timeline").getList(1, 200, {
         filter: `deal_id="${entityId}"`,
         sort: "-created",
         expand: "user_id",
       });
-      return normalizeListResult(res) as any;
+      return normalizeListResult<TimelineItem>(res);
     },
     enabled: !!entityId,
   });
@@ -209,7 +211,7 @@ export function useAiInsights(dealId: string) {
     queryKey: ["ai_insights", dealId],
     queryFn: async (): Promise<AiInsight[]> => {
       const res = await pb.collection("ai_insights").getList(1, 50, { filter: `deal_id="${dealId}"`, sort: "-created" });
-      return normalizeListResult(res) as any;
+      return normalizeListResult<AiInsight>(res);
     },
     enabled: !!dealId,
   });
@@ -227,7 +229,7 @@ export function useMyTasksInRange(params: { userId: string; fromIso: string; toI
         sort: "due_at",
         expand: "deal_id,company_id",
       });
-      return normalizeListResult(res) as any;
+      return normalizeListResult<TaskItem>(res);
     },
     enabled: !!userId && !!fromIso && !!toIso,
     staleTime: 15_000,
@@ -249,7 +251,7 @@ export function useMyTasksForBell(params: { userId: string; windowHours?: number
         sort: "due_at",
         expand: "deal_id,company_id",
       });
-      return normalizeListResult(res) as any;
+      return normalizeListResult<TaskItem>(res);
     },
     enabled: !!userId,
     refetchInterval: 60_000,
@@ -299,8 +301,8 @@ export function useContactsFound(dealId: string) {
           filter: `deal_id="${dealId}"`,
           sort: "-created",
         })
-        .catch(() => ({ items: [] as any[] }));
-      return normalizeListResult(res) as any;
+        .catch(() => ({ items: [] as ContactFound[] }));
+      return normalizeListResult<ContactFound>(res);
     },
     enabled: !!dealId,
   });
@@ -310,7 +312,7 @@ export function useCreateContactFound() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (data: Partial<ContactFound>) => {
-      return pb.collection("contacts_found").create(data as any);
+      return pb.collection("contacts_found").create(data);
     },
     onSuccess: (_rec, vars) => {
       if (vars.deal_id) qc.invalidateQueries({ queryKey: ["contacts_found", vars.deal_id] });
@@ -343,8 +345,8 @@ export function useEntityFiles(entityType: string, entityId: string) {
           sort: "-created",
           expand: "file_id",
         })
-        .catch(() => ({ items: [] as any[] }));
-      return normalizeListResult(res) as any;
+        .catch(() => ({ items: [] as ContactFound[] }));
+      return normalizeListResult<EntityFileLink>(res);
     },
     enabled: !!entityId,
   });
@@ -401,7 +403,7 @@ export function useDeleteEntityFileLink() {
 export function useUpdateDeal() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Deal> }) => {
       const rec = await pb.collection("deals").update(id, data);
       return rec;
     },

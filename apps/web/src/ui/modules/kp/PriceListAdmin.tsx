@@ -5,6 +5,8 @@ import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
 import { pb } from "../../../lib/pb";
 
+type PriceListItem = { id: string; product_name?: string; sku?: string; price?: number; meta?: { vat_mode?: "with_vat" | "without_vat" } };
+
 type Row = {
   product_name: string;
   sku?: string;
@@ -14,7 +16,7 @@ type Row = {
 
 async function ensureDefaultPriceListId(): Promise<string | null> {
   // 1) try existing
-  const existing = await pb.collection("price_lists").getList(1, 1, { sort: "-created" }).catch(() => ({ items: [] as any[] }));
+  const existing = await pb.collection("price_lists").getList(1, 1, { sort: "-created" }).catch(() => ({ items: [] as PriceListItem[] }));
   if ((existing.items || [])[0]?.id) return (existing.items || [])[0].id;
 
   // price_lists требует file_id. Создаём "пустой" files-рекорд.
@@ -50,7 +52,7 @@ function normalizeHeader(h: string) {
     .trim();
 }
 
-function parseVatMode(v: any): Row["vat_mode"] {
+function parseVatMode(v: unknown): Row["vat_mode"] {
   const s = normalizeHeader(String(v || ""));
   if (!s) return undefined;
   if (s.includes("без")) return "without_vat";
@@ -62,13 +64,13 @@ function parseVatMode(v: any): Row["vat_mode"] {
 export function PriceListAdmin() {
   const [busy, setBusy] = React.useState(false);
   const [search, setSearch] = React.useState("");
-  const [items, setItems] = React.useState<any[]>([]);
+  const [items, setItems] = React.useState<PriceListItem[]>([]);
   const [status, setStatus] = React.useState<string>("");
 
   async function load() {
     const q = search.trim();
     const filter = q ? `product_name~"${q.replace(/\"/g, '\\"')}"` : "";
-    const res = await pb.collection("price_list_items").getList(1, 50, { sort: "product_name", filter: filter || undefined }).catch(() => ({ items: [] as any[] }));
+    const res = await pb.collection("price_list_items").getList(1, 50, { sort: "product_name", filter: filter || undefined }).catch(() => ({ items: [] as PriceListItem[] }));
     setItems(res.items || []);
   }
 
@@ -97,8 +99,8 @@ export function PriceListAdmin() {
     setBusy(true);
     setStatus("Экспорт…");
     try {
-      const all = await pb.collection("price_list_items").getFullList({ sort: "product_name" }).catch(() => [] as any[]);
-      const rows = (all as any[]).map((it) => {
+      const all = await pb.collection("price_list_items").getFullList({ sort: "product_name" }).catch(() => [] as PriceListItem[]);
+      const rows = all.map((it) => {
         const meta = it.meta || {};
         const mode = meta.vat_mode === "without_vat" ? "Без НДС" : "С НДС";
         return {
@@ -126,7 +128,7 @@ export function PriceListAdmin() {
       const ab = await file.arrayBuffer();
       const wb = XLSX.read(ab, { type: "array" });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const json: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
+      const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
 
       const priceListId = await ensureDefaultPriceListId();
       if (!priceListId) throw new Error("Не удалось создать/получить price_list_id");
@@ -159,8 +161,8 @@ export function PriceListAdmin() {
         const filter = r.sku
           ? `sku="${r.sku.replace(/\"/g, '\\"')}"`
           : `product_name="${r.product_name.replace(/\"/g, '\\"')}"`;
-        const existing = await pb.collection("price_list_items").getList(1, 1, { filter, sort: "-created" }).catch(() => ({ items: [] as any[] }));
-        const payload: any = {
+        const existing = await pb.collection("price_list_items").getList(1, 1, { filter, sort: "-created" }).catch(() => ({ items: [] as PriceListItem[] }));
+        const payload: Record<string, unknown> = {
           price_list_id: priceListId,
           product_name: r.product_name,
           sku: r.sku || "",
@@ -179,8 +181,8 @@ export function PriceListAdmin() {
 
       setStatus(`Импорт завершён: создано ${created}, обновлено ${updated}`);
       await load();
-    } catch (e: any) {
-      setStatus(`Ошибка импорта: ${e?.message || String(e)}`);
+    } catch (e: unknown) {
+      setStatus(`Ошибка импорта: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
       setTimeout(() => setStatus(""), 4000);

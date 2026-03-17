@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader } from "../components/Card";
 import { Button } from "../components/Button";
 import { getAuthUser } from "../../lib/pb";
 import { useMyTasksInRange } from "../data/hooks";
+import type { TaskItem } from "../../lib/types";
 import { useNavigate } from "react-router-dom";
 
 type ViewMode = "day" | "workweek";
@@ -37,7 +38,7 @@ export function CalendarPage() {
     toIso: range.to.toISOString(),
   });
 
-  const tasks = (tasksQ.data || []).filter((t: any) => !t.is_done);
+  const tasks = (tasksQ.data || []).filter((t) => !t.is_done);
 
   const hours = Array.from({ length: 11 }).map((_, i) => 8 + i); // 08..18
 
@@ -119,7 +120,7 @@ function DayCell({
 }: {
   day: dayjs.Dayjs;
   hour: number;
-  tasks: any[];
+  tasks: TaskItem[];
   onOpenDeal: (dealId?: string) => void;
 }) {
   const start = day.hour(hour).minute(0).second(0);

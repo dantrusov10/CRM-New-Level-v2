@@ -2,7 +2,7 @@ import React from "react";
 import { Modal } from "../components/Modal";
 import { Input } from "../components/Input";
 import { Button } from "../components/Button";
-import { pb } from "../../lib/pb";
+import { pb, getAuthUser } from "../../lib/pb";
 import { useNavigate } from "react-router-dom";
 import { notifyPbError } from "../../lib/pbError";
 
@@ -27,10 +27,12 @@ export function CreateCompanyModal({ open, onClose }: { open: boolean; onClose: 
     if (!name.trim()) return;
     setSaving(true);
     try {
-      const data: any = { name: name.trim() };
+      const data: Record<string, string> = { name: name.trim() };
       if (inn.trim()) data.inn = inn.trim();
       if (website.trim()) data.website = website.trim();
       if (city.trim()) data.city = city.trim();
+      const uid = getAuthUser()?.id;
+      if (uid) data.responsible_id = uid;
       const rec = await pb.collection("companies").create(data);
       onClose();
       nav(`/companies/${rec.id}`);

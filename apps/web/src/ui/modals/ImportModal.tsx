@@ -9,10 +9,47 @@ import { useAuth } from "../../app/AuthProvider";
 
 type EntityType = "deal" | "company" | "bundle";
 
+type ImportCell = string | number | boolean | null | undefined;
+type ImportRowData = Record<string, ImportCell>;
+type SettingsFieldRecord = {
+  id: string;
+  label?: string;
+  field_name?: string;
+  field_type?: string;
+  value_type?: string;
+  options?: string | { collection?: string } | null;
+};
+type PbIdRecord = { id: string; [key: string]: unknown };
+
+function parseRelationCollection(options: SettingsFieldRecord["options"]): string {
+  if (!options) return "";
+  if (typeof options === "string") {
+    try {
+      const parsed = JSON.parse(options) as { collection?: string };
+      return String(parsed?.collection || "").trim();
+    } catch {
+      return "";
+    }
+  }
+  return String(options.collection || "").trim();
+}
+
+function parseNumericCell(v: ImportCell): number | undefined {
+  if (v === null || v === undefined) return undefined;
+  const s0 = String(v ?? "").trim();
+  if (!s0 || s0 === "-" || s0 === "—") return undefined;
+  const cleaned = s0.replace(/[^\d,\.\-]/g, "").replace(/\s+/g, "");
+  if (!cleaned) return undefined;
+  const normalized = cleaned.replace(",", ".");
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+
 type ImportErrorRow = {
   row: number;
   error: string;
-  data: Record<string, any>;
+  data: ImportRowData;
 };
 
 function FieldRow({
@@ -128,7 +165,7 @@ export function ImportModal({
   const [step, setStep] = React.useState<1 | 2 | 3>(1);
   const [file, setFile] = React.useState<File | null>(null);
   const [headers, setHeaders] = React.useState<string[]>([]);
-  const [rows, setRows] = React.useState<Record<string, any>[]>([]);
+  const [rows, setRows] = React.useState<ImportRowData[]>([]);
   const [rowNums, setRowNums] = React.useState<number[]>([]);
 
   const [mapping, setMapping] = React.useState<Record<string, string>>({});
@@ -252,12 +289,12 @@ export function ImportModal({
       const dealFields = (await pb
         .collection("settings_fields")
         .getFullList({ filter: `entity_type="deal" && (visible=true || required=true)`, sort: "order,sort_order" })
-        .catch(() => [])) as any[];
+        .catch(() => [])) as SettingsFieldRecord[];
 
       const companyFields = (await pb
         .collection("settings_fields")
         .getFullList({ filter: `entity_type="company" && (visible=true || required=true)`, sort: "order,sort_order" })
-        .catch(() => [])) as any[];
+        .catch(() => [])) as SettingsFieldRecord[];
 
       const seen = new Set<string>();
       const headers: string[] = [];
@@ -322,7 +359,7 @@ export function ImportModal({
         pushH(`Контакт ${i}: Telegram`);
       }
 
-      const row: Record<string, any> = {};
+      const row: ImportRowData = {};
       for (const h of headers) row[h] = "";
 
       downloadXlsx([row], "bundle", "template_deal_company_contacts.xlsx");
@@ -335,7 +372,7 @@ export function ImportModal({
       const fields = (await pb
         .collection("settings_fields")
         .getFullList({ filter, sort: "order,sort_order" })
-        .catch(() => [])) as any[];
+        .catch(() => [])) as SettingsFieldRecord[];
 
       const seen = new Set<string>();
       const headers: string[] = [];
@@ -355,7 +392,7 @@ export function ImportModal({
       // Always add 5 notes columns for timeline comments
       for (let i = 1; i <= 5; i++) headers.push(`Примечание ${i}`);
 
-      const row: Record<string, any> = {};
+      const row: ImportRowData = {};
       for (const h of headers) row[h] = "";
 
       downloadXlsx([row], "deals", "template_deals.xlsx");
@@ -397,7 +434,7 @@ export function ImportModal({
       ? (((await pb
           .collection("settings_fields")
           .getFullList({ filter: `entity_type="deal" && (visible=true || required=true)`, sort: "order,sort_order" })
-          .catch(() => [])) as any[]) ?? [])
+          .catch(() => [])) as SettingsFieldRecord[]) ?? [])
       : [];
 
     // Active company fields (for bundle import)
@@ -405,17 +442,17 @@ export function ImportModal({
       ? (((await pb
           .collection("settings_fields")
           .getFullList({ filter: `entity_type="company" && (visible=true || required=true)`, sort: "order,sort_order" })
-          .catch(() => [])) as any[]) ?? [])
+          .catch(() => [])) as SettingsFieldRecord[]) ?? [])
       : [];
 
-    const companyFieldByLabel = new Map<string, any>();
+    const companyFieldByLabel = new Map<string, SettingsFieldRecord>();
     for (const f of companyFields) {
       const lbl = String(f?.label ?? "").trim();
       if (!lbl) continue;
       if (!companyFieldByLabel.has(lbl)) companyFieldByLabel.set(lbl, f);
     }
 
-    const dealFieldByLabel = new Map<string, any>();
+    const dealFieldByLabel = new Map<string, SettingsFieldRecord>();
     for (const f of dealFields) {
       const lbl = String(f?.label ?? "").trim();
       if (!lbl) continue;
@@ -423,7 +460,7 @@ export function ImportModal({
       if (!dealFieldByLabel.has(lbl)) dealFieldByLabel.set(lbl, f);
     }
 
-    const get = (r: Record<string, any>, key: string) => {
+    const get = (r: ImportRowData, key: string): ImportCell => {
       const col = mapping[key];
       if (!col) return "";
       return r[col];
@@ -439,8 +476,8 @@ export function ImportModal({
         .then((x) => x.items?.[0])
         .catch(() => null);
       if (!found) return "";
-      stageCache.set(s, (found as any).id);
-      return (found as any).id;
+      stageCache.set(s, (found as PbIdRecord).id);
+      return (found as PbIdRecord).id;
     }
 
     async function resolveSalesChannelId(raw: string): Promise<string | null> {
@@ -455,8 +492,8 @@ export function ImportModal({
         .then((x) => x.items?.[0])
         .catch(() => null);
       if (foundByCode) {
-        salesChannelByKey.set(code, (foundByCode as any).id);
-        return (foundByCode as any).id;
+        salesChannelByKey.set(code, (foundByCode as PbIdRecord).id);
+        return (foundByCode as PbIdRecord).id;
       }
       // try by name
       const foundByName = await pb
@@ -465,8 +502,8 @@ export function ImportModal({
         .then((x) => x.items?.[0])
         .catch(() => null);
       if (foundByName) {
-        salesChannelByKey.set(code, (foundByName as any).id);
-        return (foundByName as any).id;
+        salesChannelByKey.set(code, (foundByName as PbIdRecord).id);
+        return (foundByName as PbIdRecord).id;
       }
 
       // auto-create channel (admin-like behavior). This keeps import smooth.
@@ -475,8 +512,8 @@ export function ImportModal({
         .create({ name: s0, code, is_active: true })
         .catch(() => null);
       if (created) {
-        salesChannelByKey.set(code, (created as any).id);
-        return (created as any).id;
+        salesChannelByKey.set(code, (created as PbIdRecord).id);
+        return (created as PbIdRecord).id;
       }
       return null;
     }
@@ -494,8 +531,8 @@ export function ImportModal({
           .then((x) => x.items?.[0])
           .catch(() => null);
         if (found) {
-          companyByInn.set(i, (found as any).id);
-          return (found as any).id;
+          companyByInn.set(i, (found as PbIdRecord).id);
+          return (found as PbIdRecord).id;
         }
       }
 
@@ -507,8 +544,8 @@ export function ImportModal({
           .then((x) => x.items?.[0])
           .catch(() => null);
         if (found) {
-          companyByName.set(n, (found as any).id);
-          return (found as any).id;
+          companyByName.set(n, (found as PbIdRecord).id);
+          return (found as PbIdRecord).id;
         }
       }
 
@@ -534,7 +571,7 @@ export function ImportModal({
           if (!name) throw new Error("Название компании обязательно");
           const salesChannelRaw = String(get(r, "sales_channel") || "").trim();
           const salesChannelId = await resolveSalesChannelId(salesChannelRaw);
-          const payload: any = {
+          const payload: Record<string, unknown> = {
             name,
             inn: String(get(r, "inn") || "").trim() || undefined,
             sales_channel_id: salesChannelId || undefined,
@@ -553,23 +590,14 @@ export function ImportModal({
           // Bundle import: 1 row = 1 company + 1 deal + 0..3 contacts (all linked)
           const esc = (s: string) => s.replace(/"/g, "\\\"");
 
-          const num = (v: any) => {
-            if (v === null || v === undefined) return undefined;
-            const s0 = String(v ?? "").trim();
-            if (!s0 || s0 === "-" || s0 === "—") return undefined;
-            const cleaned = s0.replace(/[^\d,\.\-]/g, "").replace(/\s+/g, "");
-            if (!cleaned) return undefined;
-            const normalized = cleaned.replace(",", ".");
-            const n = Number(normalized);
-            return Number.isFinite(n) ? n : undefined;
-          };
+          const num = parseNumericCell;
 
           // --- Company ---
           const companyName = String(get(r, "company_name") || "").trim();
           const companyInn = String(get(r, "company_inn") || "").trim();
           if (!companyName && !companyInn) throw new Error("Компания: не указано название или ИНН");
 
-          const companyPayload: any = {
+          const companyPayload: Record<string, unknown> = {
             name: companyName || companyInn,
             inn: companyInn || undefined,
             city: String(get(r, "company_city") || "").trim() || undefined,
@@ -586,7 +614,7 @@ export function ImportModal({
             if (["name", "inn", "city", "website", "phone", "email", "responsible_id"].includes(fieldName)) continue;
 
             const col = `Компания: ${lbl}`;
-            const raw = (r as any)[col];
+            const raw = r[col];
             if (raw === null || raw === undefined) continue;
             const s = String(raw).trim();
             if (!s || s === "-" || s === "—") continue;
@@ -611,7 +639,7 @@ export function ImportModal({
                 .getList(1, 1, { filter: `inn="${esc(companyInn)}"` })
                 .then((x) => x.items?.[0])
                 .catch(() => null);
-              if (found) companyId = (found as any).id;
+              if (found) companyId = (found as PbIdRecord).id;
             }
           }
           if (!companyId && companyName) {
@@ -622,7 +650,7 @@ export function ImportModal({
                 .getList(1, 1, { filter: `name="${esc(companyName)}"` })
                 .then((x) => x.items?.[0])
                 .catch(() => null);
-              if (found) companyId = (found as any).id;
+              if (found) companyId = (found as PbIdRecord).id;
             }
           }
           if (companyId) {
@@ -641,15 +669,15 @@ export function ImportModal({
           const stageName = String(get(r, "stage") || "").trim();
           const stageId = await resolveStageId(stageName);
 
-          const dealPayload: any = {
+          const dealPayload: Record<string, unknown> = {
             title,
             company_id: companyId,
             responsible_id: user?.id || undefined,
             stage_id: stageId || undefined,
-            budget: num((r as any)["Сделка: Бюджет"] ?? ""),
-            turnover: num((r as any)["Сделка: Оборот"] ?? ""),
-            margin_percent: num((r as any)["Сделка: Маржа, %"] ?? ""),
-            discount_percent: num((r as any)["Сделка: Скидка, %"] ?? ""),
+            budget: num(r["Сделка: Бюджет"] ?? ""),
+            turnover: num(r["Сделка: Оборот"] ?? ""),
+            margin_percent: num(r["Сделка: Маржа, %"] ?? ""),
+            discount_percent: num(r["Сделка: Скидка, %"] ?? ""),
           };
 
           // dynamic deal fields: columns "Сделка: <label>"
@@ -659,7 +687,7 @@ export function ImportModal({
             if (["title", "company_id", "stage_id", "responsible_id", "budget", "turnover", "margin_percent", "discount_percent"].includes(fieldName)) continue;
 
             const col = `Сделка: ${lbl}`;
-            const raw = (r as any)[col];
+            const raw = r[col];
             if (raw === null || raw === undefined) continue;
             const s = String(raw).trim();
             if (!s || s === "-" || s === "—") continue;
@@ -674,8 +702,7 @@ export function ImportModal({
               if (/^[a-z0-9]{15}$/.test(maybeId)) {
                 dealPayload[fieldName] = maybeId;
               } else {
-                const opt = (f?.options ?? {}) as any;
-                const relCollection = String(opt?.collection ?? "").trim();
+                const relCollection = parseRelationCollection(f?.options);
                 if (relCollection) {
                   const found = await pb
                     .collection(relCollection)
@@ -689,7 +716,7 @@ export function ImportModal({
                         .getList(1, 1, { filter: `title="${esc(maybeId)}"` })
                         .then((x) => x.items?.[0])
                         .catch(() => null);
-                  if (found2) dealPayload[fieldName] = (found2 as any).id;
+                  if (found2) dealPayload[fieldName] = (found2 as PbIdRecord).id;
                 }
               }
             } else {
@@ -703,7 +730,7 @@ export function ImportModal({
           // Notes columns -> timeline comments
           const notes: string[] = [];
           for (let i = 1; i <= 5; i++) {
-            const v = (r as any)[`Примечание ${i}`];
+            const v = r[`Примечание ${i}`];
             const s = v === null || v === undefined ? "" : String(v).trim();
             if (s) notes.push(s);
           }
@@ -767,20 +794,9 @@ export function ImportModal({
           const stageName = String(get(r, "stage") || "").trim();
           const stageId = await resolveStageId(stageName);
 
-          const num = (v: any) => {
-            if (v === null || v === undefined) return undefined;
-            const s0 = String(v ?? "").trim();
-            if (!s0 || s0 === "-" || s0 === "—") return undefined;
-            // keep digits, dot, comma, minus. remove currency symbols and text.
-            const cleaned = s0.replace(/[^\d,\.\-]/g, "").replace(/\s+/g, "");
-            if (!cleaned) return undefined;
-            // normalize decimal comma
-            const normalized = cleaned.replace(",", ".");
-            const n = Number(normalized);
-            return Number.isFinite(n) ? n : undefined;
-          };
+          const num = parseNumericCell;
 
-          const payload: any = {
+          const payload: Record<string, unknown> = {
             title,
             company_id: companyId,
             responsible_id: user?.id || undefined,
@@ -806,7 +822,7 @@ export function ImportModal({
             if (!fieldName) continue;
             if (["title", "company_id", "stage_id", "responsible_id"].includes(fieldName)) continue;
 
-            const raw = (r as any)[lbl];
+            const raw = r[lbl];
             if (raw === null || raw === undefined) continue;
             const s = String(raw).trim();
             if (!s || s === "-" || s === "—") continue;
@@ -823,8 +839,7 @@ export function ImportModal({
               if (/^[a-z0-9]{15}$/.test(maybeId)) {
                 payload[fieldName] = maybeId;
               } else {
-                const opt = (f?.options ?? {}) as any;
-                const relCollection = String(opt?.collection ?? "").trim();
+                const relCollection = parseRelationCollection(f?.options);
                 if (relCollection) {
                   const escaped = maybeId.replace(/"/g, "\\\"");
                   const found = await pb
@@ -839,7 +854,7 @@ export function ImportModal({
                         .getList(1, 1, { filter: `title="${escaped}"` })
                         .then((x) => x.items?.[0])
                         .catch(() => null);
-                  if (found2) payload[fieldName] = (found2 as any).id;
+                  if (found2) payload[fieldName] = (found2 as PbIdRecord).id;
                 }
               }
             } else {
@@ -851,13 +866,13 @@ export function ImportModal({
           // Notes columns → timeline comments (separate records, 1..5)
           const notes: string[] = [];
           for (let i = 1; i <= 5; i++) {
-            const v = (r as any)[`Примечание ${i}`];
+            const v = r[`Примечание ${i}`];
             const s = v === null || v === undefined ? "" : String(v).trim();
             if (s) notes.push(s);
           }
 
 
-          let dealRec: any = null;
+          let dealRec: PbIdRecord | null = null;
           if (id) dealRec = await pb.collection("deals").update(id, payload);
           else dealRec = await pb.collection("deals").create(payload);
 
@@ -882,8 +897,8 @@ export function ImportModal({
           }
         }
         ok++;
-      } catch (e: any) {
-        errs.push({ row: rowNumber, error: e?.message ?? String(e), data: r });
+      } catch (e: unknown) {
+        errs.push({ row: rowNumber, error: e instanceof Error ? e.message : String(e), data: r });
       }
       setProgress(`Импорт: ${ok}/${rows.length}...`);
     }

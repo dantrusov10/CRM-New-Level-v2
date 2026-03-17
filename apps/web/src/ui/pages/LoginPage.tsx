@@ -24,8 +24,8 @@ export function LoginPage() {
     try {
       await login(email, password);
       nav("/", { replace: true });
-    } catch (e: any) {
-      setErr(e?.message ?? "Ошибка входа");
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Ошибка входа");
     } finally {
       setLoading(false);
     }

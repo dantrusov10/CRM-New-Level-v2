@@ -9,7 +9,8 @@ import { pb } from "../../../lib/pb";
 import { KpPreview } from "./KpPreview";
 import { computeSpecification } from "./calc";
 import { DEFAULT_KP_TEMPLATE_V1 } from "./defaultTemplate";
-import type { SpecItem } from "./types";
+import type { Deal } from "../../../lib/types";
+import type { SpecItem, KpInput, KpTemplateConfig, KpTemplateRecord, KpInstanceRecord, PriceListItem } from "./types";
 
 function uid(prefix = "i") {
   return prefix + Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
@@ -19,11 +20,11 @@ function safeFileName(s: string) {
   return s.replace(/[\\/:*?"<>|]/g, "_").slice(0, 120);
 }
 
-function currencyOf(template: any) {
+function currencyOf(template: KpTemplateConfig) {
   return template?.defaults?.currency || "RUB";
 }
 
-function vatOf(template: any) {
+function vatOf(template: KpTemplateConfig) {
   const v = Number(template?.defaults?.vatPercent ?? 20);
   return Number.isFinite(v) ? v : 20;
 }
@@ -33,7 +34,7 @@ async function ensureDefaultTemplate() {
   const list = await pb
     .collection("settings_kp_templates")
     .getList(1, 1, { filter: "is_default=true && is_active=true" })
-    .catch(() => ({ items: [] as any[] }));
+    .catch(() => ({ items: [] as KpTemplateRecord[] }));
 
   if (list.items[0]) return list.items[0];
 
@@ -51,21 +52,21 @@ async function ensureDefaultTemplate() {
   return created;
 }
 
-export function DealKpModule({ deal, onTimeline }: { deal: any; onTimeline?: (action: string, comment?: string, payload?: any) => Promise<void> }) {
+export function DealKpModule({ deal, onTimeline }: { deal: Deal; onTimeline?: (action: string, comment?: string, payload?: Record<string, unknown>) => Promise<void> }) {
   const dealId = deal?.id;
   const company = deal?.expand?.company_id;
 
   const [loading, setLoading] = React.useState(true);
-  const [templateRec, setTemplateRec] = React.useState<any>(null);
-  const [template, setTemplate] = React.useState<any>(DEFAULT_KP_TEMPLATE_V1);
+  const [templateRec, setTemplateRec] = React.useState<KpTemplateRecord | null>(null);
+  const [template, setTemplate] = React.useState<KpTemplateConfig>(DEFAULT_KP_TEMPLATE_V1);
 
-  const [instance, setInstance] = React.useState<any>(null);
-  const [input, setInput] = React.useState<any>({});
+  const [instance, setInstance] = React.useState<KpInstanceRecord | null>(null);
+  const [input, setInput] = React.useState<KpInput>({});
   const [items, setItems] = React.useState<SpecItem[]>([]);
 
   // price picker
   const [priceSearch, setPriceSearch] = React.useState<string>("");
-  const [priceItems, setPriceItems] = React.useState<any[]>([]);
+  const [priceItems, setPriceItems] = React.useState<PriceListItem[]>([]);
 
   const printRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -89,7 +90,7 @@ export function DealKpModule({ deal, onTimeline }: { deal: any; onTimeline?: (ac
         setInput(inst.input_json || {});
         setItems((inst.computed_json?.items || inst.input_json?.items || []) as SpecItem[]);
       } else {
-        const seeded: any = {
+        const seeded: KpInput = {
           clientName: company?.name || "",
           clientInn: company?.inn || "",
           clientEmail: company?.email || "",
@@ -112,7 +113,7 @@ export function DealKpModule({ deal, onTimeline }: { deal: any; onTimeline?: (ac
       const res = await pb
         .collection("price_list_items")
         .getList(1, 30, { sort: "product_name", filter: filter || undefined })
-        .catch(() => ({ items: [] as any[] }));
+        .catch(() => ({ items: [] as PriceListItem[] }));
       setPriceItems(res.items || []);
     })();
   }, [priceSearch]);
@@ -149,7 +150,7 @@ export function DealKpModule({ deal, onTimeline }: { deal: any; onTimeline?: (ac
     if (onTimeline) await onTimeline("kp_draft_saved", "Сохранён черновик КП", { kp_instance_id: saved.id });
   }
 
-  async function addFromPrice(pi: any) {
+  async function addFromPrice(pi: PriceListItem) {
     const meta = pi.meta || {};
     const vatMode = meta.vat_mode || "with_vat";
     const name = pi.product_name || pi.name || "";
@@ -205,7 +206,7 @@ export function DealKpModule({ deal, onTimeline }: { deal: any; onTimeline?: (ac
     const pageHeight = pdf.internal.pageSize.getHeight();
 
     // Fit image to page
-    const imgProps = (pdf as any).getImageProperties(imgData);
+    const imgProps = pdf.getImageProperties(imgData);
     const imgWidth = pageWidth;
     const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
     let position = 0;
@@ -243,9 +244,9 @@ export function DealKpModule({ deal, onTimeline }: { deal: any; onTimeline?: (ac
 
   const sections = template?.ui?.sections || [];
   const requiredMissing = sections
-    .flatMap((s: any) => s.fields || [])
-    .filter((f: any) => f.required)
-    .some((f: any) => {
+    .flatMap((s) => s.fields || [])
+    .filter((f) => f.required)
+    .some((f) => {
       const v = input?.[f.id];
       return v === undefined || v === null || String(v).trim() === "";
     });
@@ -269,17 +270,17 @@ export function DealKpModule({ deal, onTimeline }: { deal: any; onTimeline?: (ac
         <CardContent>
           <div className="grid grid-cols-12 gap-4">
             <div className="col-span-6 grid gap-4">
-              {sections.map((sec: any) => (
+              {sections.map((sec) => (
                 <div key={sec.id} className="rounded-card border border-border bg-white p-3">
                   <div className="text-sm font-semibold">{sec.title}</div>
                   <div className="mt-3 grid gap-3">
-                    {(sec.fields || []).map((f: any) => {
+                    {(sec.fields || []).map((f) => {
                       // we render only basic input types here (pricePicker handled separately)
                       if (f.type === "pricePicker") return null;
                       const val = input?.[f.id] ?? "";
                       const common = {
                         value: String(val),
-                        onChange: (e: any) => setInput((p: any) => ({ ...p, [f.id]: e.target.value })),
+                        onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setInput((p) => ({ ...p, [f.id]: e.target.value })),
                         placeholder: f.placeholder || "",
                       };
 
@@ -291,9 +292,9 @@ export function DealKpModule({ deal, onTimeline }: { deal: any; onTimeline?: (ac
                           {f.type === "textarea" ? (
                             <textarea className="w-full min-h-[90px] rounded-card border border-[#9CA3AF] bg-white p-3 text-sm" {...common} />
                           ) : f.type === "select" ? (
-                            <select className="h-10 w-full rounded-card border border-[#9CA3AF] bg-white px-3 text-sm" value={String(val)} onChange={(e) => setInput((p: any) => ({ ...p, [f.id]: e.target.value }))}>
+                            <select className="h-10 w-full rounded-card border border-[#9CA3AF] bg-white px-3 text-sm" value={String(val)} onChange={(e) => setInput((p) => ({ ...p, [f.id]: e.target.value }))}>
                               <option value="">—</option>
-                              {(f.options || []).map((o: any) => (
+                              {(f.options || []).map((o) => (
                                 <option key={o.value} value={o.value}>{o.label}</option>
                               ))}
                             </select>

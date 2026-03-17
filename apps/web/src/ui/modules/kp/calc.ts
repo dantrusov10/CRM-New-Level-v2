@@ -48,8 +48,8 @@ export function computeSpecification(params: {
     };
   });
 
-  const subtotal = round2(computedItems.reduce((s, it: any) => s + (it.lineSubtotal || 0), 0));
-  const vat = round2(computedItems.reduce((s, it: any) => s + (it.lineVat || 0), 0));
+  const subtotal = round2(computedItems.reduce((s, it) => s + (it.lineSubtotal || 0), 0));
+  const vat = round2(computedItems.reduce((s, it) => s + (it.lineVat || 0), 0));
   const total = round2(subtotal + vat);
 
   return {

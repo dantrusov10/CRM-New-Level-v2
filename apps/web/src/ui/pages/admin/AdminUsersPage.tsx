@@ -5,9 +5,10 @@ import { Input } from "../../components/Input";
 import { Modal } from "../../components/Modal";
 import { pb } from "../../../lib/pb";
 import { notifyPbError } from "../../../lib/pbError";
+import type { UserSummary } from "../../../lib/types";
 
 export function AdminUsersPage() {
-  const [users, setUsers] = React.useState<any[]>([]);
+  const [users, setUsers] = React.useState<UserSummary[]>([]);
   // Роль хранится в auth-коллекции `users.role` (в некоторых старых сборках могла быть `role_name`).
   // settings_roles остаётся для матрицы прав и лейблов.
   const ROLE_FALLBACK = [
@@ -28,8 +29,8 @@ export function AdminUsersPage() {
     const r = await pb.collection("settings_roles").getFullList({ sort: "role_name" }).catch(() => []);
     setUsers(u.items);
     // If settings_roles exists and filled - use it; else fallback.
-    const mapped = (r as any[])
-      .map((x) => ({ value: x.role_name, label: x.label ?? x.role_name }))
+    const mapped = (r as Array<{ role_name?: string; label?: string }>)
+      .map((x) => ({ value: x.role_name ?? "", label: x.label ?? x.role_name ?? "" }))
       .filter((x) => !!x.value);
     setRoles(mapped.length ? mapped : ROLE_FALLBACK);
   }
@@ -39,16 +40,16 @@ export function AdminUsersPage() {
   async function createUser() {
     if (!email || !password) return;
     if (!role) { alert("Выберите роль"); return; }
-    const data: any = { email, password, passwordConfirm: password };
+    const data: Record<string, string> = { email, password, passwordConfirm: password };
     if (name.trim()) data.name = name.trim();
     // Prefer canonical field `role` (required in PB). If backend still uses `role_name`, fallback below.
     data.role = role;
     try {
       try {
         await pb.collection("users").create(data);
-      } catch (e: any) {
+      } catch (e: unknown) {
         // fallback for older schema
-        const msg = String(e?.message ?? "");
+        const msg = e instanceof Error ? e.message : String(e);
         if (msg.includes("role") && !msg.includes("role_name")) {
           await pb.collection("users").create({ ...data, role_name: role, role: undefined });
         } else {
@@ -100,7 +101,7 @@ export function AdminUsersPage() {
                           try {
                             await pb.collection("users").update(u.id, { role: nextRole });
                           } catch {
-                            await pb.collection("users").update(u.id, { role_name: nextRole as any });
+                            await pb.collection("users").update(u.id, { role_name: nextRole });
                           }
                           load();
                         } catch (err) {

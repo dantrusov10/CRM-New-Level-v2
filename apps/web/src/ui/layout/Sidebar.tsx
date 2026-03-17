@@ -1,11 +1,12 @@
 import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { Building2, KanbanSquare, LayoutDashboard, LayoutGrid, Settings, Upload, CalendarDays } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { PermissionMatrix } from "../../lib/rbac";
 import { can } from "../../lib/rbac";
 import logo from "../../assets/newlevel-logo.png";
 
-const Item = ({ to, icon: Icon, label }: { to: string; icon: any; label: string }) => (
+const Item = ({ to, icon: Icon, label }: { to: string; icon: LucideIcon; label: string }) => (
   <NavLink
     to={to}
     className={({ isActive }) => `cockpit-nav-item ${isActive ? "active" : ""}`}

@@ -1,7 +1,7 @@
 import React from "react";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
-import type { SpecItem } from "./types";
+import type { SpecItem, KpInput, KpTemplateConfig } from "./types";
 import { computeSpecification } from "./calc";
 
 function formatMoney(v: number, currency: string) {
@@ -19,8 +19,8 @@ export function KpPreview({
   dealId,
   mode,
 }: {
-  template: any;
-  input: any;
+  template: KpTemplateConfig;
+  input: KpInput;
   items: SpecItem[];
   dealId: string;
   mode: "manager" | "pdf";
@@ -109,7 +109,7 @@ export function KpPreview({
               </tr>
             </thead>
             <tbody>
-              {computed.items.map((it: any) => (
+              {computed.items.map((it) => (
                 <tr key={it.id} className="h-11 border-b border-border">
                   <td className="px-3">{it.name}</td>
                   <td className="px-3 text-right text-text2">{it.qty}</td>

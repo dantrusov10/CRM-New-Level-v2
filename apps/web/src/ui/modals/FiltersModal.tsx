@@ -10,6 +10,15 @@ import { notifyPbError } from "../../lib/pbError";
 
 type EntityType = "deal" | "company";
 
+type UserOptionRecord = { id: string; full_name?: string; email?: string };
+type StageOptionRecord = { id: string; stage_name?: string; name?: string };
+type SavedFilterRecord = {
+  id: string;
+  name?: string;
+  filter_json?: Record<string, string>;
+};
+
+
 function entityByPath(pathname: string): EntityType {
   if (pathname.startsWith("/companies")) return "company";
   return "deal"; // deals + kanban
@@ -46,7 +55,7 @@ export function FiltersModal({
   const [responsible, setResponsible] = React.useState<ComboOption | null>(null);
 
   // presets
-  const [presets, setPresets] = React.useState<any[]>([]);
+  const [presets, setPresets] = React.useState<SavedFilterRecord[]>([]);
   const [presetsLoading, setPresetsLoading] = React.useState(false);
   const [presetName, setPresetName] = React.useState("");
   const [savingPreset, setSavingPreset] = React.useState(false);
@@ -57,7 +66,7 @@ export function FiltersModal({
     const res = await pb
       .collection("settings_funnel_stages")
       .getList(1, 20, { filter: filter || undefined, sort: "position" });
-    return res.items.map((s: any) => ({ value: s.id, label: s.stage_name, meta: s }));
+    return res.items.map((s) => { const rec = s as unknown as StageOptionRecord; return { value: rec.id, label: rec.stage_name || rec.name || "", meta: rec }; });
   }, []);
 
   const loadUsers = React.useCallback(async (q: string) => {
@@ -65,7 +74,7 @@ export function FiltersModal({
       ? `full_name~"${safeText(q)}" || email~"${safeText(q)}"`
       : "";
     const res = await pb.collection("users").getList(1, 20, { filter: filter || undefined, sort: "full_name" });
-    return res.items.map((u: any) => ({ value: u.id, label: u.full_name || u.email, meta: u }));
+    return res.items.map((u) => { const rec = u as unknown as UserOptionRecord; return { value: rec.id, label: rec.full_name || rec.email || "", meta: rec }; });
   }, []);
 
   React.useEffect(() => {
@@ -80,18 +89,18 @@ export function FiltersModal({
     (async () => {
       if (entityType === "deal") {
         if (stageId0) {
-          const s = await pb.collection("settings_funnel_stages").getOne(stageId0).catch(() => null);
-          setStage(s ? { value: s.id, label: (s as any).stage_name ?? (s as any).name ?? "", meta: s } : null);
+          const s = (await pb.collection("settings_funnel_stages").getOne(stageId0).catch(() => null)) as StageOptionRecord | null;
+          setStage(s ? { value: s.id, label: s.stage_name ?? s.name ?? "", meta: s } : null);
         } else setStage(null);
         if (ownerId0) {
-          const u = await pb.collection("users").getOne(ownerId0).catch(() => null);
-          setOwner(u ? { value: u.id, label: u.full_name || u.email, meta: u } : null);
+          const u = (await pb.collection("users").getOne(ownerId0).catch(() => null)) as UserOptionRecord | null;
+          setOwner(u ? { value: u.id, label: u.full_name || u.email || "", meta: u } : null);
         } else setOwner(null);
       }
       if (entityType === "company") {
         if (companyResp0) {
-          const u = await pb.collection("users").getOne(companyResp0).catch(() => null);
-          setResponsible(u ? { value: u.id, label: u.full_name || u.email, meta: u } : null);
+          const u = (await pb.collection("users").getOne(companyResp0).catch(() => null)) as UserOptionRecord | null;
+          setResponsible(u ? { value: u.id, label: u.full_name || u.email || "", meta: u } : null);
         } else setResponsible(null);
       }
     })();
@@ -102,7 +111,7 @@ export function FiltersModal({
     setPresetsLoading(true);
     pb.collection("saved_filters")
       .getList(1, 50, { filter: `entity_type="${entityType}"`, sort: "-created" })
-      .then((r) => setPresets(r.items as any))
+      .then((r) => setPresets(r.items as SavedFilterRecord[]))
       .finally(() => setPresetsLoading(false));
   }, [open, user?.id, entityType]);
 
@@ -144,7 +153,7 @@ export function FiltersModal({
         created_at: new Date().toISOString(),
       });
       const r = await pb.collection("saved_filters").getList(1, 50, { filter: `entity_type="${entityType}"`, sort: "-created" });
-      setPresets(r.items as any);
+      setPresets(r.items as SavedFilterRecord[]);
       setPresetName("");
     } catch (e) {
       notifyPbError(e, "Не удалось сохранить пресет");
@@ -162,7 +171,7 @@ export function FiltersModal({
     }
   }
 
-  function applyPreset(p: any) {
+  function applyPreset(p: SavedFilterRecord) {
     const f = p.filter_json || {};
     if (entityType === "deal") {
       applyToUrl({ stage: f.stage || "", owner: f.owner || "", channel: f.channel || "" });

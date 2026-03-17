@@ -8,6 +8,7 @@ import { Badge } from "../../components/Badge";
 import { KpPreview } from "./KpPreview";
 import { DEFAULT_KP_TEMPLATE_V1 } from "./defaultTemplate";
 import { pb } from "../../../lib/pb";
+import type { KpInput, KpSection, KpTemplateConfig, KpTemplateRecord, SpecItem } from "./types";
 
 function deepClone<T>(v: T): T {
   return JSON.parse(JSON.stringify(v));
@@ -19,8 +20,8 @@ export function KpTemplateEditor({
   onReload,
   dealIdForPreview = "DEAL_PREVIEW",
 }: {
-  templateRecord: any | null;
-  onSave: (patch: any) => Promise<void>;
+  templateRecord: KpTemplateRecord | null;
+  onSave: (patch: { template_json: KpTemplateConfig; name: string }) => Promise<void>;
   onReload: () => void;
   dealIdForPreview?: string;
 }) {
@@ -29,18 +30,18 @@ export function KpTemplateEditor({
     return json && typeof json === "object" ? deepClone(json) : deepClone(DEFAULT_KP_TEMPLATE_V1);
   }, [templateRecord?.id]);
 
-  const [draft, setDraft] = React.useState<any>(initial);
+  const [draft, setDraft] = React.useState<KpTemplateConfig>(initial);
   const [previewMode, setPreviewMode] = React.useState<"manager" | "pdf">("manager");
   const [pdfUrl, setPdfUrl] = React.useState<string>("");
   const pdfRenderRef = React.useRef<HTMLDivElement | null>(null);
   const [logoFile, setLogoFile] = React.useState<File | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = React.useState<string>("");
-  const [demoInput, setDemoInput] = React.useState<any>({
+  const [demoInput, setDemoInput] = React.useState<KpInput>({
     clientName: "ООО «Ромашка»",
     clientInn: "1111111111",
     clientEmail: "it@romashka.ru",
   });
-  const [demoItems, setDemoItems] = React.useState<any[]>([
+  const [demoItems, setDemoItems] = React.useState<SpecItem[]>([
     { id: "i1", name: "Лицензия — базовая", qty: 100, unitPrice: 1000, source: "custom" },
     { id: "i2", name: "Техподдержка — стандарт", qty: 1, unitPrice: 50000, source: "custom" },
   ]);
@@ -56,7 +57,7 @@ export function KpTemplateEditor({
       try {
         const url = pb.files.getUrl(rec, rec.logo);
         setLogoPreviewUrl(url);
-        setDraft((p: any) => {
+        setDraft((p) => {
           const n = deepClone(p);
           n.branding = n.branding || {};
           n.branding.logoUrl = url;
@@ -68,30 +69,30 @@ export function KpTemplateEditor({
     }
   }, [templateRecord?.id, templateRecord?.logo]);
 
-  function updateBrand(path: string, value: any) {
-    setDraft((p: any) => {
+  function updateBrand(path: string, value: string) {
+    setDraft((p) => {
       const n = deepClone(p);
       n.branding = n.branding || {};
-      (n.branding as any)[path] = value;
+      (n.branding as Record<string, unknown>)[path] = value;
       return n;
     });
   }
 
-  function updatePdfDesign(path: string, value: any) {
-    setDraft((p: any) => {
+  function updatePdfDesign(path: string, value: string) {
+    setDraft((p) => {
       const n = deepClone(p);
       n.pdfDesign = n.pdfDesign || {};
-      (n.pdfDesign as any)[path] = value;
+      (n.pdfDesign as Record<string, unknown>)[path] = value;
       return n;
     });
   }
 
-  function updateField(sectionId: string, fieldId: string, patch: any) {
-    setDraft((p: any) => {
+  function updateField(sectionId: string, fieldId: string, patch: Record<string, unknown>) {
+    setDraft((p) => {
       const n = deepClone(p);
-      const sec = (n.ui?.sections || []).find((s: any) => s.id === sectionId);
+      const sec = (n.ui?.sections || []).find((s) => s.id === sectionId);
       if (!sec) return n;
-      const idx = (sec.fields || []).findIndex((f: any) => f.id === fieldId);
+      const idx = (sec.fields || []).findIndex((f) => f.id === fieldId);
       if (idx < 0) return n;
       sec.fields[idx] = { ...sec.fields[idx], ...patch };
       return n;
@@ -99,9 +100,9 @@ export function KpTemplateEditor({
   }
 
   function addField(sectionId: string) {
-    setDraft((p: any) => {
+    setDraft((p) => {
       const n = deepClone(p);
-      const sec = (n.ui?.sections || []).find((s: any) => s.id === sectionId);
+      const sec = (n.ui?.sections || []).find((s) => s.id === sectionId);
       if (!sec) return n;
       const nextIdx = (sec.fields || []).length + 1;
       const id = `custom_${sectionId}_${nextIdx}_${Math.random().toString(36).slice(2, 6)}`;
@@ -119,11 +120,11 @@ export function KpTemplateEditor({
   }
 
   function deleteField(sectionId: string, fieldId: string) {
-    setDraft((p: any) => {
+    setDraft((p) => {
       const n = deepClone(p);
-      const sec = (n.ui?.sections || []).find((s: any) => s.id === sectionId);
+      const sec = (n.ui?.sections || []).find((s) => s.id === sectionId);
       if (!sec) return n;
-      sec.fields = (sec.fields || []).filter((f: any) => f.id !== fieldId);
+      sec.fields = (sec.fields || []).filter((f) => f.id !== fieldId);
       return n;
     });
   }
@@ -132,12 +133,12 @@ export function KpTemplateEditor({
     if (!logoFile || !templateRecord?.id) return;
     const fd = new FormData();
     fd.append("logo", logoFile);
-    const upd = await pb.collection("settings_kp_templates").update(templateRecord.id, fd as any);
+    const upd = await pb.collection("settings_kp_templates").update(templateRecord.id, fd);
     // refresh preview URL
     if (upd?.logo) {
       const url = pb.files.getUrl(upd, upd.logo);
       setLogoPreviewUrl(url);
-      setDraft((p: any) => {
+      setDraft((p) => {
         const n = deepClone(p);
         n.branding = n.branding || {};
         n.branding.logoUrl = url;
@@ -156,7 +157,7 @@ export function KpTemplateEditor({
     const pdf = new jsPDF("p", "mm", "a4");
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgProps = (pdf as any).getImageProperties(imgData);
+    const imgProps = pdf.getImageProperties(imgData);
     const imgWidth = pageWidth;
     const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
     let position = 0;
@@ -186,11 +187,11 @@ export function KpTemplateEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [previewMode, draft, demoInput, demoItems]);
 
-  function updateColumn(key: string, patch: any) {
-    setDraft((p: any) => {
+  function updateColumn(key: string, patch: Record<string, unknown>) {
+    setDraft((p) => {
       const n = deepClone(p);
       const cols = n.specification?.columns || [];
-      const idx = cols.findIndex((c: any) => c.key === key);
+      const idx = cols.findIndex((c) => c.key === key);
       if (idx >= 0) cols[idx] = { ...cols[idx], ...patch };
       n.specification = { ...(n.specification || {}), columns: cols };
       return n;
@@ -228,13 +229,13 @@ export function KpTemplateEditor({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <div className="text-xs text-text2 mb-1">Название шаблона</div>
-                  <Input value={draft?.name || ""} onChange={(e) => setDraft((p: any) => ({ ...p, name: e.target.value }))} />
+                  <Input value={draft?.name || ""} onChange={(e) => setDraft((p) => ({ ...p, name: e.target.value }))} />
                 </div>
                 <div>
                   <div className="text-xs text-text2 mb-1">НДС % (централизованно)</div>
                   <Input
                     value={String(draft?.defaults?.vatPercent ?? 20)}
-                    onChange={(e) => setDraft((p: any) => ({ ...p, defaults: { ...(p.defaults || {}), vatPercent: Number(e.target.value || 20) } }))}
+                    onChange={(e) => setDraft((p) => ({ ...p, defaults: { ...(p.defaults || {}), vatPercent: Number(e.target.value || 20) } }))}
                   />
                 </div>
               </div>
@@ -305,14 +306,14 @@ export function KpTemplateEditor({
                   <Badge>влияет на UI менеджера</Badge>
                 </div>
                 <div className="mt-3 grid gap-4">
-                  {sections.map((sec: any) => (
+                  {sections.map((sec) => (
                     <div key={sec.id} className="rounded-card border border-border bg-white p-3">
                       <div className="flex items-center justify-between">
                         <div className="text-sm font-semibold">{sec.title}</div>
                         <Button variant="secondary" onClick={() => addField(sec.id)}>+ Поле</Button>
                       </div>
                       <div className="mt-2 grid gap-2">
-                        {(sec.fields || []).map((f: any) => (
+                        {(sec.fields || []).map((f) => (
                           <div key={f.id} className="grid grid-cols-12 gap-2 items-center">
                             <div className="col-span-4 text-xs text-text2">ID: {f.id}</div>
                             <div className="col-span-6">
@@ -344,7 +345,7 @@ export function KpTemplateEditor({
                               <div className="col-span-8">
                                 <div className="text-xs text-text2 mb-1">Опции (для списка) — через запятую</div>
                                 <Input
-                                  value={(f.options || []).map((o: any) => o.label || o.value).join(", ")}
+                                  value={(f.options || []).map((o) => o.label || o.value).join(", ")}
                                   onChange={(e) => {
                                     const raw = e.target.value;
                                     const arr = raw
@@ -372,7 +373,7 @@ export function KpTemplateEditor({
                   <Badge>влияет на PDF</Badge>
                 </div>
                 <div className="mt-3 grid gap-2">
-                  {(draft?.specification?.columns || []).map((c: any) => (
+                  {(draft?.specification?.columns || []).map((c) => (
                     <div key={c.key} className="grid grid-cols-12 gap-2 items-center">
                       <div className="col-span-3 text-xs text-text2">{c.key}</div>
                       <div className="col-span-7">
@@ -412,10 +413,10 @@ export function KpTemplateEditor({
               <div className="rounded-card border border-border bg-rowHover p-3">
                 <div className="text-sm font-semibold mb-2">Демо-данные для предпросмотра</div>
                 <div className="grid grid-cols-2 gap-2">
-                  <Input value={demoInput.clientName || ""} onChange={(e) => setDemoInput((p: any) => ({ ...p, clientName: e.target.value }))} placeholder="Компания" />
-                  <Input value={demoInput.clientEmail || ""} onChange={(e) => setDemoInput((p: any) => ({ ...p, clientEmail: e.target.value }))} placeholder="Email" />
-                  <Input value={demoInput.clientInn || ""} onChange={(e) => setDemoInput((p: any) => ({ ...p, clientInn: e.target.value }))} placeholder="ИНН" />
-                  <Input value={String(demoInput.discountManualPercent || "")} onChange={(e) => setDemoInput((p: any) => ({ ...p, discountManualPercent: e.target.value }))} placeholder="Скидка %" />
+                  <Input value={demoInput.clientName || ""} onChange={(e) => setDemoInput((p) => ({ ...p, clientName: e.target.value }))} placeholder="Компания" />
+                  <Input value={demoInput.clientEmail || ""} onChange={(e) => setDemoInput((p) => ({ ...p, clientEmail: e.target.value }))} placeholder="Email" />
+                  <Input value={demoInput.clientInn || ""} onChange={(e) => setDemoInput((p) => ({ ...p, clientInn: e.target.value }))} placeholder="ИНН" />
+                  <Input value={String(demoInput.discountManualPercent || "")} onChange={(e) => setDemoInput((p) => ({ ...p, discountManualPercent: e.target.value }))} placeholder="Скидка %" />
                 </div>
               </div>
 

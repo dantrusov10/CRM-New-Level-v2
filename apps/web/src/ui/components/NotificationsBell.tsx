@@ -4,6 +4,7 @@ import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 import { getAuthUser } from "../../lib/pb";
 import { useMyTasksForBell, useSetTaskDone } from "../data/hooks";
+import type { TaskItem, Deal } from "../../lib/types";
 
 export function NotificationsBell() {
   const user = getAuthUser();
@@ -12,10 +13,10 @@ export function NotificationsBell() {
   const bellQ = useMyTasksForBell({ userId: user?.id || "" });
   const setDoneM = useSetTaskDone();
 
-  const tasks = (bellQ.data || []).filter((t: any) => !t.is_done);
+  const tasks = (bellQ.data || []).filter((t) => !t.is_done);
   const now = dayjs();
-  const overdue = tasks.filter((t: any) => dayjs(t.due_at).isBefore(now));
-  const upcoming = tasks.filter((t: any) => !dayjs(t.due_at).isBefore(now));
+  const overdue = tasks.filter((t) => dayjs(t.due_at).isBefore(now));
+  const upcoming = tasks.filter((t) => !dayjs(t.due_at).isBefore(now));
   const badge = overdue.length;
 
   React.useEffect(() => {
@@ -69,7 +70,7 @@ export function NotificationsBell() {
               {overdue.length ? (
                 <div className="text-xs font-bold text-danger mt-1">Просроченные</div>
               ) : null}
-              {overdue.map((t: any) => (
+              {overdue.map((t) => (
                 <TaskRow
                   key={t.id}
                   task={t}
@@ -86,7 +87,7 @@ export function NotificationsBell() {
               {upcoming.length ? (
                 <div className="text-xs font-bold muted mt-2">Ближайшие</div>
               ) : null}
-              {upcoming.slice(0, 20).map((t: any) => (
+              {upcoming.slice(0, 20).map((t) => (
                 <TaskRow
                   key={t.id}
                   task={t}
@@ -112,7 +113,7 @@ function TaskRow({
   onOpenDeal,
   onDone,
 }: {
-  task: any;
+  task: TaskItem & { expand?: { deal_id?: Pick<Deal, "id" | "title"> } };
   onOpenDeal: (dealId?: string) => void;
   onDone: () => void;
 }) {

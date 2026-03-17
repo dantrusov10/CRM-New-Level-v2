@@ -1,5 +1,5 @@
 import React from "react";
-import type { FunnelStage } from "../../../../lib/types";
+import type { Deal, FunnelStage } from "../../../../lib/types";
 import { useDroppable } from "@dnd-kit/core";
 import { KanbanCard } from "./KanbanCard";
 
@@ -13,12 +13,12 @@ export function KanbanColumn({
   stats,
 }: {
   stage: FunnelStage;
-  deals: any[];
+  deals: Deal[];
   stats?: { count: number; sum: number };
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
 
-  const name = (stage as any).stage_name ?? (stage as any).name;
+  const name = stage.stage_name ?? "Этап";
 
   return (
     <div
@@ -26,8 +26,8 @@ export function KanbanColumn({
       data-kanban-column="true"
       className="rounded-card border border-border bg-tableHeader p-3 overflow-hidden flex flex-col"
       style={{
-        outline: isOver ? `2px solid ${(stage as any).color ?? "#33D7FF"}` : "none",
-        boxShadow: isOver ? `0 0 0 1px rgba(255,255,255,0.12) inset, 0 0 28px ${(stage as any).color ?? "#33D7FF"}` : undefined,
+        outline: isOver ? `2px solid ${stage.color ?? "#33D7FF"}` : "none",
+        boxShadow: isOver ? `0 0 0 1px rgba(255,255,255,0.12) inset, 0 0 28px ${stage.color ?? "#33D7FF"}` : undefined,
       }}
     >
       <div className="flex items-start justify-between mb-3 gap-2">
@@ -36,8 +36,8 @@ export function KanbanColumn({
             <span
               className="inline-block h-2.5 w-2.5 rounded-full"
               style={{
-                background: (stage as any).color ?? "#33D7FF",
-                boxShadow: `0 0 14px ${(stage as any).color ?? "#33D7FF"}`,
+                background: stage.color ?? "#33D7FF",
+                boxShadow: `0 0 14px ${stage.color ?? "#33D7FF"}`,
               }}
             />
             <div className="text-sm font-semibold text-text truncate">{name}</div>
@@ -60,7 +60,7 @@ export function KanbanColumn({
       */}
       <div className="flex flex-col gap-2 flex-1 min-h-[140px] justify-start">
         {deals.map((d) => (
-          <KanbanCard key={d.id} deal={d} stageColor={(stage as any).color ?? "#004EEB"} />
+          <KanbanCard key={d.id} deal={d} stageColor={stage.color ?? "#004EEB"} />
         ))}
       </div>
     </div>

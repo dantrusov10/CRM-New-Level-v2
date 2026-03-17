@@ -7,6 +7,7 @@ import { Pagination } from "../../components/Pagination";
 import { Button } from "../../components/Button";
 import dayjs from "dayjs";
 import { pb } from "../../../lib/pb";
+import type { Deal, FunnelStage, UserSummary } from "../../../lib/types";
 
 export function DealsTablePage() {
   const nav = useNavigate();
@@ -42,11 +43,11 @@ export function DealsTablePage() {
   const stagesQ = useFunnelStages();
   const usersQ = useUsers();
 
-  const items: any[] = (dealsQ.data as any)?.items ?? [];
+  const items = dealsQ.data?.items ?? [];
 
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const selectedCount = selected.size;
-  const allPageSelected = items.length > 0 && items.every((d) => selected.has(String(d.id)));
+  const allPageSelected = items.length > 0 && items.every((d: Deal) => selected.has(String(d.id)));
 
   React.useEffect(() => {
     // If page/search/filter changes → reset selection (avoid accidental bulk operations)
@@ -68,8 +69,8 @@ export function DealsTablePage() {
     setSelected((prev) => {
       const n = new Set(prev);
       const want = next ?? !allPageSelected;
-      if (want) items.forEach((d) => n.add(String(d.id)));
-      else items.forEach((d) => n.delete(String(d.id)));
+      if (want) items.forEach((d: Deal) => n.add(String(d.id)));
+      else items.forEach((d: Deal) => n.delete(String(d.id)));
       return n;
     });
   }
@@ -78,10 +79,10 @@ export function DealsTablePage() {
     // selects all deals matching current filters + search
     const q = search ? `title~"${search.replace(/\"/g, "\\\"")}"` : "";
     const fAll = [filter, q].filter(Boolean).join(" && ");
-    const options: any = { fields: "id", batch: 500 };
+    const options: Record<string, unknown> = { fields: "id", batch: 500 };
     if (fAll && String(fAll).trim().length) options.filter = fAll;
-    const res = await pb.collection("deals").getFullList(options);
-    const ids = (res as any[]).map((r) => String(r.id));
+    const res = await pb.collection("deals").getFullList<Pick<Deal, "id">>(options);
+    const ids = res.map((r) => String(r.id));
     setSelected(new Set(ids));
   }
 
@@ -155,7 +156,7 @@ export function DealsTablePage() {
                 <div className="flex items-center gap-2">
                   <select className="h-9 rounded-card border border-[#9CA3AF] bg-white px-2 text-sm" value={stageTo} onChange={(e) => setStageTo(e.target.value)}>
                     <option value="">Сменить этап…</option>
-                    {(stagesQ.data ?? []).map((s: any) => (
+                    {(stagesQ.data ?? []).map((s: FunnelStage) => (
                       <option key={s.id} value={s.id}>{s.stage_name ?? "Этап"}</option>
                     ))}
                   </select>
@@ -164,7 +165,7 @@ export function DealsTablePage() {
                 <div className="flex items-center gap-2">
                   <select className="h-9 rounded-card border border-[#9CA3AF] bg-white px-2 text-sm" value={ownerTo} onChange={(e) => setOwnerTo(e.target.value)}>
                     <option value="">Сменить ответственного…</option>
-                    {(usersQ.data ?? []).map((u: any) => (
+                    {(usersQ.data ?? []).map((u: UserSummary) => (
                       <option key={u.id} value={u.id}>{u.name ?? u.email}</option>
                     ))}
                   </select>
@@ -196,7 +197,7 @@ export function DealsTablePage() {
                 </tr>
               </thead>
               <tbody>
-                {(items ?? []).map((d: any) => (
+                {items.map((d: Deal) => (
                   <tr
                     key={d.id}
                     className="h-11 border-b border-border hover:bg-rowHover cursor-pointer"

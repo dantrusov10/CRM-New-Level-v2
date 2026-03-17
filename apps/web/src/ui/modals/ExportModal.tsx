@@ -4,11 +4,27 @@ import { Modal } from "../components/Modal";
 import { Button } from "../components/Button";
 import { downloadCsv, downloadXlsx } from "../../lib/importExport";
 import { pb } from "../../lib/pb";
+import type { Company, Deal, UserSummary, FunnelStage } from "../../lib/types";
 
 type EntityType = "deal" | "company";
 type Format = "xlsx" | "csv";
 
 const LS_KEY = "reshenie_export_presets_v1";
+
+
+type ListResponse<T> = { items: T[] };
+type DealExportRow = Deal & {
+  expand?: {
+    company_id?: Company | null;
+    stage_id?: FunnelStage | null;
+    responsible_id?: UserSummary | null;
+  };
+};
+type CompanyExportRow = Company & {
+  expand?: {
+    responsible_id?: UserSummary | null;
+  };
+};
 
 type ExportPreset = {
   id: string;
@@ -132,12 +148,12 @@ export function ExportModal({
     return parts.join(" && ");
   }
 
-  async function fetchAll(collection: string, params: any) {
-    const items: any[] = [];
+  async function fetchAll<T extends Record<string, unknown>>(collection: string, params: Record<string, unknown>) {
+    const items: T[] = [];
     let page = 1;
     const perPage = 200;
     while (true) {
-      const res = await pb.collection(collection).getList(page, perPage, params);
+      const res = await pb.collection(collection).getList<T>(page, perPage, params) as ListResponse<T>;
       items.push(...res.items);
       if (res.items.length < perPage) break;
       page++;
@@ -154,17 +170,17 @@ export function ExportModal({
     try {
       if (entity === "deal") {
         const filter = useCurrentFilters ? buildDealsFilterFromUrl() : "";
-        const deals = await fetchAll("deals", {
+        const deals = await fetchAll<DealExportRow>("deals", {
           sort: "-updated",
           filter: filter || undefined,
           expand: "company_id,stage_id,responsible_id",
         });
 
-        const rows = deals.map((d: any) => {
+        const rows = deals.map((d) => {
           const company = d.expand?.company_id;
           const stage = d.expand?.stage_id;
           const resp = d.expand?.responsible_id;
-          const row: Record<string, any> = {};
+          const row: Record<string, string | number> = {};
           if (fields.title) row["Название сделки"] = d.title ?? "";
           if (fields.company) row["Компания"] = company?.name ?? "";
           if (fields.inn) row["ИНН"] = company?.inn ?? "";
@@ -188,15 +204,15 @@ export function ExportModal({
         else downloadCsv(rows, "deals_export.csv");
       } else {
         const filter = useCurrentFilters ? buildCompaniesFilterFromUrl() : "";
-        const companies = await fetchAll("companies", {
+        const companies = await fetchAll<CompanyExportRow>("companies", {
           sort: "name",
           filter: filter || undefined,
           expand: "responsible_id",
         });
 
-        const rows = companies.map((c: any) => {
+        const rows = companies.map((c) => {
           const resp = c.expand?.responsible_id;
-          const row: Record<string, any> = {};
+          const row: Record<string, string | number> = {};
           if (fields.name) row["Название компании"] = c.name ?? "";
           if (fields.inn) row["ИНН"] = c.inn ?? "";
           if (fields.city) row["Город"] = c.city ?? "";
@@ -213,8 +229,9 @@ export function ExportModal({
       }
 
       setStatus("Готово ✅");
-    } catch (e: any) {
-      setStatus(`Ошибка: ${e?.message ?? String(e)}`);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      setStatus(`Ошибка: ${message}`);
     } finally {
       setRunning(false);
     }

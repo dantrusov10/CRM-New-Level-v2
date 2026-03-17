@@ -1,27 +1,22 @@
-import PocketBase from 'pocketbase';
-import { PB_URL } from './env';
-import type { UserSummary } from './types';
-import { parseOne, userSummarySchema } from './schemas';
+import PocketBase from "pocketbase";
+import { PB_URL } from "./env";
 
 export const pb = new PocketBase(PB_URL);
+
+// optional: keep auth in localStorage
 pb.autoCancellation(false);
 
 export type AuthUser = {
   id: string;
   email: string;
   name?: string;
+  /** Role slug (admin/manager/viewer). In PocketBase stored as `role_name`. */
   role?: string;
 };
 
 export function getAuthUser(): AuthUser | null {
-  const raw = pb.authStore.model;
-  if (!pb.authStore.isValid || !raw || typeof raw !== 'object') return null;
-  const parsed = parseOne(userSummarySchema, raw) as UserSummary;
-  if (!parsed.email) return null;
-  return {
-    id: parsed.id,
-    email: parsed.email,
-    name: parsed.name ?? parsed.full_name,
-    role: parsed.role_name ?? parsed.role,
-  };
+  const m = pb.authStore.model as any;
+  if (!pb.authStore.isValid || !m) return null;
+  // In PB v0.22 our auth collection stores role as `role_name`.
+  return { id: m.id, email: m.email, name: m.name, role: m.role_name ?? m.role };
 }

@@ -2,6 +2,7 @@ import React from "react";
 import { TrendingUp, AlertTriangle, CircleDot, Percent, Clock, Users, Settings2, BarChart3 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useDeals, useFunnelStages, useUsers } from "../data/hooks";
+import type { Deal, FunnelStage, UserSummary } from "../../lib/types";
 import { Button } from "../components/Button";
 import { Modal } from "../components/Modal";
 
@@ -85,7 +86,7 @@ const StatCard = ({
 }: {
   title: string;
   value: string;
-  icon: any;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
   hint?: string;
 }) => (
   <div className="ui-card p-4">
@@ -102,7 +103,7 @@ const StatCard = ({
   </div>
 );
 
-function dealAmount(d: any) {
+function dealAmount(d: Partial<Deal>) {
   const b = Number(d?.budget ?? 0);
   const t = Number(d?.turnover ?? 0);
   return b || t || 0;
@@ -203,7 +204,7 @@ export function DashboardPage() {
 
   const now = new Date();
 
-  function applyWidgetFilters(input: any[], f: WidgetFilters) {
+  function applyWidgetFilters(input: Deal[], f: WidgetFilters) {
     let arr = input ?? [];
     const from = new Date(now.getTime() - (Number(f.rangeDays) || 30) * 24 * 60 * 60 * 1000);
 
@@ -217,10 +218,10 @@ export function DashboardPage() {
     if (f.stageId) arr = arr.filter((d) => (d.stage_id ?? d.expand?.stage_id?.id) === f.stageId);
     if (f.ownerId) arr = arr.filter((d) => (d.responsible_id ?? d.expand?.responsible_id?.id) === f.ownerId);
     if (f.channel) arr = arr.filter((d) => String(d.sales_channel ?? "") === String(f.channel));
-    if (Number.isFinite(f.budgetMin as any)) arr = arr.filter((d) => Number(d?.budget ?? 0) >= Number(f.budgetMin));
-    if (Number.isFinite(f.budgetMax as any)) arr = arr.filter((d) => Number(d?.budget ?? 0) <= Number(f.budgetMax));
-    if (Number.isFinite(f.scoreMin as any)) arr = arr.filter((d) => Number(d?.current_score ?? 0) >= Number(f.scoreMin));
-    if (Number.isFinite(f.scoreMax as any)) arr = arr.filter((d) => Number(d?.current_score ?? 0) <= Number(f.scoreMax));
+    if (typeof f.budgetMin === "number") arr = arr.filter((d) => Number(d?.budget ?? 0) >= f.budgetMin!);
+    if (typeof f.budgetMax === "number") arr = arr.filter((d) => Number(d?.budget ?? 0) <= f.budgetMax!);
+    if (typeof f.scoreMin === "number") arr = arr.filter((d) => Number(d?.current_score ?? 0) >= f.scoreMin!);
+    if (typeof f.scoreMax === "number") arr = arr.filter((d) => Number(d?.current_score ?? 0) <= f.scoreMax!);
     return { arr, from };
   }
 
@@ -231,17 +232,17 @@ export function DashboardPage() {
     if (filters.stageId) sp.set("stage", String(filters.stageId));
     if (filters.ownerId) sp.set("owner", String(filters.ownerId));
     if (filters.channel) sp.set("channel", String(filters.channel));
-    if (Number.isFinite(filters.budgetMin as any)) sp.set("budgetMin", String(filters.budgetMin));
-    if (Number.isFinite(filters.budgetMax as any)) sp.set("budgetMax", String(filters.budgetMax));
-    if (Number.isFinite(filters.scoreMin as any)) sp.set("scoreMin", String(filters.scoreMin));
-    if (Number.isFinite(filters.scoreMax as any)) sp.set("scoreMax", String(filters.scoreMax));
+    if (typeof filters.budgetMin === "number") sp.set("budgetMin", String(filters.budgetMin));
+    if (typeof filters.budgetMax === "number") sp.set("budgetMax", String(filters.budgetMax));
+    if (typeof filters.scoreMin === "number") sp.set("scoreMin", String(filters.scoreMin));
+    if (typeof filters.scoreMax === "number") sp.set("scoreMax", String(filters.scoreMax));
     // time range as "from" (YYYY-MM-DD)
     const from = new Date(now.getTime() - (Number(filters.rangeDays) || 30) * 24 * 60 * 60 * 1000);
     sp.set("from", from.toISOString());
     nav(`/deals?${sp.toString()}`);
   }
 
-  function computeStats(list: any[]) {
+  function computeStats(list: Deal[]) {
     const all = list ?? [];
     const pipeline = all.reduce((acc, d) => acc + dealAmount(d), 0);
     const weighted = all.reduce((acc, d) => {
@@ -279,7 +280,7 @@ export function DashboardPage() {
     };
   }
 
-  function computeDynamics(list: any[]) {
+  function computeDynamics(list: Deal[]) {
     const all = list ?? [];
     const weeks = 8;
     const buckets = Array.from({ length: weeks }, () => 0);
@@ -295,11 +296,11 @@ export function DashboardPage() {
   }
 
   // WinRate — вариант 2: won / (won + lost) среди финальных сделок за период.
-  function computeWinRateVariant2(list: any[], from: Date) {
-    const stageById = new Map<string, any>();
-    (stages as any[]).forEach((s) => stageById.set(String(s.id), s));
+  function computeWinRateVariant2(list: Deal[], from: Date) {
+    const stageById = new Map<string, FunnelStage>();
+    stages.forEach((stage) => stageById.set(String(stage.id), stage));
 
-    const classifyFinal = (stage: any): "won" | "lost" | "none" => {
+    const classifyFinal = (stage?: FunnelStage): "won" | "lost" | "none" => {
       if (!stage) return "none";
       const ft = String(stage?.final_type ?? "").toLowerCase();
       if (ft === "won" || ft === "win") return "won";
@@ -335,9 +336,9 @@ export function DashboardPage() {
     };
   }
 
-  function stageTable(list: any[]) {
+  function stageTable(list: Deal[]) {
     const by: Record<string, { name: string; count: number; sum: number }> = {};
-    for (const s of stages as any[]) {
+    for (const s of stages) {
       by[String(s.id)] = { name: String(s.stage_name ?? "Этап"), count: 0, sum: 0 };
     }
     for (const d of list ?? []) {
@@ -351,7 +352,7 @@ export function DashboardPage() {
       .sort((a, b) => b.sum - a.sum);
   }
 
-  function topManagersTable(list: any[]) {
+  function topManagersTable(list: Deal[]) {
     const m: Record<string, { id: string; name: string; deals: number; pipeline: number }> = {};
     for (const d of list ?? []) {
       const rid = String(d.responsible_id ?? d.expand?.responsible_id?.id ?? "");
@@ -424,7 +425,7 @@ export function DashboardPage() {
     );
   }
 
-  const dealsAll = (deals as any[]) ?? [];
+  const dealsAll: Deal[] = deals ?? [];
 
   // Widget data (computed once per render; deals list is capped)
   const wStat = applyWidgetFilters(dealsAll, cfg.widgets.statCards.filters);
@@ -668,7 +669,7 @@ export function DashboardPage() {
               <select
                 className="h-10 w-full rounded-card border border-[#9CA3AF] bg-white px-3 text-sm"
                 value={cfg.dashboardVisual}
-                onChange={(e) => setCfg((p) => ({ ...p, dashboardVisual: e.target.value as any }))}
+                onChange={(e) => setCfg((p) => ({ ...p, dashboardVisual: e.target.value as DashCfg["dashboardVisual"] }))}
               >
                 <option value="cockpit">Cockpit (glass)</option>
                 <option value="classic">Classic</option>
@@ -738,7 +739,7 @@ export function DashboardPage() {
                       <select
                         className="h-10 w-full rounded-card border border-[#9CA3AF] bg-white px-3 text-sm"
                         value={w.visual ?? "cockpit"}
-                        onChange={(e) => setCfg((p) => ({ ...p, widgets: { ...p.widgets, funnel: { ...p.widgets.funnel, visual: e.target.value as any } } }))}
+                        onChange={(e) => setCfg((p) => ({ ...p, widgets: { ...p.widgets, funnel: { ...p.widgets.funnel, visual: e.target.value as WidgetCfg["visual"] } } }))}
                       >
                         <option value="cockpit">Карточки</option>
                         <option value="classic">Таблица</option>
@@ -761,7 +762,7 @@ export function DashboardPage() {
                       onChange={(e) => setFilters({ stageId: e.target.value })}
                     >
                       <option value="">Все этапы</option>
-                      {(stagesQ.data ?? []).map((s: any) => (
+                      {stages.map((s) => (
                         <option key={s.id} value={s.id}>{s.stage_name ?? "Этап"}</option>
                       ))}
                     </select>
@@ -774,7 +775,7 @@ export function DashboardPage() {
                       onChange={(e) => setFilters({ ownerId: e.target.value })}
                     >
                       <option value="">Все</option>
-                      {(usersQ.data ?? []).map((u: any) => (
+                      {(usersQ.data ?? []).map((u: UserSummary) => (
                         <option key={u.id} value={u.id}>{u.full_name ?? u.name ?? u.email}</option>
                       ))}
                     </select>
@@ -838,7 +839,7 @@ export function DashboardPage() {
                         widgets: {
                           ...p.widgets,
                           [wid]: { ...p.widgets[wid], filters: { ...DEFAULT_WIDGET_FILTERS }, ...(wid === "funnel" ? { visual: "cockpit" } : {}) },
-                        } as any,
+                        },
                       }));
                     }}
                   >

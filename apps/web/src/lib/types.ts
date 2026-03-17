@@ -1,7 +1,8 @@
-// Minimal typing for key collections (PocketBase)
-// Synced with PocketBase export (pb_schema.json) 2026-02
-
 export type Id = string;
+
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
+export type JsonObject = { [key: string]: JsonValue };
 
 export type Company = {
   id: Id;
@@ -13,7 +14,7 @@ export type Company = {
   email?: string;
   address?: string;
   legal_entity?: string;
-  responsible_id?: Id; // users
+  responsible_id?: Id;
   created?: string;
   updated?: string;
 };
@@ -22,11 +23,11 @@ export type FunnelStage = {
   id: Id;
   stage_name: string;
   position: number;
-  color: string;
+  color?: string;
   active?: boolean;
   is_final?: boolean;
   final_type?: "none" | "won" | "lost";
-  default_prob?: number; // % (0..100)
+  default_prob?: number;
 };
 
 export type Deal = {
@@ -35,20 +36,14 @@ export type Deal = {
   company_id?: Id;
   responsible_id?: Id;
   stage_id?: Id;
-
-  // money / finance
   budget?: number;
   turnover?: number;
   margin_percent?: number;
   discount_percent?: number;
-
-  // commercial params
   sales_channel?: string;
   partner?: string;
   distributor?: string;
   purchase_format?: string;
-
-  // deal meta / dates
   activity_type?: string;
   endpoints?: number;
   infrastructure_size?: string;
@@ -61,15 +56,10 @@ export type Deal = {
   delivery_date?: string;
   expected_payment_date?: string;
   payment_received_date?: string;
-
-  // links
   project_map_link?: string;
   kaiten_link?: string;
-
-  // AI
-  current_score?: number; // 0..100
-  current_recommendations?: string;
-
+  current_score?: number;
+  current_recommendations?: JsonValue;
   created?: string;
   updated?: string;
 };
@@ -80,7 +70,7 @@ export type TimelineItem = {
   user_id?: Id;
   action: string;
   comment?: string;
-  payload?: any;
+  payload?: JsonValue;
   timestamp?: string;
   created?: string;
 };
@@ -88,34 +78,87 @@ export type TimelineItem = {
 export type AiInsight = {
   id: Id;
   deal_id: Id;
-  score?: number; // 0..100
+  score?: number;
   summary?: string;
   suggestions?: string;
-  risks?: any;
-  explainability?: string;
+  risks?: JsonValue;
+  explainability?: JsonValue;
   model?: string;
-  token_usage?: any;
+  token_usage?: number;
   trigger_event_id?: Id;
   created_by?: Id;
   created_at?: string;
   created?: string;
 };
 
+export type PermissionCrud = { read?: boolean; create?: boolean; update?: boolean; delete?: boolean };
+export type PermissionsJson = Record<string, PermissionCrud>;
+
 export type Role = {
   id: Id;
   name: string;
-  permissions_json: any; // {section:{read,create,update,delete}}
+  permissions_json: PermissionsJson;
 };
 
-// --- Tasks (manager reminders) ---
 export type TaskItem = {
   id: Id;
   title: string;
-  due_at: string; // ISO datetime
+  due_at: string;
   is_done?: boolean;
   deal_id?: Id;
   company_id?: Id;
   created_by: Id;
+  created?: string;
+  updated?: string;
+};
+
+export type UserSummary = {
+  id: Id;
+  email?: string;
+  name?: string;
+  full_name?: string;
+  role?: string;
+  role_name?: string;
+  created?: string;
+  updated?: string;
+};
+
+export type EntityFileExpand = {
+  file_id?: {
+    id?: string;
+    path?: string;
+    filename?: string;
+    mime?: string;
+    size_bytes?: number;
+  };
+};
+
+export type EntityFileLink = {
+  id: string;
+  entity_type: string;
+  entity_id: string;
+  file_id: string;
+  tag?: string;
+  created_at?: string;
+  expand?: EntityFileExpand;
+};
+
+export type ContactFound = {
+  id: string;
+  deal_id?: string;
+  company_id?: string;
+  parser_run_id?: string;
+  role_map_item_id?: string;
+  position?: string;
+  influence_type?: string;
+  full_name?: string;
+  phone?: string;
+  telegram?: string;
+  email?: string;
+  source_url?: string;
+  source_type?: string;
+  confidence?: number;
+  is_verified?: boolean;
   created?: string;
   updated?: string;
 };

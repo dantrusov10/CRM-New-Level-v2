@@ -351,7 +351,7 @@
     "indexes": [],
     "listRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || responsible_id = @request.auth.id)",
     "viewRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || responsible_id = @request.auth.id)",
-    "createRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || (@request.auth.role = \"manager\" && responsible_id = @request.auth.id))",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || @request.auth.role = \"manager\")",
     "updateRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || (@request.auth.role = \"manager\" && responsible_id = @request.auth.id))",
     "deleteRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
     "options": {}
@@ -866,7 +866,7 @@
     "indexes": [],
     "listRule": "@request.auth.id != \"\" && user_id = @request.auth.id",
     "viewRule": "@request.auth.id != \"\" && user_id = @request.auth.id",
-    "createRule": "@request.auth.id != \"\" && user_id = @request.auth.id",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || @request.auth.role = \"manager\" || @request.auth.role = \"viewer\")",
     "updateRule": "@request.auth.id != \"\" && user_id = @request.auth.id",
     "deleteRule": "@request.auth.id != \"\" && user_id = @request.auth.id",
     "options": {}
@@ -1323,6 +1323,18 @@
         "system": false,
         "id": "grz067hodt771ud",
         "name": "keywords",
+        "type": "json",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 2000000
+        }
+      },
+      {
+        "system": false,
+        "id": "jzl3wyczj3wlq86",
+        "name": "platform_tokens",
         "type": "json",
         "required": false,
         "presentable": false,

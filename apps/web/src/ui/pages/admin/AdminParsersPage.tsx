@@ -336,10 +336,11 @@ function TenderParser() {
   const [platforms, setPlatforms] = React.useState<any[]>([]);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [keywords, setKeywords] = React.useState("");
+  const [tokens, setTokens] = React.useState("");
 
   async function load() {
     const sList = await pb.collection("settings_tender_parser").getList(1, 1).catch(() => ({ items: [] as any[] }));
-    const s = sList.items[0] ?? (await pb.collection("settings_tender_parser").create({ enabled: true, schedule_cron: "0 9 * * *", keywords: { phrases: [] } }));
+    const s = sList.items[0] ?? (await pb.collection("settings_tender_parser").create({ enabled: true, schedule_cron: "0 9 * * *", keywords: { phrases: [] }, platform_tokens: {} }));
     setSettings(s);
 
     const p = await pb.collection("parser_sources_tender").getFullList({ filter: "is_active=true", sort: "name" });
@@ -348,6 +349,7 @@ function TenderParser() {
     const links = await pb.collection("settings_tender_parser_platforms").getFullList({ filter: `settings_id="${s.id}"` }).catch(() => []);
     setSelected(new Set((links as any[]).map((l) => l.platform_id)));
     setKeywords(((s.keywords?.phrases ?? []) as any[]).join(", "));
+    setTokens(JSON.stringify(s.platform_tokens ?? {}, null, 2));
   }
 
   React.useEffect(() => { load(); }, []);
@@ -372,12 +374,16 @@ function TenderParser() {
     await saveSettings({ keywords: { phrases } });
   }
 
+  async function saveTokens() {
+    const obj = JSON.parse(tokens || "{}");
+    await saveSettings({ platform_tokens: obj });
+  }
 
   return (
     <Card>
       <CardHeader>
         <div className="text-sm font-semibold">Тендерный парсер</div>
-        <div className="text-xs text-text2 mt-1">Выбор площадок + ключевые слова. Секреты площадок вынесены из CRM и задаются на сервере.</div>
+        <div className="text-xs text-text2 mt-1">Выбор площадок + токены/логины + ключевые слова</div>
       </CardHeader>
       <CardContent>
         {!settings ? <div className="text-sm text-text2">Загрузка...</div> : (
@@ -420,13 +426,10 @@ function TenderParser() {
             </div>
 
             <div className="rounded-card border border-border bg-rowHover p-3">
-              <div className="text-sm font-semibold mb-2">Секреты интеграций</div>
-              <div className="text-sm text-text2">
-                Токены и логины площадок больше не хранятся в PocketBase.
-                Задавайте их только на сервере через переменные окружения или локальный secrets-файл, который не коммитится в git.
-              </div>
-              <div className="mt-3 rounded-card border border-border bg-white p-3 font-mono text-xs text-[#334155]">
-                {`NWLVL_TENDER_TOKENS_JSON={"zakupki_gov":"***","b2b_center":"***"}` }
+              <div className="text-sm font-semibold mb-2">Токены доступа (JSON)</div>
+              <textarea className="w-full min-h-[160px] rounded-card border border-[#9CA3AF] bg-white p-3 font-mono text-xs" value={tokens} onChange={(e) => setTokens(e.target.value)} />
+              <div className="flex justify-end mt-2">
+                <Button onClick={saveTokens}>Сохранить</Button>
               </div>
             </div>
           </div>

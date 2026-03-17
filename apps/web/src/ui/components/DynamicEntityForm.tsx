@@ -62,114 +62,9 @@ function inferValueType(f: SettingsField) {
   const t = (f.field_type || "text").toString();
   if (t === "number") return "number";
   if (t === "date") return "date";
-  if (t === "json") return "json";
+  if (t === "select") return "text";
+  if (t === "relation") return "text";
   return "text";
-}
-
-function getDefaultConfig(entity: EntityType, collectionName: string) {
-  type DefaultSection = { key: string; title: string; order: number; collapsed?: boolean };
-  type DefaultField = Partial<SettingsField> & { sectionKey: string; order: number; sort_order: number };
-
-  const defaultsCompany: { sections: DefaultSection[]; fields: DefaultField[] } = {
-    sections: [
-      { key: "main", title: "Основное", order: 1 },
-      { key: "contacts", title: "Контакты", order: 2, collapsed: true },
-      { key: "other", title: "Дополнительно", order: 3, collapsed: true },
-    ],
-    fields: [
-      { sectionKey: "main", order: 1, sort_order: 1, field_name: "name", label: "Название", field_type: "text", required: true },
-      { sectionKey: "main", order: 1, sort_order: 2, field_name: "inn", label: "ИНН", field_type: "text" },
-      { sectionKey: "main", order: 1, sort_order: 3, field_name: "city", label: "Город", field_type: "text" },
-      { sectionKey: "main", order: 1, sort_order: 4, field_name: "website", label: "Сайт", field_type: "text" },
-      { sectionKey: "main", order: 1, sort_order: 5, field_name: "sales_channel_id", label: "Канал продаж", field_type: "relation", options: { collection: "sales_channels", labelField: "name" } },
-      { sectionKey: "contacts", order: 2, sort_order: 1, field_name: "email", label: "Email", field_type: "text" },
-      { sectionKey: "contacts", order: 2, sort_order: 2, field_name: "phone", label: "Телефон", field_type: "text" },
-      { sectionKey: "other", order: 3, sort_order: 1, field_name: "notes", label: "Заметки", field_type: "text" },
-    ],
-  };
-
-  const defaultsDeal: { sections: DefaultSection[]; fields: DefaultField[] } = {
-    sections: [
-      { key: "main", title: "Основное", order: 1 },
-      { key: "finance", title: "Финансы", order: 2 },
-      { key: "project", title: "Проектные параметры", order: 3, collapsed: true },
-      { key: "dates", title: "Даты", order: 4, collapsed: true },
-      { key: "links", title: "Ссылки", order: 5, collapsed: true },
-    ],
-    fields: [
-      { sectionKey: "main", order: 1, sort_order: 1, field_name: "title", label: "Название сделки", field_type: "text", required: true },
-      { sectionKey: "main", order: 1, sort_order: 2, field_name: "company_id", label: "Компания", field_type: "relation", options: { collection: "companies", labelField: "name" } },
-      { sectionKey: "main", order: 1, sort_order: 3, field_name: "sales_channel", label: "Канал продаж", field_type: "select", options: { values: ["прямой", "партнёр"] } },
-      { sectionKey: "main", order: 1, sort_order: 4, field_name: "partner", label: "Партнёр", field_type: "text" },
-      { sectionKey: "main", order: 1, sort_order: 5, field_name: "distributor", label: "Дистрибьютор", field_type: "text" },
-      { sectionKey: "main", order: 1, sort_order: 6, field_name: "purchase_format", label: "Формат закупки", field_type: "text" },
-      { sectionKey: "main", order: 1, sort_order: 7, field_name: "activity_type", label: "Тип активности", field_type: "text" },
-      { sectionKey: "finance", order: 2, sort_order: 1, field_name: "budget", label: "Бюджет, ₽", field_type: "number" },
-      { sectionKey: "finance", order: 2, sort_order: 2, field_name: "turnover", label: "Оборот, ₽", field_type: "number" },
-      { sectionKey: "finance", order: 2, sort_order: 3, field_name: "margin_percent", label: "Маржа, %", field_type: "number" },
-      { sectionKey: "finance", order: 2, sort_order: 4, field_name: "discount_percent", label: "Скидка, %", field_type: "number" },
-      { sectionKey: "project", order: 3, sort_order: 1, field_name: "infrastructure_size", label: "Инфраструктура", field_type: "text" },
-      { sectionKey: "project", order: 3, sort_order: 2, field_name: "endpoints", label: "Endpoints", field_type: "number" },
-      { sectionKey: "project", order: 3, sort_order: 3, field_name: "presale", label: "Presale", field_type: "text" },
-      { sectionKey: "dates", order: 4, sort_order: 1, field_name: "registration_deadline", label: "Дедлайн регистрации", field_type: "date" },
-      { sectionKey: "links", order: 5, sort_order: 1, field_name: "project_map_link", label: "Project map", field_type: "text" },
-      { sectionKey: "links", order: 5, sort_order: 2, field_name: "kaiten_link", label: "Kaiten", field_type: "text" },
-    ],
-  };
-
-  const defaults = entity === "company" ? defaultsCompany : defaultsDeal;
-  const systemFields = new Set(
-    entity === "company"
-      ? ["name", "inn", "city", "website", "email", "phone", "sales_channel_id"]
-      : [
-          "title",
-          "company_id",
-          "sales_channel",
-          "partner",
-          "distributor",
-          "purchase_format",
-          "activity_type",
-          "budget",
-          "turnover",
-          "margin_percent",
-          "discount_percent",
-          "infrastructure_size",
-          "endpoints",
-          "presale",
-          "registration_deadline",
-          "project_map_link",
-          "kaiten_link",
-        ]
-  );
-
-  const sections = defaults.sections.map((s) => ({
-    id: `__default_section__${s.key}`,
-    entity_type: entity,
-    key: s.key,
-    title: s.title,
-    order: s.order,
-    collapsed: !!s.collapsed,
-  })) as SettingsSection[];
-
-  const sectionByKey = new Map(sections.map((s) => [s.key, s.id]));
-  const fields = defaults.fields.map((d) => ({
-    id: `__default_field__${String(d.field_name)}`,
-    collection: collectionName,
-    field_name: String(d.field_name),
-    label: String(d.label || d.field_name),
-    field_type: String(d.field_type || "text"),
-    value_type: inferValueType(d as SettingsField),
-    required: !!d.required,
-    visible: true,
-    options: d.options || {},
-    section_id: sectionByKey.get(d.sectionKey),
-    order: d.order,
-    sort_order: d.sort_order,
-    system: systemFields.has(String(d.field_name)),
-    help_text: "",
-  })) as SettingsField[];
-
-  return { sections, fields };
 }
 
 export function DynamicEntityForm(
@@ -192,63 +87,215 @@ export function DynamicEntityForm(
   const [saving, setSaving] = React.useState(false);
   const [sections, setSections] = React.useState<SettingsSection[]>([]);
   const [fields, setFields] = React.useState<SettingsField[]>([]);
-  const [values, setValues] = React.useState<Record<string, any>>({});
+  const [values, setValues] = React.useState<Record<string, any>>({}); // by field_id
   const [valueRowByField, setValueRowByField] = React.useState<Record<string, FieldValueRow>>({});
-  const [relationOptions, setRelationOptions] = React.useState<Record<string, any[]>>({});
+  const [relationOptions, setRelationOptions] = React.useState<Record<string, any[]>>({}); // field_id -> items
+
+  // Ensure a minimal default config exists (so UI isn't empty on first run)
+  async function ensureDefaults() {
+    const entityFilter = `entity_type=\"${entity}\"`;
+    // We used to create just 3-5 fields which was too little.
+    // Now: create/merge a full default set (sections + fields) idempotently.
+
+    const existingFields = await pb
+      .collection("settings_fields")
+      .getFullList({ filter: entityFilter })
+      .catch(() => [])
+      .then((x: any[]) => x as SettingsField[]);
+
+    const existingSections = await pb
+      .collection("settings_field_sections")
+      .getFullList({ filter: entityFilter })
+      .catch(() => [])
+      .then((x: any[]) => x as SettingsSection[]);
+
+    const byFieldName = new Map<string, SettingsField>();
+    for (const f of existingFields) if (f?.field_name) byFieldName.set(String(f.field_name), f);
+
+    const bySectionKey = new Map<string, SettingsSection>();
+    for (const s of existingSections) if (s?.key) bySectionKey.set(String(s.key), s);
+
+    type DefaultSection = { key: string; title: string; order: number; collapsed?: boolean };
+    type DefaultField = Partial<SettingsField> & { sectionKey: string; order: number; sort_order: number };
+
+    const defaultsCompany: { sections: DefaultSection[]; fields: DefaultField[] } = {
+      sections: [
+        { key: "main", title: "Основное", order: 1 },
+        { key: "contacts", title: "Контакты", order: 2, collapsed: true },
+        { key: "other", title: "Дополнительно", order: 3, collapsed: true },
+      ],
+      fields: [
+        // Main
+        { sectionKey: "main", order: 1, sort_order: 1, field_name: "name", label: "Название", field_type: "text", required: true },
+        { sectionKey: "main", order: 1, sort_order: 2, field_name: "inn", label: "ИНН", field_type: "text" },
+        { sectionKey: "main", order: 1, sort_order: 3, field_name: "city", label: "Город", field_type: "text" },
+        { sectionKey: "main", order: 1, sort_order: 4, field_name: "website", label: "Сайт", field_type: "text" },
+        { sectionKey: "main", order: 1, sort_order: 5, field_name: "sales_channel_id", label: "Канал продаж", field_type: "relation", options: { collection: "sales_channels", labelField: "name" } },
+        // Contacts
+        { sectionKey: "contacts", order: 2, sort_order: 1, field_name: "email", label: "Email", field_type: "text" },
+        { sectionKey: "contacts", order: 2, sort_order: 2, field_name: "phone", label: "Телефон", field_type: "text" },
+        { sectionKey: "contacts", order: 2, sort_order: 3, field_name: "telegram", label: "Telegram", field_type: "text" },
+        // Other
+        { sectionKey: "other", order: 3, sort_order: 1, field_name: "notes", label: "Заметки", field_type: "text" },
+      ],
+    };
+
+    const defaultsDeal: { sections: DefaultSection[]; fields: DefaultField[] } = {
+      sections: [
+        { key: "main", title: "Основное", order: 1 },
+        { key: "finance", title: "Финансы", order: 2 },
+        { key: "project", title: "Проектные параметры", order: 3, collapsed: true },
+        { key: "dates", title: "Даты", order: 4, collapsed: true },
+        { key: "links", title: "Ссылки", order: 5, collapsed: true },
+      ],
+      fields: [
+        // Main
+        { sectionKey: "main", order: 1, sort_order: 1, field_name: "title", label: "Название сделки", field_type: "text", required: true },
+        { sectionKey: "main", order: 1, sort_order: 2, field_name: "company_id", label: "Компания", field_type: "relation", options: { collection: "companies", labelField: "name" } },
+        { sectionKey: "main", order: 1, sort_order: 3, field_name: "sales_channel_id", label: "Канал продаж", field_type: "relation", options: { collection: "sales_channels", labelField: "name" } },
+        { sectionKey: "main", order: 1, sort_order: 4, field_name: "partner", label: "Партнёр", field_type: "text" },
+        { sectionKey: "main", order: 1, sort_order: 5, field_name: "distributor", label: "Дистрибьютор", field_type: "text" },
+        { sectionKey: "main", order: 1, sort_order: 6, field_name: "purchase_format", label: "Формат закупки", field_type: "text" },
+        { sectionKey: "main", order: 1, sort_order: 7, field_name: "activity_type", label: "Тип активности", field_type: "text" },
+        // Finance
+        { sectionKey: "finance", order: 2, sort_order: 1, field_name: "budget", label: "Бюджет, ₽", field_type: "number" },
+        { sectionKey: "finance", order: 2, sort_order: 2, field_name: "turnover", label: "Оборот, ₽", field_type: "number" },
+        { sectionKey: "finance", order: 2, sort_order: 3, field_name: "margin", label: "Маржа, %", field_type: "number" },
+        { sectionKey: "finance", order: 2, sort_order: 4, field_name: "discount", label: "Скидка, %", field_type: "number" },
+        // Project
+        { sectionKey: "project", order: 3, sort_order: 1, field_name: "infrastructure", label: "Инфраструктура", field_type: "text" },
+        { sectionKey: "project", order: 3, sort_order: 2, field_name: "endpoints", label: "Endpoints", field_type: "number" },
+        { sectionKey: "project", order: 3, sort_order: 3, field_name: "presale", label: "Presale", field_type: "text" },
+        // Dates
+        // NOTE: do NOT include PB system fields like created/updated as editable fields.
+        { sectionKey: "dates", order: 4, sort_order: 1, field_name: "close_date", label: "Дата закрытия", field_type: "date" },
+        // Links
+        { sectionKey: "links", order: 5, sort_order: 1, field_name: "project_map_link", label: "Project map", field_type: "text" },
+        { sectionKey: "links", order: 5, sort_order: 2, field_name: "kaiten_link", label: "Kaiten", field_type: "text" },
+      ],
+    };
+
+    const defaults = entity === "company" ? defaultsCompany : defaultsDeal;
+
+    const isCoreSystemField = (e: EntityType, fieldName?: string) => {
+      if (!fieldName) return false;
+      const companyCore = new Set(["name", "inn", "city", "website"]);
+      const dealCore = new Set(["title", "company_id", "budget", "turnover", "margin", "discount"]);
+      return e === "company" ? companyCore.has(fieldName) : dealCore.has(fieldName);
+    };
+
+    // Ensure sections exist
+    for (const s of defaults.sections) {
+      if (bySectionKey.has(s.key)) continue;
+      const created = (await pb.collection("settings_field_sections").create({
+        entity_type: entity,
+        key: s.key,
+        title: s.title,
+        order: s.order,
+        collapsed: !!s.collapsed,
+      })) as any as SettingsSection;
+      bySectionKey.set(s.key, created);
+    }
+
+    // Ensure fields exist (merge by field_name)
+    for (const d of defaults.fields) {
+      if (!d.field_name) continue;
+      const existing = byFieldName.get(String(d.field_name));
+      if (existing) continue;
+
+      const section = bySectionKey.get(d.sectionKey) || existingSections[0];
+      if (!section?.id) continue;
+
+      await pb.collection("settings_fields").create({
+        collection: collectionName,
+        entity_type: entity,
+        section_id: section.id,
+        field_name: d.field_name,
+        label: d.label,
+        field_type: d.field_type,
+        value_type: inferValueType(d as any),
+        required: !!d.required,
+        visible: true,
+        options: d.options || {},
+        sort_order: d.sort_order,
+        order: d.order,
+        // Only mark as `system` when the underlying PB collection is expected to contain the field.
+        // Otherwise we store values in *_field_values to avoid breaking saves when field doesn't exist.
+        system: isCoreSystemField(entity, String(d.field_name)),
+        help_text: "",
+        role_visibility: {},
+      });
+    }
+  }
 
   async function loadAll() {
     if (!recordId) return;
     setLoading(true);
-
+    await ensureDefaults();
     const entityFilter = `entity_type=\"${entity}\"`;
-    const [dbSections, dbFields] = await Promise.all([
+    const [sec, flds] = await Promise.all([
       pb.collection("settings_field_sections").getFullList({ filter: entityFilter, sort: "order" }).catch(() => []),
       pb.collection("settings_fields").getFullList({ filter: entityFilter, sort: "order,sort_order" }).catch(() => []),
     ]);
 
-    const fallback = getDefaultConfig(entity, collectionName);
-    const secList = (dbSections as any[]).length ? (dbSections as SettingsSection[]) : fallback.sections;
-    const fieldList = ((dbFields as any[]).length ? (dbFields as SettingsField[]) : fallback.fields).filter((x) => x.visible !== false);
+    const secList = (sec as any[]).map((x) => x as SettingsSection);
+    const fieldList = (flds as any[])
+      .map((x) => x as SettingsField)
+      .filter((x) => x.visible !== false);
 
-    setSections(secList.length ? secList : [{ id: "__default__", entity_type: entity, key: "default", title: "Основное" }]);
+    // If sections are missing, create a fallback synthetic section
+    if (!secList.length) {
+      secList.push({ id: "__default__", entity_type: entity, key: "default", title: "Основное" });
+    }
+
+    setSections(secList);
     setFields(fieldList);
 
+    // Load custom values
     const filter = entity === "company" ? `company_id=\"${recordId}\"` : `deal_id=\"${recordId}\"`;
     const rows = (await pb.collection(valueCollection).getFullList({ filter }).catch(() => [])) as any[];
     const map: Record<string, FieldValueRow> = {};
-    const nextValues: Record<string, any> = {};
-
+    const v: Record<string, any> = {};
     for (const r of rows) {
-      map[r.field_id] = r as FieldValueRow;
-      nextValues[r.field_id] = r.value_json ?? r.value_date ?? r.value_number ?? r.value_text ?? "";
+      map[r.field_id] = r as any;
+      v[r.field_id] = r.value_json ?? r.value_date ?? r.value_number ?? r.value_text ?? "";
     }
 
+    // Prime values from main record for system fields (if present)
     for (const field of fieldList) {
       const fn = field.field_name;
-      if (fn && Object.prototype.hasOwnProperty.call(record || {}, fn) && nextValues[field.id] === undefined) {
-        nextValues[field.id] = record?.[fn] ?? "";
+      if (fn && record && Object.prototype.hasOwnProperty.call(record, fn)) {
+        // store in field_id state so we can render consistently
+        if (v[field.id] === undefined) v[field.id] = record[fn] ?? "";
       }
     }
 
+    setValueRowByField(map);
+    setValues(v);
+
+    // Preload relation options
     const relFields = fieldList.filter((f) => (f.field_type || "") === "relation");
     const relMap: Record<string, any[]> = {};
     for (const rf of relFields) {
       const opts = parseOptions(rf.options);
       const col = opts.collection;
       if (!col) continue;
-      const items = await pb.collection(col).getList(1, 200, { sort: "-created" }).then((x) => x.items).catch(() => []);
+      const items = await pb
+        .collection(col)
+        .getList(1, 200, { sort: "-created" })
+        .then((x) => x.items)
+        .catch(() => []);
       relMap[rf.id] = items as any[];
     }
-
-    setValueRowByField(map);
-    setValues(nextValues);
     setRelationOptions(relMap);
+
     setLoading(false);
   }
 
   React.useEffect(() => {
     if (!recordId) return;
     loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordId, entity]);
 
   function setFieldValue(fieldId: string, next: any) {
@@ -258,10 +305,6 @@ export function DynamicEntityForm(
   async function save() {
     if (!recordId) return;
     setSaving(true);
-    const previousRecord: Record<string, any> = {};
-    const previousValueRows: Array<{ existing?: FieldValueRow }> = [];
-    const createdRowIds: string[] = [];
-
     try {
       const updatePayload: Record<string, any> = {};
       const toUpsert: Array<{ field: SettingsField; value: any }> = [];
@@ -269,66 +312,57 @@ export function DynamicEntityForm(
       for (const f of fields) {
         const val = values[f.id];
         const fn = f.field_name;
+        const vt = inferValueType(f);
         const normalized = val === "" ? null : val;
-        const isSystemLike = !!f.system || Object.prototype.hasOwnProperty.call(record || {}, fn);
+
+        const isSystemLike = f.system || (record && Object.prototype.hasOwnProperty.call(record, fn));
 
         if (isSystemLike && fn) {
-          previousRecord[fn] = record?.[fn] ?? null;
-          updatePayload[fn] = f.field_type === "number" && normalized !== null ? Number(normalized) : normalized;
-        } else if (!String(f.id).startsWith("__default_field__")) {
-          previousValueRows.push({ existing: valueRowByField[f.id] });
+          // write into main record
+          if (f.field_type === "number") {
+            updatePayload[fn] = normalized === null ? null : Number(normalized);
+          } else {
+            updatePayload[fn] = normalized;
+          }
+        } else {
           toUpsert.push({ field: f, value: normalized });
         }
       }
 
-      for (const it of toUpsert) {
-        const f = it.field;
-        const existing = valueRowByField[f.id];
-        const base: any = entity === "company" ? { company_id: recordId, field_id: f.id } : { deal_id: recordId, field_id: f.id };
-        const vt = inferValueType(f);
-        const payload: any = { ...base, value_text: null, value_number: null, value_date: null, value_json: null };
-
-        if (it.value !== null && it.value !== undefined) {
-          if (vt === "number") payload.value_number = Number(it.value);
-          else if (vt === "date") payload.value_date = String(it.value);
-          else if (vt === "json") payload.value_json = it.value;
-          else payload.value_text = String(it.value);
-        }
-
-        if (existing?.id) {
-          await pb.collection(valueCollection).update(existing.id, payload);
-        } else {
-          const created = await pb.collection(valueCollection).create(payload);
-          createdRowIds.push((created as any).id);
-          setValueRowByField((p) => ({ ...p, [f.id]: created as any }));
-        }
-      }
-
+      // Update main record first
       if (Object.keys(updatePayload).length) {
         await pb.collection(collectionName).update(recordId, updatePayload);
       }
 
-      onSaved?.();
-    } catch (error) {
-      try {
-        await Promise.all(createdRowIds.map((rowId) => pb.collection(valueCollection).delete(rowId).catch(() => null)));
-        for (const item of previousValueRows) {
-          const existing = item.existing;
-          if (!existing?.id) continue;
-          await pb.collection(valueCollection).update(existing.id, {
-            value_text: existing.value_text ?? null,
-            value_number: existing.value_number ?? null,
-            value_date: existing.value_date ?? null,
-            value_json: existing.value_json ?? null,
-          }).catch(() => null);
+      // Upsert field values
+      for (const it of toUpsert) {
+        const f = it.field;
+        const val = it.value;
+        const existing = valueRowByField[f.id];
+        const base: any = entity === "company" ? { company_id: recordId, field_id: f.id } : { deal_id: recordId, field_id: f.id };
+
+        const vt = inferValueType(f);
+        const payload: any = { ...base, value_text: null, value_number: null, value_date: null, value_json: null };
+        if (val === null || val === undefined) {
+          // keep as nulls
+        } else if (vt === "number") {
+          payload.value_number = Number(val);
+        } else if (vt === "date") {
+          payload.value_date = String(val);
+        } else if (vt === "json") {
+          payload.value_json = val;
+        } else {
+          payload.value_text = String(val);
         }
-        if (Object.keys(previousRecord).length) {
-          await pb.collection(collectionName).update(recordId, previousRecord).catch(() => null);
+
+        if (existing?.id) await pb.collection(valueCollection).update(existing.id, payload);
+        else {
+          const created = await pb.collection(valueCollection).create(payload);
+          setValueRowByField((p) => ({ ...p, [f.id]: created as any }));
         }
-      } catch {
-        // rollback best-effort only
       }
-      throw error;
+
+      onSaved?.();
     } finally {
       setSaving(false);
     }
@@ -344,6 +378,7 @@ export function DynamicEntityForm(
       if (!map[sid]) map[sid] = [];
       map[sid].push(f);
     }
+    // sort inside
     Object.keys(map).forEach((k) => {
       map[k] = map[k].slice().sort((a, b) => (a.order ?? a.sort_order ?? 0) - (b.order ?? b.sort_order ?? 0));
     });
@@ -375,11 +410,21 @@ export function DynamicEntityForm(
                 const list = Array.isArray(opts.values) ? opts.values : [];
                 return (
                   <div key={f.id} className="grid grid-cols-12 gap-3 items-center">
-                    <div className="col-span-4 text-xs text-text2">{label}{required ? " *" : ""}</div>
+                    <div className="col-span-4 text-xs text-text2">
+                      {label}{required ? " *" : ""}
+                    </div>
                     <div className="col-span-8">
-                      <select className="h-10 w-full rounded-card border border-border bg-white px-3 text-sm" value={String(val ?? "")} onChange={(e) => setFieldValue(f.id, e.target.value)}>
+                      <select
+                        className="h-10 w-full rounded-card border border-border bg-white px-3 text-sm"
+                        value={String(val ?? "")}
+                        onChange={(e) => setFieldValue(f.id, e.target.value)}
+                      >
                         <option value="">—</option>
-                        {list.map((x) => <option key={x} value={x}>{x}</option>)}
+                        {list.map((x) => (
+                          <option key={x} value={x}>
+                            {x}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -391,11 +436,21 @@ export function DynamicEntityForm(
                 const labelField = opts.labelField || "name";
                 return (
                   <div key={f.id} className="grid grid-cols-12 gap-3 items-center">
-                    <div className="col-span-4 text-xs text-text2">{label}{required ? " *" : ""}</div>
+                    <div className="col-span-4 text-xs text-text2">
+                      {label}{required ? " *" : ""}
+                    </div>
                     <div className="col-span-8">
-                      <select className="h-10 w-full rounded-card border border-border bg-white px-3 text-sm" value={String(val ?? "")} onChange={(e) => setFieldValue(f.id, e.target.value)}>
+                      <select
+                        className="h-10 w-full rounded-card border border-border bg-white px-3 text-sm"
+                        value={String(val ?? "")}
+                        onChange={(e) => setFieldValue(f.id, e.target.value)}
+                      >
                         <option value="">—</option>
-                        {list.map((it: any) => <option key={it.id} value={it.id}>{it[labelField] ?? it.id}</option>)}
+                        {list.map((it: any) => (
+                          <option key={it.id} value={it.id}>
+                            {it[labelField] ?? it.id}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -405,9 +460,16 @@ export function DynamicEntityForm(
               const type = f.field_type === "number" ? "number" : f.field_type === "email" ? "email" : f.field_type === "date" ? "date" : "text";
               return (
                 <div key={f.id} className="grid grid-cols-12 gap-3 items-center">
-                  <div className="col-span-4 text-xs text-text2">{label}{required ? " *" : ""}</div>
+                  <div className="col-span-4 text-xs text-text2">
+                    {label}{required ? " *" : ""}
+                  </div>
                   <div className="col-span-8">
-                    <Input type={type as any} value={String(val ?? "")} onChange={(e) => setFieldValue(f.id, (e.target as any).value)} placeholder={f.help_text || ""} />
+                    <Input
+                      type={type as any}
+                      value={String(val ?? "")}
+                      onChange={(e) => setFieldValue(f.id, (e.target as any).value)}
+                      placeholder={f.help_text || ""}
+                    />
                   </div>
                 </div>
               );
@@ -417,7 +479,9 @@ export function DynamicEntityForm(
       ))}
 
       <div className="flex justify-end">
-        <Button onClick={save} disabled={saving}>{saving ? "Сохранение..." : "Сохранить"}</Button>
+        <Button onClick={save} disabled={saving}>
+          {saving ? "Сохранение..." : "Сохранить"}
+        </Button>
       </div>
     </div>
   );

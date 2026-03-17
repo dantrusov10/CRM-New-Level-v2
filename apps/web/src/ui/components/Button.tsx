@@ -2,7 +2,7 @@ import React from "react";
 import clsx from "clsx";
 
 type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "ghost" | "danger";
+  variant?: "primary" | "secondary" | "danger";
   small?: boolean;
 };
 
@@ -14,8 +14,6 @@ export function Button({ variant = "primary", small, className, ...rest }: Props
       ? "ui-btn-primary"
       : variant === "secondary"
         ? "ui-btn-secondary"
-        : variant === "ghost"
-          ? "ui-btn-ghost"
-          : "ui-btn-danger";
+        : "ui-btn-danger";
   return <button className={clsx(base, h, v, className)} {...rest} />;
 }

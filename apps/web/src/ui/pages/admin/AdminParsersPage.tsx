@@ -426,7 +426,7 @@ function TenderParser() {
                 Задавайте их только на сервере через переменные окружения или локальный secrets-файл, который не коммитится в git.
               </div>
               <div className="mt-3 rounded-card border border-border bg-white p-3 font-mono text-xs text-[#334155]">
-                NWLVL_TENDER_TOKENS_JSON={{"zakupki_gov":"***","b2b_center":"***"}}
+                {`NWLVL_TENDER_TOKENS_JSON={"zakupki_gov":"***","b2b_center":"***"}` }
               </div>
             </div>
           </div>

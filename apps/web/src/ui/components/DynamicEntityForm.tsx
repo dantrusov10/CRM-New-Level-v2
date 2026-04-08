@@ -1,5 +1,5 @@
 import React from 'react';
-import { pb } from '../../lib/pb';
+import { api } from '../../lib/api';
 import type { Company, Deal, RelationOption } from '../../lib/types';
 import {
   type EntityType,
@@ -44,10 +44,9 @@ export function DynamicEntityForm(
     if (!recordId) return;
     setLoading(true);
 
-    const entityFilter = `entity_type="${entity}"`;
     const [sec, flds] = await Promise.all([
-      pb.collection('settings_field_sections').getFullList<SettingsSection>({ filter: entityFilter, sort: 'order' }).catch(() => []),
-      pb.collection('settings_fields').getFullList<SettingsField>({ filter: entityFilter, sort: 'order,sort_order' }).catch(() => []),
+      api.dynamicForms.sections(entity).catch(() => []),
+      api.dynamicForms.fields(entity).catch(() => []),
     ]);
 
     const secList = sec.map((item) => ({ ...item }));
@@ -60,8 +59,7 @@ export function DynamicEntityForm(
     setSections(secList);
     setFields(fieldList);
 
-    const filter = entity === 'company' ? `company_id="${recordId}"` : `deal_id="${recordId}"`;
-    const rows = await pb.collection(entity === 'company' ? 'company_field_values' : 'deal_field_values').getFullList<FieldValueRow>({ filter }).catch(() => []);
+    const rows = await api.dynamicForms.values(entity, String(recordId)).catch(() => []);
 
     const nextRowsByField: Record<string, FieldValueRow> = {};
     const nextValues: Record<string, unknown> = {};
@@ -87,11 +85,7 @@ export function DynamicEntityForm(
     for (const field of relFields) {
       const options = parseFieldOptions(field.options);
       if (!options.collection) continue;
-      const result = await pb
-        .collection(options.collection)
-        .getList<RelationOption>(1, 200, { sort: '-created' })
-        .then((response) => response.items)
-        .catch(() => []);
+      const result = await api.dynamicForms.relationOptions(options.collection).catch(() => []);
       nextRelationOptions[field.id] = result;
     }
 
@@ -125,6 +119,10 @@ export function DynamicEntityForm(
         setValueRowByField((prev) => ({ ...prev, ...result.createdRowsByField }));
       }
       onSaved?.();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Не удалось сохранить форму';
+      alert(message);
+      throw error;
     } finally {
       setSaving(false);
     }

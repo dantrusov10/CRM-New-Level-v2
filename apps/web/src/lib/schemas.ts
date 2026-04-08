@@ -1,190 +1,163 @@
-import { z } from 'zod';
+import { z } from "zod";
 
-const idSchema = z.string().min(1);
-const optionalString = z.string().optional().nullable().transform((v) => v ?? undefined);
-const optionalNumber = z.number().optional().nullable().transform((v) => v ?? undefined);
-const optionalBoolean = z.boolean().optional().nullable().transform((v) => v ?? undefined);
-
-export const jsonValueSchema: z.ZodType<unknown> = z.lazy(() =>
-  z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.null(),
-    z.array(jsonValueSchema),
-    z.record(jsonValueSchema),
-  ]),
-);
+export const userSummarySchema = z.object({
+  id: z.string(),
+  email: z.string().optional().default(""),
+  name: z.string().optional(),
+  full_name: z.string().optional(),
+  role: z.string().optional(),
+  role_name: z.string().optional(),
+  created: z.string().optional(),
+  updated: z.string().optional(),
+});
 
 export const companySchema = z.object({
-  id: idSchema,
-  name: z.string().min(1),
-  inn: optionalString,
-  city: optionalString,
-  website: optionalString,
-  phone: optionalString,
-  email: optionalString,
-  address: optionalString,
-  legal_entity: optionalString,
-  responsible_id: optionalString,
-  created: optionalString,
-  updated: optionalString,
+  id: z.string(),
+  name: z.string().default(""),
+  inn: z.string().optional(),
+  city: z.string().optional(),
+  website: z.string().optional(),
+  phone: z.string().optional(),
+  email: z.string().optional(),
+  address: z.string().optional(),
+  legal_entity: z.string().optional(),
+  responsible_id: z.string().optional(),
+  created: z.string().optional(),
+  updated: z.string().optional(),
 });
 
 export const funnelStageSchema = z.object({
-  id: idSchema,
-  stage_name: z.string().min(1),
-  position: z.number().catch(0),
-  color: optionalString,
-  active: optionalBoolean,
-  is_final: optionalBoolean,
-  final_type: z.enum(['none', 'won', 'lost']).optional().nullable().transform((v) => v ?? undefined),
-  default_prob: optionalNumber,
+  id: z.string(),
+  stage_name: z.string().default(""),
+  position: z.coerce.number().default(0),
+  color: z.string().default("#CBD5E1"),
+  active: z.boolean().optional(),
+  is_final: z.boolean().optional(),
+  final_type: z.enum(["none", "won", "lost"]).optional(),
+  default_prob: z.coerce.number().optional(),
 });
 
 export const dealSchema = z.object({
-  id: idSchema,
-  title: z.string().min(1),
-  company_id: optionalString,
-  responsible_id: optionalString,
-  stage_id: optionalString,
-  budget: optionalNumber,
-  turnover: optionalNumber,
-  margin_percent: optionalNumber,
-  discount_percent: optionalNumber,
-  sales_channel: optionalString,
-  partner: optionalString,
-  distributor: optionalString,
-  purchase_format: optionalString,
-  activity_type: optionalString,
-  endpoints: optionalNumber,
-  infrastructure_size: optionalString,
-  presale: optionalString,
-  attraction_channel: optionalString,
-  attraction_date: optionalString,
-  registration_deadline: optionalString,
-  test_start: optionalString,
-  test_end: optionalString,
-  delivery_date: optionalString,
-  expected_payment_date: optionalString,
-  payment_received_date: optionalString,
-  project_map_link: optionalString,
-  kaiten_link: optionalString,
-  current_score: optionalNumber,
-  current_recommendations: jsonValueSchema.optional().nullable().transform((v) => v ?? undefined),
-  created: optionalString,
-  updated: optionalString,
+  id: z.string(),
+  title: z.string().default(""),
+  company_id: z.string().optional(),
+  responsible_id: z.string().optional(),
+  stage_id: z.string().optional(),
+  budget: z.coerce.number().optional(),
+  turnover: z.coerce.number().optional(),
+  margin_percent: z.coerce.number().optional(),
+  discount_percent: z.coerce.number().optional(),
+  sales_channel: z.string().optional(),
+  partner: z.string().optional(),
+  distributor: z.string().optional(),
+  purchase_format: z.string().optional(),
+  activity_type: z.string().optional(),
+  endpoints: z.coerce.number().optional(),
+  infrastructure_size: z.string().optional(),
+  presale: z.string().optional(),
+  attraction_channel: z.string().optional(),
+  attraction_date: z.string().optional(),
+  registration_deadline: z.string().optional(),
+  test_start: z.string().optional(),
+  test_end: z.string().optional(),
+  delivery_date: z.string().optional(),
+  expected_payment_date: z.string().optional(),
+  payment_received_date: z.string().optional(),
+  project_map_link: z.string().optional(),
+  kaiten_link: z.string().optional(),
+  current_score: z.coerce.number().optional(),
+  current_recommendations: z.string().optional(),
+  created: z.string().optional(),
+  updated: z.string().optional(),
+  expand: z.object({
+    company_id: companySchema.optional(),
+    stage_id: funnelStageSchema.optional(),
+    responsible_id: userSummarySchema.optional(),
+  }).partial().optional(),
 });
 
-export const timelineSchema = z.object({
-  id: idSchema,
-  deal_id: idSchema,
-  user_id: optionalString,
-  action: z.string().min(1),
-  comment: optionalString,
-  payload: jsonValueSchema.optional().nullable().transform((v) => v ?? undefined),
-  timestamp: optionalString,
-  created: optionalString,
+export const timelineItemSchema = z.object({
+  id: z.string(),
+  deal_id: z.string(),
+  user_id: z.string().optional(),
+  action: z.string().default(""),
+  comment: z.string().optional(),
+  payload: z.record(z.unknown()).nullable().optional(),
+  timestamp: z.string().optional(),
+  created: z.string().optional(),
 });
 
 export const aiInsightSchema = z.object({
-  id: idSchema,
-  deal_id: idSchema,
-  score: optionalNumber,
-  summary: optionalString,
-  suggestions: optionalString,
-  risks: jsonValueSchema.optional().nullable().transform((v) => v ?? undefined),
-  explainability: jsonValueSchema.optional().nullable().transform((v) => v ?? undefined),
-  model: optionalString,
-  token_usage: optionalNumber,
-  trigger_event_id: optionalString,
-  created_by: optionalString,
-  created_at: optionalString,
-  created: optionalString,
+  id: z.string(),
+  deal_id: z.string(),
+  score: z.coerce.number().optional(),
+  summary: z.string().optional(),
+  suggestions: z.string().optional(),
+  risks: z.record(z.unknown()).nullable().optional(),
+  explainability: z.string().optional(),
+  model: z.string().optional(),
+  token_usage: z.record(z.unknown()).nullable().optional(),
+  trigger_event_id: z.string().optional(),
+  created_by: z.string().optional(),
+  created_at: z.string().optional(),
+  created: z.string().optional(),
 });
 
-export const taskSchema = z.object({
-  id: idSchema,
-  title: z.string().min(1),
-  due_at: z.string().min(1),
-  is_done: optionalBoolean,
-  deal_id: optionalString,
-  company_id: optionalString,
-  created_by: idSchema,
-  created: optionalString,
-  updated: optionalString,
+export const taskItemSchema = z.object({
+  id: z.string(),
+  title: z.string().default(""),
+  due_at: z.string(),
+  is_done: z.boolean().optional(),
+  deal_id: z.string().optional(),
+  company_id: z.string().optional(),
+  created_by: z.string(),
+  created: z.string().optional(),
+  updated: z.string().optional(),
 });
 
-export const permissionsJsonSchema = z.record(
-  z.object({
-    read: z.boolean().optional(),
-    create: z.boolean().optional(),
-    update: z.boolean().optional(),
-    delete: z.boolean().optional(),
-  }),
-);
+export const relationOptionSchema = z.object({
+  id: z.string(),
+  name: z.string().optional(),
+  title: z.string().optional(),
+  full_name: z.string().optional(),
+  email: z.string().optional(),
+}).catchall(z.unknown());
 
-export const userSummarySchema = z.object({
-  id: idSchema,
-  email: optionalString,
-  name: optionalString,
-  full_name: optionalString,
-  role: optionalString,
-  role_name: optionalString,
-  created: optionalString,
-  updated: optionalString,
+export const settingsFieldSchema = z.object({
+  id: z.string(),
+  collection: z.string().optional(),
+  field_name: z.string().default(""),
+  label: z.string().default(""),
+  field_type: z.string().default("text"),
+  value_type: z.string().optional(),
+  required: z.boolean().optional(),
+  visible: z.boolean().optional(),
+  options: z.union([z.string(), z.record(z.unknown()), z.null()]).optional(),
+  section_id: z.string().optional(),
+  order: z.coerce.number().optional(),
+  sort_order: z.coerce.number().optional(),
+  system: z.boolean().optional(),
+  help_text: z.string().optional(),
 });
 
-export const entityFileLinkSchema = z.object({
-  id: idSchema,
-  entity_type: z.string().min(1),
-  entity_id: z.string().min(1),
-  file_id: z.string().min(1),
-  tag: optionalString,
-  created_at: optionalString,
-  expand: z
-    .object({
-      file_id: z
-        .object({
-          id: optionalString,
-          path: optionalString,
-          filename: optionalString,
-          mime: optionalString,
-          size_bytes: optionalNumber,
-        })
-        .optional(),
-    })
-    .optional(),
+export const settingsSectionSchema = z.object({
+  id: z.string(),
+  entity_type: z.enum(["company", "deal"]),
+  key: z.string().default("default"),
+  title: z.string().default("Основное"),
+  order: z.coerce.number().optional(),
+  collapsed: z.boolean().optional(),
 });
 
-export const contactFoundSchema = z.object({
-  id: idSchema,
-  deal_id: optionalString,
-  company_id: optionalString,
-  parser_run_id: optionalString,
-  role_map_item_id: optionalString,
-  position: optionalString,
-  influence_type: optionalString,
-  full_name: optionalString,
-  phone: optionalString,
-  telegram: optionalString,
-  email: optionalString,
-  source_url: optionalString,
-  source_type: optionalString,
-  confidence: optionalNumber,
-  is_verified: optionalBoolean,
-  created: optionalString,
-  updated: optionalString,
+export const fieldValueRowSchema = z.object({
+  id: z.string(),
+  field_id: z.string(),
+  value_text: z.string().nullable().optional(),
+  value_number: z.coerce.number().nullable().optional(),
+  value_date: z.string().nullable().optional(),
+  value_json: z.unknown().optional(),
 });
 
-export const roleSettingsSchema = z.object({
-  perms: permissionsJsonSchema.optional(),
-});
-
-export function parseOne<T>(schema: z.ZodSchema<T>, input: unknown): T {
-  return schema.parse(input);
-}
-
-export function parseMany<T>(schema: z.ZodSchema<T>, input: unknown[]): T[] {
-  return input.map((item) => schema.parse(item));
+export function parseWithSchemaArray<T>(schema: z.ZodType<T>, value: unknown): T[] {
+  return z.array(schema).safeParse(value).success ? z.array(schema).parse(value) : [];
 }

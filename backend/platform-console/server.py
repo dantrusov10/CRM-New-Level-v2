@@ -857,6 +857,19 @@ def _audit_log(event, payload):
         pass
 
 
+# Сжатые правила вывода для deal_analysis (дополняют tenant/owner промпт).
+AI_DEAL_OUTPUT_RULES = (
+    "Правила содержания (обязательно соблюдай в JSON): "
+    "Поле summary — 4–8 предложений, только выводы из переданного контекста CRM: "
+    "имя клиента/отрасли, этап воронки, суммы и сроки если есть, конкуренты и факты из timeline. "
+    "Запрещены общие фразы без привязки к этой сделке (без имён, цифр, дат из контекста). "
+    "Если факта в данных нет — явно пометь как гипотезу или «в CRM не видно». "
+    "Поле suggestions или recommendations — 5–10 нумерованных строк; каждая строка: "
+    "конкретное действие, с кем (роль/ЛПР), по какой теме, горизонт (например 2–5 дней) или измеримый результат. "
+    "Не пиши «усилить работу» без указания объекта, канала и ожидаемого сигнала от клиента."
+)
+
+
 def _run_openai_compatible(provider, engine, prompt):
     creds = _provider_creds(provider)
     api_key = creds.get("api_key", "")
@@ -1271,7 +1284,8 @@ def run_ai_deal_analysis(payload):
     prompt = (
         f"{deal_prompt}\n"
         f"Контекст сделки (JSON): {json.dumps(full_context, ensure_ascii=False)}\n"
-        "Формат ответа: один валидный JSON-объект без markdown и без текста вне JSON."
+        "Формат ответа: один валидный JSON-объект без markdown и без текста вне JSON.\n"
+        + AI_DEAL_OUTPUT_RULES
     )
 
     llm_result = _run_provider(primary_provider, primary_engine, prompt)
@@ -1430,7 +1444,7 @@ def default_routing_matrix():
                 "fallback_engine": "v3",
                 "token_provider": "",
                 "max_requests_per_day": 20,
-                "max_output_tokens": 1200,
+                "max_output_tokens": 2800,
             },
             "decision_support": {
                 "primary_provider": "deepseek",
@@ -1468,7 +1482,9 @@ def default_routing_matrix():
                 "Ты AI-ассистент CRM по B2B продажам. Проанализируй контекст сделки и верни один валидный JSON "
                 "без markdown с гибкой структурой разделов (4, 9, 20+ — сколько нужно по задаче). "
                 "Желательно включать score (0..100), summary, suggestions/recommendations и risks. "
-                "Учитывай историю коммуникации, динамику событий и обязательства клиента."
+                "Учитывай историю коммуникации, динамику событий и обязательства клиента. "
+                "Summary и рекомендации — только конкретика из данных CRM: имена, суммы, даты, конкуренты, этап; "
+                "без воды и без шаблонов вроде «следует улучшить взаимодействие»."
             )
         },
     }

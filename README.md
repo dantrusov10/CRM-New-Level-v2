@@ -92,7 +92,21 @@ python3 /opt/pb-control/ai-cost-dashboard.py
 ### Founder web console
 - Код: `backend/platform-console/server.py`
 - systemd unit template: `backend/platform-console/platform-console.service`
-- Рекомендуемый endpoint: отдельный location в nginx (например `/owner/` или `owner.nwlvl.ru`).
+- Endpoint: `https://control.nwlvl.ru/owner/` (через nginx proxy на сервис platform-console).
+- Авторизация founder-console:
+  - `PLATFORM_CONSOLE_USER`
+  - `PLATFORM_CONSOLE_PASSWORD`
+  - `PLATFORM_CONSOLE_SESSION_TTL_HOURS`
+- Серверные AI ключи (не во frontend):
+  - `PLATFORM_AI_SECRETS_FILE` (JSON-файл с правами `600`)
+  - в web-консоли `/owner/` доступен блок сохранения ключей + тест провайдера
+- В `/owner/` добавлена матрица маршрутизации:
+  - `task -> primary/fallback provider+engine -> token source -> request/token limits -> default price`
+  - хранится в `system_settings` ключом `ai.routing.matrix`
+- Public AI gateway endpoint для CRM:
+  - `POST /owner/api/public/ai/analyze-deal`
+  - записывает результат в tenant PocketBase: `ai_insights`, `timeline`, `deals.current_score/current_recommendations`
+  - frontend env: `VITE_AI_GATEWAY_URL`
 
 ## AI, парсеры и продажи
 

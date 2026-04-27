@@ -27,6 +27,7 @@ import { DealKpModule } from "../../modules/kp/DealKpModule";
 import { DynamicEntityFormWithRef, DynamicEntityFormHandle } from "../../components/DynamicEntityForm";
 import type { AiInsight, Deal, FunnelStage, TimelineItem } from "../../../lib/types";
 import type { ContactFound, EntityFileLink } from "../../data/hooks";
+import { analyzeDealWithAi } from "../../../lib/aiGateway";
 
 type AnyObj = Record<string, unknown>;
 type TimelinePayload = Record<string, unknown>;
@@ -135,6 +136,8 @@ export function DealDetailPage() {
   const [comment, setComment] = React.useState<string>("");
   const [taskDueAt, setTaskDueAt] = React.useState<string>("");
   const [timelineFilter, setTimelineFilter] = React.useState<string>("all");
+  const [aiRunLoading, setAiRunLoading] = React.useState(false);
+  const [aiRunError, setAiRunError] = React.useState<string>("");
   const formRef = React.useRef<DynamicEntityFormHandle | null>(null);
 
   const auth = getAuthUser();
@@ -365,6 +368,40 @@ export function DealDetailPage() {
     setWsLinkUrl("");
     setWsLinkTitle("");
     tlQ.refetch();
+  }
+
+  async function runAiAnalysis() {
+    if (!deal?.id) return;
+    setAiRunError("");
+    setAiRunLoading(true);
+    try {
+      await analyzeDealWithAi({
+        dealId: deal.id,
+        userId: auth?.id,
+        taskCode: "deal_analysis",
+        context: {
+          title: deal.title || "",
+          stage: deal?.expand?.stage_id?.stage_name || "",
+          company: deal?.expand?.company_id?.name || "",
+          budget: deal.budget ?? null,
+          turnover: deal.turnover ?? null,
+          margin_percent: deal.margin_percent ?? null,
+          discount_percent: deal.discount_percent ?? null,
+          sales_channel: deal.sales_channel || "",
+          partner: deal.partner || "",
+          distributor: deal.distributor || "",
+          purchase_format: deal.purchase_format || "",
+          activity_type: deal.activity_type || "",
+          infrastructure_size: deal.infrastructure_size || "",
+          presale: deal.presale || "",
+        },
+      });
+      await Promise.all([aiQ.refetch(), tlQ.refetch(), dealQ.refetch()]);
+    } catch (e) {
+      setAiRunError(e instanceof Error ? e.message : "Ошибка AI-анализа");
+    } finally {
+      setAiRunLoading(false);
+    }
   }
 
   const latestAi = ((aiQ.data ?? [])[0] ?? null) as AiInsight | null;
@@ -767,10 +804,18 @@ export function DealDetailPage() {
 
           <Card className="border-infoBorder bg-infoBg">
             <CardHeader className="border-infoBorder">
-              <div className="text-sm font-semibold">Сигналы и риски</div>
-              <div className="text-xs text-text2 mt-1">Score + резюме + рекомендации + риски</div>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold">Сигналы и риски</div>
+                  <div className="text-xs text-text2 mt-1">Score + резюме + рекомендации + риски</div>
+                </div>
+                <Button onClick={runAiAnalysis} disabled={aiRunLoading || !deal?.id}>
+                  {aiRunLoading ? "AI анализ..." : "Запустить AI-анализ"}
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
+              {aiRunError ? <div className="text-sm text-danger mb-3">{aiRunError}</div> : null}
               {aiQ.isLoading ? (
                 <div className="text-sm text-text2">Загрузка...</div>
               ) : latestAi ? (

@@ -9,6 +9,11 @@ WorkingDirectory=/opt/pb-control
 Environment=CONTROL_DB_PATH=/opt/pb-control/pb_data/data.db
 Environment=PLATFORM_CONSOLE_HOST=127.0.0.1
 Environment=PLATFORM_CONSOLE_PORT=8181
+Environment=PLATFORM_CONSOLE_USER=founder
+Environment=PLATFORM_CONSOLE_PASSWORD=ChangeMe_123!
+Environment=PLATFORM_CONSOLE_SESSION_TTL_HOURS=24
+Environment=PLATFORM_AI_SECRETS_FILE=/opt/pb-control/.ai-provider-secrets.json
+Environment=PUBLIC_AI_ALLOWED_ORIGINS=https://app.nwlvl.ru,https://nwlvl.ru,http://localhost:5173
 ExecStart=/usr/bin/python3 /opt/pb-control/platform-console/server.py
 Restart=always
 RestartSec=5

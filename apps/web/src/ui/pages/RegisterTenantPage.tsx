@@ -20,6 +20,8 @@ export function RegisterTenantPage() {
   const [contactName, setContactName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [phone, setPhone] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [password2, setPassword2] = React.useState("");
   const [subdomain, setSubdomain] = React.useState("");
   const [comment, setComment] = React.useState("");
   const [loading, setLoading] = React.useState(false);
@@ -37,6 +39,8 @@ export function RegisterTenantPage() {
     if (!contactName.trim()) return setError("Введите имя контактного лица.");
     if (!email.trim()) return setError("Введите email.");
     if (!slug || slug.length < 3) return setError("Поддомен должен быть минимум 3 символа (a-z, 0-9, -).");
+    if (password.length < 8) return setError("Пароль должен быть минимум 8 символов.");
+    if (password !== password2) return setError("Пароли не совпадают.");
 
     setLoading(true);
     try {
@@ -48,6 +52,7 @@ export function RegisterTenantPage() {
           contact_name: contactName.trim(),
           email: email.trim().toLowerCase(),
           phone: phone.trim(),
+          initial_password: password,
           requested_subdomain: slug,
           company_size: "unknown",
           source: "site_form",
@@ -66,6 +71,8 @@ export function RegisterTenantPage() {
       setContactName("");
       setEmail("");
       setPhone("");
+      setPassword("");
+      setPassword2("");
       setSubdomain("");
       setComment("");
     } catch (e: unknown) {
@@ -104,6 +111,14 @@ export function RegisterTenantPage() {
             <div>
               <div className="text-xs text-text2 mb-1">Телефон</div>
               <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+7..." />
+            </div>
+            <div>
+              <div className="text-xs text-text2 mb-1">Пароль для входа *</div>
+              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Минимум 8 символов" />
+            </div>
+            <div>
+              <div className="text-xs text-text2 mb-1">Повторите пароль *</div>
+              <Input type="password" value={password2} onChange={(e) => setPassword2(e.target.value)} placeholder="Повторите пароль" />
             </div>
             <div>
               <div className="text-xs text-text2 mb-1">Желаемый поддомен *</div>

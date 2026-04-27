@@ -351,7 +351,6 @@ function TenderParser() {
   const [platforms, setPlatforms] = React.useState<TenderPlatform[]>([]);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [keywords, setKeywords] = React.useState("");
-  const [tokens, setTokens] = React.useState("");
 
   async function load() {
     const sList = await pb.collection("settings_tender_parser").getList(1, 1).catch(() => ({ items: [] as TenderParserSettings[] }));
@@ -364,7 +363,6 @@ function TenderParser() {
     const links = await pb.collection("settings_tender_parser_platforms").getFullList({ filter: `settings_id="${s.id}"` }).catch(() => []);
     setSelected(new Set((links as TenderLink[]).map((l) => l.platform_id)));
     setKeywords((s.keywords?.phrases ?? []).join(", "));
-    setTokens(JSON.stringify(s.platform_tokens ?? {}, null, 2));
   }
 
   React.useEffect(() => { load(); }, []);
@@ -387,11 +385,6 @@ function TenderParser() {
   async function saveKeywords() {
     const phrases = keywords.split(",").map((s) => s.trim()).filter(Boolean);
     await saveSettings({ keywords: { phrases } });
-  }
-
-  async function saveTokens() {
-    const obj = JSON.parse(tokens || "{}");
-    await saveSettings({ platform_tokens: obj });
   }
 
   return (
@@ -441,10 +434,10 @@ function TenderParser() {
             </div>
 
             <div className="rounded-card border border-border bg-rowHover p-3">
-              <div className="text-sm font-semibold mb-2">Токены доступа (JSON)</div>
-              <textarea className="w-full min-h-[160px] rounded-card border border-[#9CA3AF] bg-white p-3 font-mono text-xs" value={tokens} onChange={(e) => setTokens(e.target.value)} />
-              <div className="flex justify-end mt-2">
-                <Button onClick={saveTokens}>Сохранить</Button>
+              <div className="text-sm font-semibold mb-2">Токены доступа</div>
+              <div className="text-sm text-text2">
+                Для безопасности токены площадок не хранятся во фронте и не записываются в PocketBase.
+                Храните их только на сервере в переменных окружения (см. `backend/pocketbase/SECRETS.example.md`).
               </div>
             </div>
           </div>

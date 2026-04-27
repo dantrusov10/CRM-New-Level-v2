@@ -104,3 +104,12 @@ npm run dev
 ```
 
 Now open the web app on http://localhost:5173 — API requests go through `/api` and bypass CORS.
+
+### Run Web (Windows PowerShell)
+
+```powershell
+cd apps/web
+Copy-Item .env.example .env
+npm i
+npm run dev
+```

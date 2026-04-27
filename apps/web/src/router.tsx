@@ -16,6 +16,7 @@ import { AdminParsersPage } from "./ui/pages/admin/AdminParsersPage";
 import { ImportExportPage } from "./ui/pages/ImportExportPage";
 import { CalendarPage } from "./ui/pages/CalendarPage";
 import { Protected } from "./ui/layout/Protected";
+import { AdminOnly } from "./ui/layout/AdminOnly";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -37,10 +38,10 @@ export const router = createBrowserRouter([
       { path: "companies/:id", element: <CompanyDetailPage /> },
       { path: "import-export", element: <ImportExportPage /> },
       { path: "calendar", element: <CalendarPage /> },
-      { path: "admin/users", element: <AdminUsersPage /> },
-      { path: "admin/funnel", element: <AdminFunnelPage /> },
-      { path: "admin/fields", element: <AdminFieldsPage /> },
-      { path: "admin/parsers", element: <AdminParsersPage /> },
+      { path: "admin/users", element: <AdminOnly><AdminUsersPage /></AdminOnly> },
+      { path: "admin/funnel", element: <AdminOnly><AdminFunnelPage /></AdminOnly> },
+      { path: "admin/fields", element: <AdminOnly><AdminFieldsPage /></AdminOnly> },
+      { path: "admin/parsers", element: <AdminOnly><AdminParsersPage /></AdminOnly> },
     ],
   },
   { path: "*", element: <Navigate to="/" replace /> },

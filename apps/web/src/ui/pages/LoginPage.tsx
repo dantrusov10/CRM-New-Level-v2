@@ -1,5 +1,5 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader } from "../components/Card";
 import { Input } from "../components/Input";
 import { Button } from "../components/Button";
@@ -55,6 +55,9 @@ export function LoginPage() {
             </div>
             {err ? <div className="text-sm text-danger">{err}</div> : null}
             <Button onClick={submit} disabled={loading || !email || !password}>{loading ? "Входим..." : "Войти"}</Button>
+            <div className="text-sm text-text2 text-center">
+              Еще нет кабинета? <Link to="/register" className="text-primary underline">Зарегистрироваться</Link>
+            </div>
           </div>
         </CardContent>
       </Card>

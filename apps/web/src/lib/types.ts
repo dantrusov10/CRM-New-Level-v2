@@ -97,7 +97,7 @@ export type AiInsight = {
   summary?: string;
   suggestions?: string;
   risks?: Record<string, unknown> | null;
-  explainability?: string;
+  explainability?: Record<string, unknown> | unknown;
   model?: string;
   token_usage?: Record<string, unknown> | null;
   trigger_event_id?: Id;

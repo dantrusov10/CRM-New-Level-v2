@@ -31,6 +31,7 @@ import { analyzeDealWithAi } from "../../../lib/aiGateway";
 
 type AnyObj = Record<string, unknown>;
 type TimelinePayload = Record<string, unknown>;
+type AiSection = { title: string; content: string };
 
 function formatMoney(v?: number | null) {
   if (typeof v !== "number") return "";
@@ -46,6 +47,91 @@ function scoreBadge(score?: number | null) {
   if (score >= 70) return { label: `Риск: низкий`, tone: "success" as const };
   if (score >= 40) return { label: `Риск: средний`, tone: "warning" as const };
   return { label: `Риск: высокий`, tone: "danger" as const };
+}
+
+function toSectionTitle(key: string) {
+  return key
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^./, (s) => s.toUpperCase());
+}
+
+function valueToText(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+/** Parse JSON or legacy Python-ish repr (single quotes) from older gateway rows. */
+function parseJsonLoose(text: string): unknown {
+  const t = text.trim();
+  if (!t) return null;
+  try {
+    return JSON.parse(t);
+  } catch {
+    /* empty */
+  }
+  try {
+    return JSON.parse(t.replace(/'/g, '"'));
+  } catch {
+    return null;
+  }
+}
+
+function formatRiskItem(item: unknown, index: number): string {
+  if (!item || typeof item !== "object" || Array.isArray(item)) {
+    return `${index + 1}. ${valueToText(item)}`.trim();
+  }
+  const o = item as Record<string, unknown>;
+  const name = String(o.name ?? o.title ?? `Риск ${index + 1}`);
+  const desc = String(o.description ?? o.details ?? "").trim();
+  const crit = o.criticality != null ? String(o.criticality) : "";
+  const prob = o.probability != null ? String(o.probability) : "";
+  const lines = [`${index + 1}. ${name}`];
+  if (desc) lines.push(`   ${desc}`);
+  if (crit) lines.push(`   Критичность: ${crit}`);
+  if (prob) lines.push(`   Вероятность: ${prob}%`);
+  return lines.join("\n");
+}
+
+function formatRisksForDisplay(raw: unknown): string {
+  if (raw == null) return "";
+  if (Array.isArray(raw)) {
+    return raw.map((x, i) => formatRiskItem(x, i)).join("\n\n");
+  }
+  if (typeof raw === "object") {
+    return formatRiskItem(raw, 0);
+  }
+  if (typeof raw === "string") {
+    const s = raw.trim();
+    if (!s) return "";
+    const parsed = parseJsonLoose(s);
+    if (parsed != null && parsed !== s) {
+      return formatRisksForDisplay(parsed);
+    }
+    return s;
+  }
+  return valueToText(raw);
+}
+
+function buildDynamicSections(insight: AiInsight | null): AiSection[] {
+  if (!insight || !insight.explainability || typeof insight.explainability !== "object") return [];
+  const source = insight.explainability as Record<string, unknown>;
+  const sections: AiSection[] = [];
+  const reserved = new Set(["score", "summary", "suggestions", "recommendations", "risks", "risk", "model", "usage", "token_usage"]);
+  for (const [key, raw] of Object.entries(source)) {
+    if (reserved.has(key)) continue;
+    const text = valueToText(raw);
+    if (!text) continue;
+    sections.push({ title: toSectionTitle(key), content: text });
+  }
+  return sections;
 }
 
 function FieldRow({
@@ -407,6 +493,8 @@ export function DealDetailPage() {
   const latestAi = ((aiQ.data ?? [])[0] ?? null) as AiInsight | null;
   const score = typeof latestAi?.score === "number" ? latestAi.score : typeof latestAi?.score_percent === "number" ? latestAi.score_percent : null;
   const sb = scoreBadge(score);
+  const dynamicSections = React.useMemo(() => buildDynamicSections(latestAi), [latestAi]);
+  const risksDisplay = React.useMemo(() => formatRisksForDisplay(latestAi?.risks), [latestAi?.risks]);
 
   const tlAll = (tlQ.data ?? []) as Array<TimelineItem & { expand?: { user_id?: { name?: string; email?: string } } }>;
   const tlFiltered = tlAll.filter((t) => {
@@ -807,7 +895,7 @@ export function DealDetailPage() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold">Сигналы и риски</div>
-                  <div className="text-xs text-text2 mt-1">Score + резюме + рекомендации + риски</div>
+                  <div className="text-xs text-text2 mt-1">Гибкий AI-отчет: любые секции (4/9/20+)</div>
                 </div>
                 <Button onClick={runAiAnalysis} disabled={aiRunLoading || !deal?.id}>
                   {aiRunLoading ? "AI анализ..." : "Запустить AI-анализ"}
@@ -841,14 +929,18 @@ export function DealDetailPage() {
                       <div className="text-sm mt-2 whitespace-pre-wrap">{latestAi.suggestions || latestAi.recommendations}</div>
                     </div>
                   ) : null}
-                  {latestAi.risks ? (
+                  {risksDisplay ? (
                     <div className="rounded-card border border-infoBorder bg-white p-3">
                       <div className="text-xs text-text2">Риски</div>
-                      <div className="text-sm mt-2 whitespace-pre-wrap">
-                        {typeof latestAi.risks === "string" ? latestAi.risks : JSON.stringify(latestAi.risks, null, 2)}
-                      </div>
+                      <div className="text-sm mt-2 whitespace-pre-wrap">{risksDisplay}</div>
                     </div>
                   ) : null}
+                  {dynamicSections.map((section, idx) => (
+                    <div key={`${section.title}-${idx}`} className="rounded-card border border-infoBorder bg-white p-3">
+                      <div className="text-xs text-text2">{section.title}</div>
+                      <div className="text-sm mt-2 whitespace-pre-wrap">{section.content}</div>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <div className="text-sm text-text2">

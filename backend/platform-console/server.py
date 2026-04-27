@@ -742,6 +742,108 @@ def _extract_json_object(text):
     return {}
 
 
+def _extract_json_value(text):
+    text = (text or "").strip()
+    if not text:
+        return None
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+    start_obj = text.find("{")
+    end_obj = text.rfind("}")
+    if start_obj >= 0 and end_obj > start_obj:
+        try:
+            return json.loads(text[start_obj : end_obj + 1])
+        except Exception:
+            pass
+    start_arr = text.find("[")
+    end_arr = text.rfind("]")
+    if start_arr >= 0 and end_arr > start_arr:
+        try:
+            return json.loads(text[start_arr : end_arr + 1])
+        except Exception:
+            pass
+    return None
+
+
+def _value_to_text(value):
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, (int, float, bool)):
+        return str(value)
+    try:
+        return json.dumps(value, ensure_ascii=False, indent=2)
+    except Exception:
+        return str(value)
+
+
+def _summarize_dynamic_sections(parsed):
+    if not isinstance(parsed, dict):
+        return "", "", None
+    reserved = {"score", "summary", "suggestions", "recommendations", "risks", "risk", "token_usage", "usage", "model"}
+    section_lines = []
+    risks_value = parsed.get("risks")
+    for key, value in parsed.items():
+        if key in reserved:
+            continue
+        if value is None:
+            continue
+        value_text = _value_to_text(value)
+        if not value_text:
+            continue
+        title = str(key).replace("_", " ").strip().capitalize()
+        section_lines.append(f"{title}:\n{value_text}")
+    summary = "\n\n".join(section_lines[:2]).strip()
+    suggestions = "\n\n".join(section_lines[2:5]).strip()
+    if risks_value is None:
+        risk_like = parsed.get("risk")
+        if risk_like is not None:
+            risks_value = risk_like
+    return summary, suggestions, risks_value
+
+
+def _normalize_ai_result(raw_content, parsed):
+    parsed_from_content = _extract_json_value(raw_content)
+    normalized_payload = parsed if isinstance(parsed, dict) else None
+    if isinstance(parsed_from_content, dict):
+        normalized_payload = parsed_from_content
+
+    score = 0
+    summary = ""
+    suggestions = ""
+    risks_value = None
+    if isinstance(normalized_payload, dict):
+        score_raw = normalized_payload.get("score", 0)
+        try:
+            score = max(0, min(100, int(float(score_raw))))
+        except Exception:
+            score = 0
+        summary = _value_to_text(normalized_payload.get("summary"))
+        suggestions = _value_to_text(normalized_payload.get("suggestions") or normalized_payload.get("recommendations"))
+        risks_value = normalized_payload.get("risks")
+        if not summary or not suggestions:
+            s2, rec2, risk2 = _summarize_dynamic_sections(normalized_payload)
+            if not summary:
+                summary = s2
+            if not suggestions:
+                suggestions = rec2
+            if risks_value is None:
+                risks_value = risk2
+    else:
+        summary = _value_to_text(parsed_from_content if parsed_from_content is not None else raw_content)
+
+    return {
+        "score": score,
+        "summary": summary,
+        "suggestions": suggestions,
+        "risks": risks_value,
+        "explainability": normalized_payload if normalized_payload is not None else parsed_from_content,
+    }
+
+
 def _audit_log(event, payload):
     try:
         line = {
@@ -772,8 +874,9 @@ def _run_openai_compatible(provider, engine, prompt):
             {
                 "role": "system",
                 "content": (
-                    "Ты AI-помощник отдела продаж. Отвечай строго JSON объектом: "
-                    '{"score": number 0..100, "summary": string, "suggestions": string, "risks": string}.'
+                    "Ты AI-помощник отдела продаж. Верни один валидный JSON без markdown. "
+                    "Разрешена гибкая структура с любым числом разделов; желательно включать score (0..100), "
+                    "summary, suggestions/recommendations и risks."
                 ),
             },
             {"role": "user", "content": prompt},
@@ -787,7 +890,7 @@ def _run_openai_compatible(provider, engine, prompt):
             content = str(((choices[0].get("message") or {}).get("content")) or "")
         parsed = _extract_json_object(content)
         usage = res.get("usage", {}) if isinstance(res, dict) else {}
-        return {"ok": True, "parsed": parsed, "usage": usage}
+        return {"ok": True, "parsed": parsed, "usage": usage, "content": content}
     except HTTPError as e:
         try:
             err_body = e.read().decode("utf-8")
@@ -834,8 +937,9 @@ def _run_gigachat(engine, prompt):
                 {
                     "role": "system",
                     "content": (
-                        "Ты AI-помощник отдела продаж. Отвечай строго JSON объектом: "
-                        '{"score": number 0..100, "summary": string, "suggestions": string, "risks": string}.'
+                        "Ты AI-помощник отдела продаж. Верни один валидный JSON без markdown. "
+                        "Разрешена гибкая структура с любым числом разделов; желательно включать score (0..100), "
+                        "summary, suggestions/recommendations и risks."
                     ),
                 },
                 {"role": "user", "content": prompt},
@@ -857,7 +961,7 @@ def _run_gigachat(engine, prompt):
             content = str(((choices[0].get("message") or {}).get("content")) or "")
         parsed = _extract_json_object(content)
         usage = res.get("usage", {}) if isinstance(res, dict) else {}
-        return {"ok": True, "parsed": parsed, "usage": usage}
+        return {"ok": True, "parsed": parsed, "usage": usage, "content": content}
     except HTTPError as e:
         try:
             err_body = e.read().decode("utf-8")
@@ -1118,7 +1222,11 @@ def run_ai_deal_analysis(payload):
         deal_prompt = (
             "Проанализируй сделку и дай оценку риска/шансов. Учитывай динамику комментариев, заметки, timeline и предыдущие AI-оценки."
         )
-    prompt = f"{deal_prompt}\nКонтекст сделки (JSON): {json.dumps(full_context, ensure_ascii=False)}\nВерни JSON без markdown."
+    prompt = (
+        f"{deal_prompt}\n"
+        f"Контекст сделки (JSON): {json.dumps(full_context, ensure_ascii=False)}\n"
+        "Формат ответа: один валидный JSON-объект без markdown и без текста вне JSON."
+    )
 
     llm_result = _run_provider(primary_provider, primary_engine, prompt)
     used_provider = primary_provider
@@ -1186,15 +1294,14 @@ def run_ai_deal_analysis(payload):
         return {"ok": False, "error": err}
 
     parsed = llm_result.get("parsed", {}) if isinstance(llm_result.get("parsed"), dict) else {}
+    raw_content = str(llm_result.get("content", "") or "")
     usage = llm_result.get("usage", {}) if isinstance(llm_result.get("usage"), dict) else {}
-    score = parsed.get("score", 0)
-    try:
-        score = max(0, min(100, int(float(score))))
-    except Exception:
-        score = 0
-    summary = str(parsed.get("summary", "")).strip()
-    suggestions = str(parsed.get("suggestions", "")).strip()
-    risks_text = str(parsed.get("risks", "")).strip()
+    normalized = _normalize_ai_result(raw_content, parsed)
+    score = normalized.get("score", 0)
+    summary = str(normalized.get("summary", "")).strip()
+    suggestions = str(normalized.get("suggestions", "")).strip()
+    risks_value = normalized.get("risks")
+    explainability = normalized.get("explainability")
     total_tokens = usage.get("total_tokens", 0) if isinstance(usage, dict) else 0
     try:
         total_tokens = float(total_tokens or 0)
@@ -1209,7 +1316,8 @@ def run_ai_deal_analysis(payload):
             "score": score,
             "summary": summary,
             "suggestions": suggestions,
-            "risks": risks_text,
+            "risks": risks_value,
+            "explainability": explainability,
             "model": f"{used_provider}:{used_engine}",
             "token_usage": total_tokens,
             "created_by": user_id or None,
@@ -1311,8 +1419,9 @@ def default_routing_matrix():
         },
         "prompts": {
             "deal_analysis": (
-                "Ты AI-ассистент CRM по B2B продажам. Проанализируй контекст сделки и верни строго JSON: "
-                '{"score": number 0..100, "summary": string, "suggestions": string, "risks": string}. '
+                "Ты AI-ассистент CRM по B2B продажам. Проанализируй контекст сделки и верни один валидный JSON "
+                "без markdown с гибкой структурой разделов (4, 9, 20+ — сколько нужно по задаче). "
+                "Желательно включать score (0..100), summary, suggestions/recommendations и risks. "
                 "Учитывай историю коммуникации, динамику событий и обязательства клиента."
             )
         },

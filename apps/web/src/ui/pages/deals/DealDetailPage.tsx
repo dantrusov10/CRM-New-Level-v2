@@ -81,12 +81,12 @@ function tryParseHeadingPlusJson(block: string): { title: string; body: unknown 
 function AiStructuredValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
   if (value == null) return null;
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    return <span className="text-sm text-foreground leading-relaxed">{String(value)}</span>;
+    return <span className="text-sm leading-relaxed text-text">{String(value)}</span>;
   }
   if (Array.isArray(value)) {
     if (value.every((x) => typeof x === "string" || typeof x === "number")) {
       return (
-        <ul className="list-disc space-y-1.5 pl-4 text-sm leading-relaxed marker:text-primary/70">
+        <ul className="list-disc space-y-1.5 pl-4 text-sm leading-relaxed text-text marker:text-primary/80">
           {value.map((x, i) => (
             <li key={i} className="pl-0.5">
               {String(x)}
@@ -98,10 +98,7 @@ function AiStructuredValue({ value, depth = 0 }: { value: unknown; depth?: numbe
     return (
       <div className={`grid gap-2 ${depth > 0 ? "mt-1" : ""}`}>
         {value.map((x, i) => (
-          <div
-            key={i}
-            className="rounded-lg border border-infoBorder/70 bg-white/90 px-3 py-2 shadow-sm dark:bg-slate-950/40 dark:border-infoBorder/50"
-          >
+          <div key={i} className="rounded-lg border border-border bg-rowHover/80 px-3 py-2">
             <AiStructuredValue value={x} depth={depth + 1} />
           </div>
         ))}
@@ -115,10 +112,10 @@ function AiStructuredValue({ value, depth = 0 }: { value: unknown; depth?: numbe
     return (
       <dl className={`grid gap-2.5 ${depth > 0 ? "mt-1" : ""}`}>
         {entries.map(([k, v]) => (
-          <div key={k} className="rounded-md border-l-2 border-primary/35 bg-white/60 pl-3 pr-2 py-1.5 dark:bg-slate-900/35">
+          <div key={k} className="rounded-md border-l-2 border-primary/50 bg-[rgba(255,255,255,0.04)] pl-3 pr-2 py-2">
             <dt className="text-[11px] font-semibold uppercase tracking-wide text-text2">{toSectionTitle(k)}</dt>
             <dd className="mt-1">
-              {typeof v === "object" ? <AiStructuredValue value={v} depth={depth + 1} /> : <span className="text-sm text-foreground">{String(v)}</span>}
+              {typeof v === "object" ? <AiStructuredValue value={v} depth={depth + 1} /> : <span className="text-sm text-text">{String(v)}</span>}
             </dd>
           </div>
         ))}
@@ -137,7 +134,7 @@ function SmartStringContent({ text }: { text: string }) {
   }
   const blocks = trimmed.split(/\n{2,}/).map((b) => b.trim()).filter(Boolean);
   if (blocks.length <= 1) {
-    return <div className="text-sm whitespace-pre-wrap leading-relaxed text-foreground">{text}</div>;
+    return <div className="text-sm whitespace-pre-wrap leading-relaxed text-text">{text}</div>;
   }
   return (
     <div className="grid gap-4">
@@ -145,11 +142,8 @@ function SmartStringContent({ text }: { text: string }) {
         const headed = tryParseHeadingPlusJson(block);
         if (headed) {
           return (
-            <div
-              key={i}
-              className="rounded-lg border border-border bg-gradient-to-b from-white to-slate-50/90 p-3 shadow-sm dark:from-slate-900/80 dark:to-slate-950/60 dark:border-border/80"
-            >
-              <div className="text-xs font-semibold text-foreground mb-2 border-b border-border/60 pb-1.5">{headed.title}</div>
+            <div key={i} className="rounded-lg border border-border bg-rowHover/60 p-3">
+              <div className="mb-2 border-b border-border/70 pb-1.5 text-xs font-semibold text-text">{headed.title}</div>
               <AiStructuredValue value={headed.body} />
             </div>
           );
@@ -157,13 +151,13 @@ function SmartStringContent({ text }: { text: string }) {
         const parsed = parseJsonLoose(block);
         if (parsed !== null && typeof parsed !== "string") {
           return (
-            <div key={i} className="rounded-lg border border-border/70 bg-white/90 p-3 dark:bg-slate-950/35">
+            <div key={i} className="rounded-lg border border-border bg-rowHover/60 p-3">
               <AiStructuredValue value={parsed} />
             </div>
           );
         }
         return (
-          <div key={i} className="text-sm whitespace-pre-wrap leading-relaxed text-foreground">
+          <div key={i} className="text-sm whitespace-pre-wrap leading-relaxed text-text">
             {block}
           </div>
         );
@@ -186,7 +180,7 @@ function AiRisksVisual({ raw }: { raw: unknown }) {
         {parsed.map((item, index) => {
           if (!item || typeof item !== "object" || Array.isArray(item)) {
             return (
-              <div key={index} className="rounded-lg border border-border/80 bg-white/90 px-3 py-2 text-sm dark:bg-slate-950/40">
+              <div key={index} className="rounded-lg border border-border bg-rowHover/80 px-3 py-2 text-sm text-text">
                 {String(item)}
               </div>
             );
@@ -199,24 +193,24 @@ function AiRisksVisual({ raw }: { raw: unknown }) {
           return (
             <div
               key={index}
-              className="rounded-lg border border-amber-200/80 bg-amber-50/50 px-3 py-2.5 dark:border-amber-900/50 dark:bg-amber-950/25"
+              className="rounded-lg border border-amber-500/35 bg-[rgba(251,191,36,0.07)] px-3 py-2.5"
             >
               <div className="flex flex-wrap items-baseline gap-2">
-                <span className="text-sm font-semibold text-foreground">
+                <span className="text-sm font-semibold text-text">
                   {index + 1}. {name}
                 </span>
                 {crit ? (
-                  <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-medium uppercase text-text2 ring-1 ring-border dark:bg-slate-900/80">
+                  <span className="rounded-full border border-border bg-card px-2 py-0.5 text-[10px] font-medium uppercase text-text2">
                     {crit}
                   </span>
                 ) : null}
                 {prob ? (
-                  <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-medium text-text2 ring-1 ring-border dark:bg-slate-900/80">
+                  <span className="rounded-full border border-border bg-card px-2 py-0.5 text-[10px] font-medium text-text2">
                     {prob}%
                   </span>
                 ) : null}
               </div>
-              {desc ? <p className="mt-1.5 text-sm leading-relaxed text-foreground/90">{desc}</p> : null}
+              {desc ? <p className="mt-1.5 text-sm leading-relaxed text-text">{desc}</p> : null}
             </div>
           );
         })}
@@ -800,7 +794,7 @@ export function DealDetailPage() {
 
       {/* MAIN AREA */}
       <div className="grid grid-cols-12 gap-4">
-        <div className="col-span-8 grid gap-4">
+        <div className="col-span-12 min-w-0 xl:col-span-8 grid gap-4">
           {tab === "overview" ? (
             <Card>
               <CardHeader>
@@ -1047,8 +1041,8 @@ export function DealDetailPage() {
           ) : null}
         </div>
 
-        {/* SIDEBAR */}
-        <div className="col-span-4 grid gap-4">
+        {/* SIDEBAR: комментарии; AI-отчёт вынесен на полную ширину ниже */}
+        <div className="col-span-12 min-w-0 xl:col-span-4 grid gap-4">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -1117,10 +1111,12 @@ export function DealDetailPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
 
+        <div className="col-span-12 min-w-0">
           <Card className="border-infoBorder bg-infoBg">
             <CardHeader className="border-infoBorder">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold">Сигналы и риски</div>
                   <div className="text-xs text-text2 mt-1">Отчёт по сделке: структурированные блоки из ответа модели</div>
@@ -1135,20 +1131,20 @@ export function DealDetailPage() {
               {aiQ.isLoading ? (
                 <div className="text-sm text-text2">Загрузка...</div>
               ) : latestAi ? (
-                <div className="grid gap-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="lg:col-span-2 flex flex-wrap items-start justify-between gap-3">
                     <div className="flex items-center gap-2 flex-wrap">
                       <Badge>{sb.label}</Badge>
                       <Badge>Compliance: Balanced</Badge>
                     </div>
                     <div className="text-right">
                       <div className="text-xs text-text2">Score</div>
-                      <div className="text-[26px] font-semibold leading-none">{typeof score === "number" ? `${score}/100` : "—"}</div>
+                      <div className="text-[26px] font-semibold leading-none text-text">{typeof score === "number" ? `${score}/100` : "—"}</div>
                       <div className="text-xs text-text2 mt-1">Версия: {latestAi.created ? dayjs(latestAi.created).format("DD.MM.YYYY") : "—"}</div>
                     </div>
                   </div>
                   {latestAi.summary ? (
-                    <div className="rounded-xl border border-infoBorder/90 bg-white p-4 shadow-sm dark:bg-slate-950/50">
+                    <div className="rounded-xl border border-infoBorder bg-card/90 p-4 lg:col-span-2">
                       <div className="text-xs font-semibold uppercase tracking-wide text-text2">Резюме</div>
                       <div className="mt-3">
                         <SmartStringContent text={latestAi.summary} />
@@ -1156,7 +1152,7 @@ export function DealDetailPage() {
                     </div>
                   ) : null}
                   {latestAi.suggestions || latestAi.recommendations ? (
-                    <div className="rounded-xl border border-infoBorder/90 bg-white p-4 shadow-sm dark:bg-slate-950/50">
+                    <div className="rounded-xl border border-infoBorder bg-card/90 p-4 lg:col-span-2">
                       <div className="text-xs font-semibold uppercase tracking-wide text-text2">Рекомендации</div>
                       <div className="mt-3">
                         <SmartStringContent text={String(latestAi.suggestions || latestAi.recommendations || "")} />
@@ -1164,7 +1160,7 @@ export function DealDetailPage() {
                     </div>
                   ) : null}
                   {latestAi.risks ? (
-                    <div className="rounded-xl border border-infoBorder/90 bg-white p-4 shadow-sm dark:bg-slate-950/50">
+                    <div className="rounded-xl border border-infoBorder bg-card/90 p-4">
                       <div className="text-xs font-semibold uppercase tracking-wide text-text2">Риски</div>
                       <div className="mt-3">
                         <AiRisksVisual raw={latestAi.risks} />
@@ -1172,12 +1168,9 @@ export function DealDetailPage() {
                     </div>
                   ) : null}
                   {dynamicSections.map((section, idx) => (
-                    <div
-                      key={`${section.title}-${idx}`}
-                      className="rounded-xl border border-border/90 bg-gradient-to-b from-white to-slate-50/80 p-4 shadow-sm dark:from-slate-900/60 dark:to-slate-950/50 dark:border-border/70"
-                    >
+                    <div key={`${section.title}-${idx}`} className="rounded-xl border border-border bg-card/90 p-4">
                       <div className="text-xs font-semibold uppercase tracking-wide text-text2">{section.title}</div>
-                      <div className="mt-3">
+                      <div className="mt-3 min-w-0">
                         <AiInsightSectionBody value={section.raw} />
                       </div>
                     </div>

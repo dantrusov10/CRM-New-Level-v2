@@ -107,6 +107,7 @@ python3 /opt/pb-control/ai-cost-dashboard.py
   - `POST /owner/api/public/ai/analyze-deal`
   - записывает результат в tenant PocketBase: `ai_insights`, `timeline`, `deals.current_score/current_recommendations`
   - frontend env: `VITE_AI_GATEWAY_URL`
+  - поддержка `gigachat` (OAuth + chat completions), а также OpenAI-compatible провайдеров (`deepseek`, `qwen`, `openai`, ...)
 
 ## AI, парсеры и продажи
 

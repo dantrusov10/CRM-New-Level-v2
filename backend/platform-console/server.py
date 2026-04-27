@@ -5,6 +5,7 @@ import json
 import os
 import secrets
 import sqlite3
+import uuid
 from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.error import HTTPError, URLError
@@ -112,11 +113,11 @@ INDEX_HTML = """<!doctype html>
         <div class="row" style="margin-top:8px;">
           <div>
             <label title="Короткий код, которым ты будешь оперировать в маршрутизации">Код провайдера</label>
-            <input id="secretProvider" type="text" placeholder="например: deepseek"/>
+            <input id="secretProvider" type="text" placeholder="например: gigachat / deepseek / qwen"/>
           </div>
           <div>
             <label title="API токен провайдера. После сохранения не отображается.">Токен провайдера</label>
-            <input id="secretToken" type="password" placeholder="вставь токен"/>
+            <input id="secretToken" type="password" placeholder="для gigachat: Authorization Key из ЛК"/>
           </div>
           <div>
             <label title="Быстрая проверка: есть ли токен у выбранного провайдера">Проверка провайдера</label>
@@ -576,7 +577,7 @@ def _provider_defaults(provider):
         "openai": "https://api.openai.com/v1",
         "anthropic": "",
         "gemini": "",
-        "gigachat": "",
+        "gigachat": "https://gigachat.devices.sberbank.ru/api/v1",
     }
     return defaults.get(p, "")
 
@@ -736,8 +737,82 @@ def _run_openai_compatible(provider, engine, prompt):
         return {"ok": False, "error": f"http {e.code}: {err_body}"}
     except URLError as e:
         return {"ok": False, "error": str(e)}
+
+
+def _run_gigachat(engine, prompt):
+    creds = _provider_creds("gigachat")
+    auth_key = creds.get("api_key", "")
+    base_url = creds.get("base_url", "").rstrip("/") or "https://gigachat.devices.sberbank.ru/api/v1"
+    if not auth_key:
+        return {"ok": False, "error": "token for provider 'gigachat' is missing"}
+
+    oauth_url = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
+    rq_uid = str(uuid.uuid4())
+    oauth_headers = {
+        "Authorization": f"Basic {auth_key}",
+        "RqUID": rq_uid,
+        "Content-Type": "application/x-www-form-urlencoded",
+    }
+    oauth_req = Request(
+        url=oauth_url,
+        data=b"scope=GIGACHAT_API_PERS",
+        headers=oauth_headers,
+        method="POST",
+    )
+
+    try:
+        with urlopen(oauth_req, timeout=40) as r:
+            oauth_raw = r.read().decode("utf-8")
+        oauth_data = json.loads(oauth_raw) if oauth_raw else {}
+        access_token = str(oauth_data.get("access_token", "")).strip()
+        if not access_token:
+            return {"ok": False, "error": "gigachat oauth failed: no access_token"}
+
+        payload = {
+            "model": engine or "GigaChat-2",
+            "temperature": 0.2,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "Ты AI-помощник отдела продаж. Отвечай строго JSON объектом: "
+                        '{"score": number 0..100, "summary": string, "suggestions": string, "risks": string}.'
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+        }
+        res = _http_json(
+            "POST",
+            f"{base_url}/chat/completions",
+            payload,
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=60,
+        )
+        choices = res.get("choices", []) if isinstance(res, dict) else []
+        content = ""
+        if choices and isinstance(choices[0], dict):
+            content = str(((choices[0].get("message") or {}).get("content")) or "")
+        parsed = _extract_json_object(content)
+        usage = res.get("usage", {}) if isinstance(res, dict) else {}
+        return {"ok": True, "parsed": parsed, "usage": usage}
+    except HTTPError as e:
+        try:
+            err_body = e.read().decode("utf-8")
+        except Exception:
+            err_body = str(e)
+        return {"ok": False, "error": f"http {e.code}: {err_body}"}
+    except URLError as e:
+        return {"ok": False, "error": str(e)}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+def _run_provider(provider, engine, prompt):
+    p = str(provider).strip().lower()
+    if p == "gigachat":
+        return _run_gigachat(engine, prompt)
+    return _run_openai_compatible(p, engine, prompt)
 
 
 def _auth_tenant_admin(pb_url):
@@ -815,11 +890,11 @@ def run_ai_deal_analysis(payload):
         "Верни JSON без markdown."
     )
 
-    llm_result = _run_openai_compatible(primary_provider, primary_engine, prompt)
+    llm_result = _run_provider(primary_provider, primary_engine, prompt)
     used_provider = primary_provider
     used_engine = primary_engine
     if not llm_result.get("ok") and fallback_provider and fallback_engine:
-        llm_result = _run_openai_compatible(fallback_provider, fallback_engine, prompt)
+        llm_result = _run_provider(fallback_provider, fallback_engine, prompt)
         used_provider = fallback_provider
         used_engine = fallback_engine
     if not llm_result.get("ok"):

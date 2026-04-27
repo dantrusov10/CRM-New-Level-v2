@@ -31,7 +31,201 @@ import { analyzeDealWithAi } from "../../../lib/aiGateway";
 
 type AnyObj = Record<string, unknown>;
 type TimelinePayload = Record<string, unknown>;
-type AiSection = { title: string; content: string };
+type AiSection = { title: string; raw: unknown };
+
+function extractScoreFromExplainability(ex: unknown): number | null {
+  if (!ex || typeof ex !== "object" || Array.isArray(ex)) return null;
+  const o = ex as Record<string, unknown>;
+  const tryNum = (v: unknown): number | null => {
+    if (typeof v === "number" && Number.isFinite(v)) return Math.max(0, Math.min(100, Math.round(v)));
+    if (typeof v === "string" && /^\s*\d+(\.\d+)?\s*$/.test(v)) {
+      const n = Math.round(Number(v.trim()));
+      return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : null;
+    }
+    return null;
+  };
+  for (const k of ["probability", "Probability", "score", "Score", "deal_probability", "dealProbability", "current_score", "Current score"]) {
+    const n = tryNum(o[k]);
+    if (n != null && n > 0) return n;
+  }
+  return null;
+}
+
+function resolveDisplayScore(insight: AiInsight | null): number | null {
+  if (!insight) return null;
+  const direct = typeof insight.score === "number" ? insight.score : null;
+  const alt = typeof insight.score_percent === "number" ? insight.score_percent : null;
+  const fromEx = extractScoreFromExplainability(insight.explainability);
+  if (direct != null && direct > 0) return direct;
+  if (fromEx != null) return fromEx;
+  if (alt != null && alt > 0) return alt;
+  if (direct != null) return direct;
+  return alt;
+}
+
+function tryParseHeadingPlusJson(block: string): { title: string; body: unknown } | null {
+  const trimmed = block.trim();
+  const sameLine = trimmed.match(/^([^:\n]{2,100}):\s*(\{[\s\S]*\}|\[[\s\S]*\])\s*$/);
+  if (sameLine) {
+    const parsed = parseJsonLoose(sameLine[2]);
+    if (parsed !== null && typeof parsed !== "string") return { title: sameLine[1].trim(), body: parsed };
+  }
+  const multiline = trimmed.match(/^([^:\n]{2,100}):\s*\n([\s\S]+)$/);
+  if (multiline) {
+    const parsed = parseJsonLoose(multiline[2].trim());
+    if (parsed !== null && typeof parsed !== "string") return { title: multiline[1].trim(), body: parsed };
+  }
+  return null;
+}
+
+function AiStructuredValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
+  if (value == null) return null;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return <span className="text-sm text-foreground leading-relaxed">{String(value)}</span>;
+  }
+  if (Array.isArray(value)) {
+    if (value.every((x) => typeof x === "string" || typeof x === "number")) {
+      return (
+        <ul className="list-disc space-y-1.5 pl-4 text-sm leading-relaxed marker:text-primary/70">
+          {value.map((x, i) => (
+            <li key={i} className="pl-0.5">
+              {String(x)}
+            </li>
+          ))}
+        </ul>
+      );
+    }
+    return (
+      <div className={`grid gap-2 ${depth > 0 ? "mt-1" : ""}`}>
+        {value.map((x, i) => (
+          <div
+            key={i}
+            className="rounded-lg border border-infoBorder/70 bg-white/90 px-3 py-2 shadow-sm dark:bg-slate-950/40 dark:border-infoBorder/50"
+          >
+            <AiStructuredValue value={x} depth={depth + 1} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (typeof value === "object") {
+    const o = value as Record<string, unknown>;
+    const entries = Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== "");
+    if (!entries.length) return null;
+    return (
+      <dl className={`grid gap-2.5 ${depth > 0 ? "mt-1" : ""}`}>
+        {entries.map(([k, v]) => (
+          <div key={k} className="rounded-md border-l-2 border-primary/35 bg-white/60 pl-3 pr-2 py-1.5 dark:bg-slate-900/35">
+            <dt className="text-[11px] font-semibold uppercase tracking-wide text-text2">{toSectionTitle(k)}</dt>
+            <dd className="mt-1">
+              {typeof v === "object" ? <AiStructuredValue value={v} depth={depth + 1} /> : <span className="text-sm text-foreground">{String(v)}</span>}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    );
+  }
+  return null;
+}
+
+function SmartStringContent({ text }: { text: string }) {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  const whole = parseJsonLoose(trimmed);
+  if (whole !== null && typeof whole !== "string") {
+    return <AiStructuredValue value={whole} />;
+  }
+  const blocks = trimmed.split(/\n{2,}/).map((b) => b.trim()).filter(Boolean);
+  if (blocks.length <= 1) {
+    return <div className="text-sm whitespace-pre-wrap leading-relaxed text-foreground">{text}</div>;
+  }
+  return (
+    <div className="grid gap-4">
+      {blocks.map((block, i) => {
+        const headed = tryParseHeadingPlusJson(block);
+        if (headed) {
+          return (
+            <div
+              key={i}
+              className="rounded-lg border border-border bg-gradient-to-b from-white to-slate-50/90 p-3 shadow-sm dark:from-slate-900/80 dark:to-slate-950/60 dark:border-border/80"
+            >
+              <div className="text-xs font-semibold text-foreground mb-2 border-b border-border/60 pb-1.5">{headed.title}</div>
+              <AiStructuredValue value={headed.body} />
+            </div>
+          );
+        }
+        const parsed = parseJsonLoose(block);
+        if (parsed !== null && typeof parsed !== "string") {
+          return (
+            <div key={i} className="rounded-lg border border-border/70 bg-white/90 p-3 dark:bg-slate-950/35">
+              <AiStructuredValue value={parsed} />
+            </div>
+          );
+        }
+        return (
+          <div key={i} className="text-sm whitespace-pre-wrap leading-relaxed text-foreground">
+            {block}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function AiInsightSectionBody({ value }: { value: unknown }) {
+  if (typeof value === "string") return <SmartStringContent text={value} />;
+  return <AiStructuredValue value={value} />;
+}
+
+function AiRisksVisual({ raw }: { raw: unknown }) {
+  const parsed: unknown =
+    typeof raw === "string" ? parseJsonLoose(raw.trim()) || raw : raw;
+  if (Array.isArray(parsed)) {
+    return (
+      <div className="grid gap-3">
+        {parsed.map((item, index) => {
+          if (!item || typeof item !== "object" || Array.isArray(item)) {
+            return (
+              <div key={index} className="rounded-lg border border-border/80 bg-white/90 px-3 py-2 text-sm dark:bg-slate-950/40">
+                {String(item)}
+              </div>
+            );
+          }
+          const o = item as Record<string, unknown>;
+          const name = String(o.name ?? o.title ?? `Риск ${index + 1}`);
+          const desc = String(o.description ?? o.details ?? "").trim();
+          const crit = o.criticality != null ? String(o.criticality) : "";
+          const prob = o.probability != null ? String(o.probability) : "";
+          return (
+            <div
+              key={index}
+              className="rounded-lg border border-amber-200/80 bg-amber-50/50 px-3 py-2.5 dark:border-amber-900/50 dark:bg-amber-950/25"
+            >
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span className="text-sm font-semibold text-foreground">
+                  {index + 1}. {name}
+                </span>
+                {crit ? (
+                  <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-medium uppercase text-text2 ring-1 ring-border dark:bg-slate-900/80">
+                    {crit}
+                  </span>
+                ) : null}
+                {prob ? (
+                  <span className="rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-medium text-text2 ring-1 ring-border dark:bg-slate-900/80">
+                    {prob}%
+                  </span>
+                ) : null}
+              </div>
+              {desc ? <p className="mt-1.5 text-sm leading-relaxed text-foreground/90">{desc}</p> : null}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+  const text = formatRisksForDisplay(raw);
+  return text ? <div className="text-sm whitespace-pre-wrap leading-relaxed">{text}</div> : null;
+}
 
 function formatMoney(v?: number | null) {
   if (typeof v !== "number") return "";
@@ -125,11 +319,25 @@ function buildDynamicSections(insight: AiInsight | null): AiSection[] {
   const source = insight.explainability as Record<string, unknown>;
   const sections: AiSection[] = [];
   const reserved = new Set(["score", "summary", "suggestions", "recommendations", "risks", "risk", "model", "usage", "token_usage"]);
+  const seenTitles = new Set<string>();
+  const seenSigs = new Set<string>();
   for (const [key, raw] of Object.entries(source)) {
-    if (reserved.has(key)) continue;
+    if (reserved.has(key.toLowerCase())) continue;
+    if (raw === undefined || raw === null || raw === "") continue;
     const text = valueToText(raw);
     if (!text) continue;
-    sections.push({ title: toSectionTitle(key), content: text });
+    const title = toSectionTitle(key);
+    const nt = title.toLowerCase();
+    let sig: string;
+    try {
+      sig = JSON.stringify(raw);
+    } catch {
+      sig = text;
+    }
+    if (seenTitles.has(nt) || seenSigs.has(sig)) continue;
+    seenTitles.add(nt);
+    seenSigs.add(sig);
+    sections.push({ title, raw });
   }
   return sections;
 }
@@ -512,10 +720,9 @@ export function DealDetailPage() {
   }
 
   const latestAi = ((aiQ.data ?? [])[0] ?? null) as AiInsight | null;
-  const score = typeof latestAi?.score === "number" ? latestAi.score : typeof latestAi?.score_percent === "number" ? latestAi.score_percent : null;
+  const score = resolveDisplayScore(latestAi);
   const sb = scoreBadge(score);
   const dynamicSections = React.useMemo(() => buildDynamicSections(latestAi), [latestAi]);
-  const risksDisplay = React.useMemo(() => formatRisksForDisplay(latestAi?.risks), [latestAi?.risks]);
 
   const tlAll = (tlQ.data ?? []) as Array<TimelineItem & { expand?: { user_id?: { name?: string; email?: string } } }>;
   const tlFiltered = tlAll.filter((t) => {
@@ -916,7 +1123,7 @@ export function DealDetailPage() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold">Сигналы и риски</div>
-                  <div className="text-xs text-text2 mt-1">Гибкий AI-отчет: любые секции (4/9/20+)</div>
+                  <div className="text-xs text-text2 mt-1">Отчёт по сделке: структурированные блоки из ответа модели</div>
                 </div>
                 <Button onClick={runAiAnalysis} disabled={aiRunLoading || !deal?.id}>
                   {aiRunLoading ? "AI анализ..." : "Запустить AI-анализ"}
@@ -928,38 +1135,51 @@ export function DealDetailPage() {
               {aiQ.isLoading ? (
                 <div className="text-sm text-text2">Загрузка...</div>
               ) : latestAi ? (
-                <div className="grid gap-3">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge>{sb.label}</Badge>
-                    <Badge>Compliance: Balanced</Badge>
-                  </div>
-                  <div className="text-sm">
-                    <div className="text-xs text-text2">Score</div>
-                    <div className="text-[26px] font-semibold">{typeof score === "number" ? `${score}/100` : "—"}</div>
-                    <div className="text-xs text-text2 mt-1">Версия: {latestAi.created ? dayjs(latestAi.created).format("DD.MM.YYYY") : "—"}</div>
+                <div className="grid gap-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge>{sb.label}</Badge>
+                      <Badge>Compliance: Balanced</Badge>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-text2">Score</div>
+                      <div className="text-[26px] font-semibold leading-none">{typeof score === "number" ? `${score}/100` : "—"}</div>
+                      <div className="text-xs text-text2 mt-1">Версия: {latestAi.created ? dayjs(latestAi.created).format("DD.MM.YYYY") : "—"}</div>
+                    </div>
                   </div>
                   {latestAi.summary ? (
-                    <div className="rounded-card border border-infoBorder bg-white p-3">
-                      <div className="text-xs text-text2">Резюме</div>
-                      <div className="text-sm mt-2 whitespace-pre-wrap">{latestAi.summary}</div>
+                    <div className="rounded-xl border border-infoBorder/90 bg-white p-4 shadow-sm dark:bg-slate-950/50">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-text2">Резюме</div>
+                      <div className="mt-3">
+                        <SmartStringContent text={latestAi.summary} />
+                      </div>
                     </div>
                   ) : null}
                   {latestAi.suggestions || latestAi.recommendations ? (
-                    <div className="rounded-card border border-infoBorder bg-white p-3">
-                      <div className="text-xs text-text2">Рекомендации</div>
-                      <div className="text-sm mt-2 whitespace-pre-wrap">{latestAi.suggestions || latestAi.recommendations}</div>
+                    <div className="rounded-xl border border-infoBorder/90 bg-white p-4 shadow-sm dark:bg-slate-950/50">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-text2">Рекомендации</div>
+                      <div className="mt-3">
+                        <SmartStringContent text={String(latestAi.suggestions || latestAi.recommendations || "")} />
+                      </div>
                     </div>
                   ) : null}
-                  {risksDisplay ? (
-                    <div className="rounded-card border border-infoBorder bg-white p-3">
-                      <div className="text-xs text-text2">Риски</div>
-                      <div className="text-sm mt-2 whitespace-pre-wrap">{risksDisplay}</div>
+                  {latestAi.risks ? (
+                    <div className="rounded-xl border border-infoBorder/90 bg-white p-4 shadow-sm dark:bg-slate-950/50">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-text2">Риски</div>
+                      <div className="mt-3">
+                        <AiRisksVisual raw={latestAi.risks} />
+                      </div>
                     </div>
                   ) : null}
                   {dynamicSections.map((section, idx) => (
-                    <div key={`${section.title}-${idx}`} className="rounded-card border border-infoBorder bg-white p-3">
-                      <div className="text-xs text-text2">{section.title}</div>
-                      <div className="text-sm mt-2 whitespace-pre-wrap">{section.content}</div>
+                    <div
+                      key={`${section.title}-${idx}`}
+                      className="rounded-xl border border-border/90 bg-gradient-to-b from-white to-slate-50/80 p-4 shadow-sm dark:from-slate-900/60 dark:to-slate-950/50 dark:border-border/70"
+                    >
+                      <div className="text-xs font-semibold uppercase tracking-wide text-text2">{section.title}</div>
+                      <div className="mt-3">
+                        <AiInsightSectionBody value={section.raw} />
+                      </div>
                     </div>
                   ))}
                 </div>

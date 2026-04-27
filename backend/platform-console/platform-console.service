@@ -1,0 +1,18 @@
+[Unit]
+Description=Founder AI Platform Console
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/pb-control
+Environment=CONTROL_DB_PATH=/opt/pb-control/pb_data/data.db
+Environment=PLATFORM_CONSOLE_HOST=127.0.0.1
+Environment=PLATFORM_CONSOLE_PORT=8181
+ExecStart=/usr/bin/python3 /opt/pb-control/platform-console/server.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+

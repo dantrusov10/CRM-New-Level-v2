@@ -1,101 +1,55 @@
-# CRM «Решение» — репозиторий (MVP / internal)
+# CRM New Level v3
 
-Этот репозиторий собран **строго по вложенным материалам**:
-- ТЗ/паспорт функционала
-- Design System
-- PocketBase collections (v2 auth patch)
-- Postgres schema (для альтернативного бэкенда / future-proof)
+Единый репозиторий CRM продукта, server-side автоматизации по клиентам и платформенного AI-контроля.
 
-## Состав
-- `apps/web` — фронтенд (React + Vite + TS + Tailwind) с готовым UI/UX
-- `backend/pocketbase` — конфиг и импорт коллекций PocketBase
-- `db/postgres` — SQL схема (если решите уехать на Postgres)
+## Версия
 
----
+Текущая точка версии: **v3.0.0**  
+Эта версия фиксирует:
+- self-service регистрацию клиента с ручным approve,
+- автопровижининг tenant PocketBase,
+- создание первого пользователя клиента,
+- платформенный AI control layer в главной БД (`control`).
 
-## Быстрый старт (локально)
+## Архитектура
 
-### 1) PocketBase
-> PocketBase бинарник в репозитории **не хранится** (его лучше скачивать под свою ОС).
-1. Скачайте PocketBase с официального GitHub релиза (под вашу OS/arch).
-2. Положите бинарник в `backend/pocketbase/pb` (или добавьте в PATH как `pocketbase`).
+### Контуры
+- `app.nwlvl.ru` — продукт CRM (frontend).
+- `control.nwlvl.ru` — главная platform DB (тенанты, биллинг, AI политика, usage/cost).
+- `pb.nwlvl.ru` и `*.nwlvl.ru` — клиентские PocketBase инстансы.
+- `cms-api.nwlvl.ru` — отдельный CMS-контур (не связан с tenant CRM данными).
 
-Инициализация:
-```bash
-cd backend/pocketbase
-# создаст data/ и применит коллекции из json
-./init.sh
-# запуск
-./run.sh
-```
+### Репозиторий
+- `apps/web` — frontend CRM (React + Vite + TS + Tailwind).
+- `backend/pocketbase` — исходный шаблон схемы коллекций.
+- `backend/platform-console` — внешняя owner/founder web-оболочка для AI управления.
+- `db/postgres` — альтернативная SQL схема (future path).
 
-PocketBase будет доступен на:
-- Admin UI: http://127.0.0.1:8090/_/
-- API: http://127.0.0.1:8090/api/
+## Основные потоки
 
-### 2) Frontend
-```bash
-cd apps/web
-npm i
-npm run dev
-```
-Web будет доступен на http://127.0.0.1:5173
+### 1) Регистрация и выдача нового кабинета
+- Клиент отправляет заявку через `/register`.
+- Заявка сохраняется в `control` (`tenant_registrations`) со статусом `new`.
+- Только после ручного approve заявка обрабатывается.
+- Система поднимает новый tenant PB (`pb-tenant-<slug>`), настраивает домен/прокси, создает первого пользователя.
 
-### 3) Переменные окружения
-Фронтенд читает:
-- `VITE_PB_URL` (по умолчанию `http://127.0.0.1:8090`)
+### 2) Платформенный AI контроль
+- Глобальные AI настройки хранятся в `control.system_settings` (`group_name='ai'`).
+- Включение/выключение AI модулей по клиентам хранится в `control.tenant_modules`.
+- Usage/cost — в `ai_usage_daily` и `ai_usage_monthly`.
 
----
+## Локальный запуск (dev)
 
-## Основные разделы UI
-- Сделки: **таблица** + **канбан** + **карточка сделки** (timeline + AI insights)
-- Компании: список + карточка компании (связанные сделки/контакты/файлы)
-- Импорт/Экспорт (CSV)
-- Поиск/Фильтры + сохранённые фильтры
-- Админка:
-  - Пользователи и роли (матрица доступов)
-  - Воронка (этапы)
-  - Конструктор полей карточек
-  - Настройка парсеров: контакты / медиа / тендеры
-  - Настройка калькулятора КП (каркас + сущности)
-
----
-
-## Примечания по правам (RBAC)
-В PocketBase используется:
-- auth коллекция `users`
-- прикладные настройки `settings_roles`
-- матрица доступов хранится как JSON в роли
-
-Во фронте:
-- скрытие UI-экшенов по правам
-- server-side контроль обеспечивается rules PocketBase (при необходимости можно усилить)
-
----
-
-## Деплой (минимально)
-- PocketBase: любой VM/контейнер в РФ-облаке (Yandex Cloud / Selectel / Timeweb Cloud)
-- Frontend: static hosting (S3-like) или nginx.
-
-## Local development: PocketBase API (no CORS issues)
-
-PocketBase Admin UI doesn't provide CORS settings.  
-To make local development work without CORS, the web app uses a Vite proxy:
-
-- Frontend calls `VITE_PB_URL=/api` (default)
-- Vite proxies `/api/*` → `http://127.0.0.1:8090/*` (PocketBase)
-
-### Run PocketBase
+### PocketBase
+PocketBase бинарник в репо не хранится. Положите бинарник в `backend/pocketbase/pb`.
 
 ```bash
 cd backend/pocketbase
-# place PocketBase binary here as ./pb (chmod +x)
 ./init.sh
 ./run.sh
 ```
 
-### Run Web
-
+### Frontend
 ```bash
 cd apps/web
 cp .env.example .env
@@ -103,13 +57,63 @@ npm i
 npm run dev
 ```
 
-Now open the web app on http://localhost:5173 — API requests go through `/api` and bypass CORS.
-
-### Run Web (Windows PowerShell)
-
+Windows PowerShell:
 ```powershell
 cd apps/web
 Copy-Item .env.example .env
 npm i
 npm run dev
 ```
+
+По умолчанию frontend использует `VITE_PB_URL=/api`, а Vite проксирует в `http://127.0.0.1:8090`.
+
+## Серверные автоматизации (production)
+
+### Регистрации / провижининг
+- Скрипт обработки регистраций: `/opt/pb-control/process-tenant-registrations.py`
+- Таймер: `pb-registration-processor.timer`
+- Провижининг tenant: `/opt/pb-control/provision-tenant.sh`
+
+### Платформенный AI контроль
+- Инициализация AI слоя: `/opt/pb-control/bootstrap-ai-control.py`
+- CLI управления модулем клиента:
+```bash
+python3 /opt/pb-control/manage-tenant-ai-access.py \
+  --tenant tenant-test12345 \
+  --module ai_research_engine \
+  --enabled 0 \
+  --limit 0
+```
+- Cost/usage dashboard:
+```bash
+python3 /opt/pb-control/ai-cost-dashboard.py
+```
+
+### Founder web console
+- Код: `backend/platform-console/server.py`
+- systemd unit template: `backend/platform-console/platform-console.service`
+- Рекомендуемый endpoint: отдельный location в nginx (например `/owner/` или `owner.nwlvl.ru`).
+
+## AI, парсеры и продажи
+
+В рамках v3 заложен каркас для 4 направлений:
+- анализ сделки (вероятность, риски, next steps),
+- decision support (боли, ценность, сценарий дожима),
+- research engine (обогащение + фильтрация результатов парсеров),
+- конкурентная отстройка.
+
+Управление включением по клиентам идет только из `control`, не из tenant CRM UI.
+
+## Безопасность
+
+- Секреты и токены парсеров/AI не хранятся во фронте.
+- Критичные платформенные операции — только через `control` и серверный слой.
+- Публичная регистрация ограничена anti-fraud гейтом (manual approve).
+
+## Git release policy
+
+Для мажорной фиксации версии:
+1. Коммит с итоговыми изменениями.
+2. Тег версии:
+   - `v3.0.0` (major release point).
+3. Push ветки и тега в origin.

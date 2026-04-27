@@ -8,7 +8,7 @@ import { DEFAULT_KP_TEMPLATE_V1 } from "../../modules/kp/defaultTemplate";
 import { PriceListAdmin } from "../../modules/kp/PriceListAdmin";
 import type { KpTemplateConfig, KpTemplateRecord } from "../../modules/kp/types";
 
-type Tab = "contacts" | "media" | "tenders" | "kp";
+type Tab = "contacts" | "media" | "tenders" | "ai" | "kp";
 
 type TabButtonProps = { active: boolean; children: React.ReactNode; onClick: () => void };
 type ParserKeywordBag = { phrases?: string[] };
@@ -39,6 +39,7 @@ export function AdminParsersPage() {
             <TabButton active={tab==="contacts"} onClick={() => setTab("contacts")}>Контакты</TabButton>
             <TabButton active={tab==="media"} onClick={() => setTab("media")}>Медиа</TabButton>
             <TabButton active={tab==="tenders"} onClick={() => setTab("tenders")}>Тендеры</TabButton>
+            <TabButton active={tab==="ai"} onClick={() => setTab("ai")}>Парсеры + AI</TabButton>
             <TabButton active={tab==="kp"} onClick={() => setTab("kp")}>КП (каркас)</TabButton>
           </div>
         </CardContent>
@@ -47,6 +48,7 @@ export function AdminParsersPage() {
       {tab === "contacts" ? <ContactsParser /> : null}
       {tab === "media" ? <MediaParser /> : null}
       {tab === "tenders" ? <TenderParser /> : null}
+      {tab === "ai" ? <AiPromptsSettings /> : null}
       {tab === "kp" ? <KpSettings /> : null}
     </div>
   );
@@ -439,6 +441,92 @@ function TenderParser() {
                 Для безопасности токены площадок не хранятся во фронте и не записываются в PocketBase.
                 Храните их только на сервере в переменных окружения (см. `backend/pocketbase/SECRETS.example.md`).
               </div>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** AI PROMPTS (tenant-level) */
+function AiPromptsSettings() {
+  const [loading, setLoading] = React.useState(true);
+  const [recordId, setRecordId] = React.useState<string>("");
+  const [prompt, setPrompt] = React.useState("");
+  const [status, setStatus] = React.useState("");
+
+  async function load() {
+    setLoading(true);
+    setStatus("");
+    try {
+      const list = await pb.collection("semantic_packs").getList(1, 1, {
+        filter: 'type="deal" && model="deal_analysis_prompt" && (language="ru" || language="")',
+        sort: "-created",
+      });
+      const item = list.items[0] as { id: string; base_text?: string } | undefined;
+      if (item) {
+        setRecordId(item.id);
+        setPrompt(item.base_text || "");
+      } else {
+        setRecordId("");
+        setPrompt(
+          "Проанализируй сделку с учетом всех полей карточки, истории комментариев, заметок, динамики событий и прошлых AI-оценок. Верни четкий вывод по вероятности закрытия, рискам и следующим шагам."
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  React.useEffect(() => {
+    load();
+  }, []);
+
+  async function save() {
+    const payload = {
+      type: "deal",
+      base_text: prompt,
+      variants: { purpose: "deal_analysis_prompt", source: "admin_parsers_ai_tab" },
+      language: "ru",
+      model: "deal_analysis_prompt",
+    };
+    if (recordId) {
+      await pb.collection("semantic_packs").update(recordId, payload);
+    } else {
+      const created = await pb.collection("semantic_packs").create(payload);
+      setRecordId((created as { id: string }).id);
+    }
+    setStatus("Сохранено");
+    setTimeout(() => setStatus(""), 2500);
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="text-sm font-semibold">Парсеры + AI: промпт анализа сделки</div>
+        <div className="text-xs text-text2 mt-1">
+          Этот промпт задает правила анализа для данного клиента CRM. Он учитывается независимо от выбранного AI-провайдера.
+        </div>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="text-sm text-text2">Загрузка...</div>
+        ) : (
+          <div className="grid gap-3">
+            <div>
+              <div className="text-xs text-text2 mb-1">Промпт AI (tenant-level)</div>
+              <textarea
+                className="w-full rounded-card border border-[#9CA3AF] bg-white px-3 py-2 text-sm"
+                rows={8}
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="Опиши правила AI-анализа для этой CRM..."
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Button onClick={save} disabled={!prompt.trim()}>Сохранить промпт</Button>
+              {status ? <span className="text-sm text-success">{status}</span> : null}
             </div>
           </div>
         )}

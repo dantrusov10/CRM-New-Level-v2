@@ -14,6 +14,8 @@ Environment=PLATFORM_CONSOLE_PASSWORD=ChangeMe_123!
 Environment=PLATFORM_CONSOLE_SESSION_TTL_HOURS=24
 Environment=PLATFORM_AI_SECRETS_FILE=/opt/pb-control/.ai-provider-secrets.json
 Environment=PUBLIC_AI_ALLOWED_ORIGINS=https://app.nwlvl.ru,https://nwlvl.ru,http://localhost:5173
+Environment=GIGACHAT_INSECURE_TLS=1
+Environment=AI_GATEWAY_AUDIT_LOG=/opt/pb-control/ai-gateway-audit.jsonl
 ExecStart=/usr/bin/python3 /opt/pb-control/platform-console/server.py
 Restart=always
 RestartSec=5

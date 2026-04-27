@@ -5,12 +5,13 @@ import json
 import os
 import secrets
 import sqlite3
+import ssl
 import uuid
 from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, urlencode
 
 DB_PATH = os.getenv("CONTROL_DB_PATH", "/opt/pb-control/pb_data/data.db")
 HOST = os.getenv("PLATFORM_CONSOLE_HOST", "127.0.0.1")
@@ -24,6 +25,8 @@ TENANT_PB_ADMIN_PASSWORD = os.getenv("TENANT_PB_ADMIN_PASSWORD", "Dan@4007Dan@40
 PUBLIC_AI_ALLOWED_ORIGINS = os.getenv(
     "PUBLIC_AI_ALLOWED_ORIGINS", "https://app.nwlvl.ru,https://nwlvl.ru,http://localhost:5173"
 )
+GIGACHAT_INSECURE_TLS = os.getenv("GIGACHAT_INSECURE_TLS", "1")
+AI_GATEWAY_AUDIT_LOG = os.getenv("AI_GATEWAY_AUDIT_LOG", "/opt/pb-control/ai-gateway-audit.jsonl")
 
 SESSIONS = {}
 PUBLIC_AI_RATE_LIMIT = {}
@@ -50,7 +53,7 @@ INDEX_HTML = """<!doctype html>
     .row > div { min-width: 220px; }
     .btn { background: #111827; color: #fff; border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    input[type="text"], input[type="number"], input[type="password"] { width: 100%; border: 1px solid #c7cfdb; border-radius: 8px; padding: 7px; }
+    input[type="text"], input[type="number"], input[type="password"], textarea { width: 100%; border: 1px solid #c7cfdb; border-radius: 8px; padding: 7px; }
     .hidden { display: none; }
     .err { color: #b91c1c; font-size: 13px; margin-top: 8px; }
     .ok { color: #047857; font-size: 13px; margin-top: 8px; }
@@ -201,10 +204,18 @@ INDEX_HTML = """<!doctype html>
             <input id="rtPricePer1k" type="number" placeholder="0.10"/>
           </div>
         </div>
+        <div class="row" style="margin-top:10px;">
+          <div style="min-width:100%;">
+            <label title="Общий шаблон запроса для анализа сделки. Можно менять без релиза кода.">Промпт AI для анализа сделки</label>
+            <textarea id="rtPromptDeal" rows="5" placeholder="Инструкция модели для анализа сделки..."></textarea>
+            <div class="hint">В запрос также автоматически добавляются: все поля сделки, комментарии/заметки/события timeline, последние AI-результаты.</div>
+          </div>
+        </div>
 
         <div style="margin-top:10px;">
           <button class="btn" onclick="saveRouting()">Сохранить маршрутизацию</button>
         </div>
+        <div id="routingMsg" class="ok"></div>
       </div>
 
       <div class="card">
@@ -353,6 +364,7 @@ INDEX_HTML = """<!doctype html>
       const r = data.routing || {};
       const routes = r.routes || {};
       const budget = r.budget || {};
+      const prompts = r.prompts || {};
 
       const deal = routes.deal_analysis || {};
       const dec = routes.decision_support || {};
@@ -392,6 +404,7 @@ INDEX_HTML = """<!doctype html>
       document.getElementById("rtStrategyMaxOut").value = strat.max_output_tokens || "";
 
       document.getElementById("rtPricePer1k").value = budget.default_price_rub_per_1k_tokens || "";
+      document.getElementById("rtPromptDeal").value = prompts.deal_analysis || "";
     }
 
     function buildRoute(primaryProviderId, primaryEngineId, fallbackProviderId, fallbackEngineId, tokenProviderId, maxReqId, maxOutId) {
@@ -417,6 +430,9 @@ INDEX_HTML = """<!doctype html>
         budget: {
           default_price_rub_per_1k_tokens: Number(val("rtPricePer1k") || 0),
         },
+        prompts: {
+          deal_analysis: document.getElementById("rtPromptDeal").value || "",
+        },
       };
       await getJson(api("routing"), {
         method: "POST",
@@ -424,6 +440,11 @@ INDEX_HTML = """<!doctype html>
         body: JSON.stringify(payload)
       });
       setMsg("Матрица маршрутизации сохранена");
+      document.getElementById("routingMsg").textContent = "Сохранено";
+      setTimeout(() => {
+        const el = document.getElementById("routingMsg");
+        if (el) el.textContent = "";
+      }, 2500);
     }
 
     async function downloadCsv() {
@@ -622,6 +643,31 @@ def _http_json(method, url, payload=None, headers=None, timeout=40):
         return json.loads(raw)
 
 
+def _urlopen_with_tls(req, timeout=40, allow_insecure=False):
+    # First try default TLS validation.
+    try:
+        return urlopen(req, timeout=timeout)
+    except Exception:
+        pass
+
+    # Retry with certifi CA bundle if available.
+    try:
+        import certifi  # type: ignore
+
+        ctx = ssl.create_default_context(cafile=certifi.where())
+        return urlopen(req, timeout=timeout, context=ctx)
+    except Exception:
+        pass
+
+    # Last resort for environments with broken CA chain.
+    if allow_insecure:
+        insecure_ctx = ssl._create_unverified_context()
+        return urlopen(req, timeout=timeout, context=insecure_ctx)
+
+    # Re-run default to preserve original exception details.
+    return urlopen(req, timeout=timeout)
+
+
 def _allowed_origins():
     return [x.strip() for x in PUBLIC_AI_ALLOWED_ORIGINS.split(",") if x.strip()]
 
@@ -696,6 +742,19 @@ def _extract_json_object(text):
     return {}
 
 
+def _audit_log(event, payload):
+    try:
+        line = {
+            "ts": datetime.utcnow().isoformat() + "Z",
+            "event": str(event),
+            "payload": payload,
+        }
+        with open(AI_GATEWAY_AUDIT_LOG, "a", encoding="utf-8") as f:
+            f.write(json.dumps(line, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
 def _run_openai_compatible(provider, engine, prompt):
     creds = _provider_creds(provider)
     api_key = creds.get("api_key", "")
@@ -761,7 +820,7 @@ def _run_gigachat(engine, prompt):
     )
 
     try:
-        with urlopen(oauth_req, timeout=40) as r:
+        with _urlopen_with_tls(oauth_req, timeout=40, allow_insecure=(GIGACHAT_INSECURE_TLS == "1")) as r:
             oauth_raw = r.read().decode("utf-8")
         oauth_data = json.loads(oauth_raw) if oauth_raw else {}
         access_token = str(oauth_data.get("access_token", "")).strip()
@@ -782,13 +841,16 @@ def _run_gigachat(engine, prompt):
                 {"role": "user", "content": prompt},
             ],
         }
-        res = _http_json(
-            "POST",
-            f"{base_url}/chat/completions",
-            payload,
-            headers={"Authorization": f"Bearer {access_token}"},
-            timeout=60,
+        body = json.dumps(payload).encode("utf-8")
+        req = Request(
+            url=f"{base_url}/chat/completions",
+            data=body,
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {access_token}"},
+            method="POST",
         )
+        with _urlopen_with_tls(req, timeout=60, allow_insecure=(GIGACHAT_INSECURE_TLS == "1")) as r:
+            raw = r.read().decode("utf-8")
+        res = json.loads(raw) if raw else {}
         choices = res.get("choices", []) if isinstance(res, dict) else []
         content = ""
         if choices and isinstance(choices[0], dict):
@@ -851,6 +913,154 @@ def _tenant_api_update(pb_url, collection, record_id, data, admin_token):
     )
 
 
+def _tenant_api_get(pb_url, collection, record_id, admin_token):
+    base = pb_url.rstrip("/")
+    return _http_json(
+        "GET",
+        f"{base}/collections/{collection}/records/{record_id}",
+        None,
+        headers={"Authorization": admin_token},
+        timeout=30,
+    )
+
+
+def _tenant_api_list(pb_url, collection, params, admin_token):
+    base = pb_url.rstrip("/")
+    clean = {k: str(v) for k, v in (params or {}).items() if v is not None}
+    qs = urlencode(clean)
+    if qs:
+        url = f"{base}/collections/{collection}/records?{qs}"
+    else:
+        url = f"{base}/collections/{collection}/records"
+    return _http_json("GET", url, None, headers={"Authorization": admin_token}, timeout=30)
+
+
+def _resolve_tenant_code_from_pb_url(tenant_pb_url):
+    host = (urlparse(tenant_pb_url).hostname or "").lower()
+    if not host:
+        return ""
+    con = sqlite3.connect(DB_PATH)
+    con.row_factory = sqlite3.Row
+    cur = con.cursor()
+    cur.execute("SELECT code FROM tenants WHERE lower(primary_domain)=? LIMIT 1", (host,))
+    row = cur.fetchone()
+    con.close()
+    return str(row["code"]) if row and row["code"] else ""
+
+
+def _append_ai_usage_monthly(tenant_code, usage, cost_rub):
+    if not tenant_code:
+        return
+    period = datetime.utcnow().strftime("%Y-%m")
+    input_tokens = int(float((usage or {}).get("prompt_tokens", 0) or 0))
+    output_tokens = int(float((usage or {}).get("completion_tokens", 0) or 0))
+    request_count = 1
+    con = sqlite3.connect(DB_PATH)
+    cur = con.cursor()
+    cur.execute(
+        "SELECT id, request_count, input_tokens, output_tokens, total_cost_rub FROM ai_usage_monthly WHERE tenant_code=? AND period=? LIMIT 1",
+        (tenant_code, period),
+    )
+    row = cur.fetchone()
+    ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S.%fZ")
+    if row:
+        rid, rq, inp, outp, cost = row
+        cur.execute(
+            """
+            UPDATE ai_usage_monthly
+            SET request_count=?, input_tokens=?, output_tokens=?, total_cost_rub=?, updated=?
+            WHERE id=?
+            """,
+            (
+                int(rq or 0) + request_count,
+                int(inp or 0) + input_tokens,
+                int(outp or 0) + output_tokens,
+                float(cost or 0) + float(cost_rub or 0),
+                ts,
+                rid,
+            ),
+        )
+    else:
+        rid = "r" + secrets.token_hex(7)
+        cur.execute(
+            """
+            INSERT INTO ai_usage_monthly (id, tenant_code, period, request_count, input_tokens, output_tokens, total_cost_rub, created, updated)
+            VALUES (?,?,?,?,?,?,?,?,?)
+            """,
+            (rid, tenant_code, period, request_count, input_tokens, output_tokens, float(cost_rub or 0), ts, ts),
+        )
+    con.commit()
+    con.close()
+
+
+def _safe_filter_value(raw):
+    return str(raw or "").replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _build_ai_context(tenant_pb_url, deal_id, admin_token, ui_context):
+    deal = _tenant_api_get(tenant_pb_url, "deals", deal_id, admin_token)
+    timeline = _tenant_api_list(
+        tenant_pb_url,
+        "timeline",
+        {"perPage": 60, "sort": "-created", "filter": f'deal_id="{_safe_filter_value(deal_id)}"'},
+        admin_token,
+    )
+    insights = _tenant_api_list(
+        tenant_pb_url,
+        "ai_insights",
+        {"perPage": 20, "sort": "-created", "filter": f'deal_id="{_safe_filter_value(deal_id)}"'},
+        admin_token,
+    )
+    events = timeline.get("items", []) if isinstance(timeline, dict) else []
+    notes = []
+    comments = []
+    for e in events:
+        action = str(e.get("action", "")).strip().lower()
+        row = {
+            "created": e.get("created"),
+            "action": e.get("action"),
+            "comment": e.get("comment"),
+            "payload": e.get("payload"),
+        }
+        if action in ("comment", "note", "workspace_link", "ai_analysis", "task_created"):
+            notes.append(row)
+        if action == "comment":
+            comments.append(row)
+
+    context = {
+        "source": {
+            "frontend_context": ui_context if isinstance(ui_context, dict) else {},
+            "deal_record": deal if isinstance(deal, dict) else {},
+            "timeline_recent": events,
+            "notes_recent": notes,
+            "comments_recent": comments,
+            "ai_insights_recent": insights.get("items", []) if isinstance(insights, dict) else [],
+        }
+    }
+    return context
+
+
+def _get_tenant_prompt(tenant_pb_url, admin_token):
+    try:
+        packs = _tenant_api_list(
+            tenant_pb_url,
+            "semantic_packs",
+            {
+                "perPage": 1,
+                "sort": "-created",
+                "filter": 'type="deal" && model="deal_analysis_prompt"',
+            },
+            admin_token,
+        )
+        items = packs.get("items", []) if isinstance(packs, dict) else []
+        if items:
+            txt = str((items[0] or {}).get("base_text", "")).strip()
+            if txt:
+                return txt
+    except Exception:
+        pass
+    return ""
+
 def run_ai_deal_analysis(payload):
     deal_id = str(payload.get("deal_id", "")).strip()
     tenant_pb_url = str(payload.get("tenant_pb_url", "")).strip().rstrip("/")
@@ -858,6 +1068,16 @@ def run_ai_deal_analysis(payload):
     user_id = str(payload.get("user_id", "")).strip()
     tenant_user_token = str(payload.get("tenant_user_token", "")).strip()
     context = payload.get("context", {}) if isinstance(payload.get("context"), dict) else {}
+    _audit_log(
+        "analyze_request",
+        {
+            "deal_id": deal_id,
+            "tenant_pb_url": tenant_pb_url,
+            "task_code": task_code,
+            "user_id": user_id,
+            "context": context,
+        },
+    )
     if not deal_id or not tenant_pb_url:
         return {"ok": False, "error": "deal_id and tenant_pb_url are required"}
     if not _validate_tenant_pb_url(tenant_pb_url):
@@ -883,22 +1103,87 @@ def run_ai_deal_analysis(payload):
 
     if not primary_provider or not primary_engine:
         return {"ok": False, "error": f"routing for '{task_code}' is not configured"}
+    try:
+        admin_token = _auth_tenant_admin(tenant_pb_url)
+    except Exception as e:
+        return {"ok": False, "error": f"tenant admin auth failed: {e}"}
 
-    prompt = (
-        "Проанализируй сделку и дай оценку риска/шансов.\n"
-        f"Контекст сделки (JSON): {json.dumps(context, ensure_ascii=False)}\n"
-        "Верни JSON без markdown."
-    )
+    full_context = _build_ai_context(tenant_pb_url, deal_id, admin_token, context)
+    owner_prompt = str(
+        ((routing.get("prompts", {}) if isinstance(routing.get("prompts"), dict) else {}).get("deal_analysis") or "")
+    ).strip()
+    tenant_prompt = _get_tenant_prompt(tenant_pb_url, admin_token)
+    deal_prompt = tenant_prompt or owner_prompt
+    if not deal_prompt:
+        deal_prompt = (
+            "Проанализируй сделку и дай оценку риска/шансов. Учитывай динамику комментариев, заметки, timeline и предыдущие AI-оценки."
+        )
+    prompt = f"{deal_prompt}\nКонтекст сделки (JSON): {json.dumps(full_context, ensure_ascii=False)}\nВерни JSON без markdown."
 
     llm_result = _run_provider(primary_provider, primary_engine, prompt)
     used_provider = primary_provider
     used_engine = primary_engine
-    if not llm_result.get("ok") and fallback_provider and fallback_engine:
-        llm_result = _run_provider(fallback_provider, fallback_engine, prompt)
-        used_provider = fallback_provider
-        used_engine = fallback_engine
+    primary_error = ""
+    fallback_error = ""
     if not llm_result.get("ok"):
-        return {"ok": False, "error": llm_result.get("error", "llm request failed")}
+        primary_error = str(llm_result.get("error", "primary provider failed"))
+    _audit_log(
+        "provider_attempt",
+        {
+            "deal_id": deal_id,
+            "provider": primary_provider,
+            "engine": primary_engine,
+            "ok": bool(llm_result.get("ok")),
+            "error": llm_result.get("error", ""),
+            "usage": llm_result.get("usage", {}),
+            "parsed": llm_result.get("parsed", {}),
+        },
+    )
+    if not llm_result.get("ok") and fallback_provider and fallback_engine:
+        # Only fallback if token for fallback provider is configured.
+        fb_creds = _provider_creds(fallback_provider)
+        if fb_creds.get("api_key"):
+            llm_result = _run_provider(fallback_provider, fallback_engine, prompt)
+            used_provider = fallback_provider
+            used_engine = fallback_engine
+            if not llm_result.get("ok"):
+                fallback_error = str(llm_result.get("error", "fallback provider failed"))
+            _audit_log(
+                "provider_attempt",
+                {
+                    "deal_id": deal_id,
+                    "provider": fallback_provider,
+                    "engine": fallback_engine,
+                    "ok": bool(llm_result.get("ok")),
+                    "error": llm_result.get("error", ""),
+                    "usage": llm_result.get("usage", {}),
+                    "parsed": llm_result.get("parsed", {}),
+                },
+            )
+        else:
+            fallback_error = f"token for provider '{fallback_provider}' is missing"
+            _audit_log(
+                "provider_attempt",
+                {
+                    "deal_id": deal_id,
+                    "provider": fallback_provider,
+                    "engine": fallback_engine,
+                    "ok": False,
+                    "error": fallback_error,
+                },
+            )
+    if not llm_result.get("ok"):
+        details = []
+        if primary_error:
+            details.append(f"primary {primary_provider}:{primary_engine} -> {primary_error}")
+        if fallback_provider:
+            if fallback_error:
+                details.append(f"fallback {fallback_provider}:{fallback_engine} -> {fallback_error}")
+            else:
+                details.append(f"fallback {fallback_provider}:{fallback_engine} not configured")
+        err = " | ".join(details) if details else "llm request failed"
+        _audit_log("analyze_failed", {"deal_id": deal_id, "error": err})
+        return {"ok": False, "error": err}
 
     parsed = llm_result.get("parsed", {}) if isinstance(llm_result.get("parsed"), dict) else {}
     usage = llm_result.get("usage", {}) if isinstance(llm_result.get("usage"), dict) else {}
@@ -916,7 +1201,6 @@ def run_ai_deal_analysis(payload):
     except Exception:
         total_tokens = 0
 
-    admin_token = _auth_tenant_admin(tenant_pb_url)
     ai_record = _tenant_api_create(
         tenant_pb_url,
         "ai_insights",
@@ -954,6 +1238,23 @@ def run_ai_deal_analysis(payload):
         deal_id,
         {"current_score": score, "current_recommendations": suggestions},
         admin_token,
+    )
+    tenant_code = _resolve_tenant_code_from_pb_url(tenant_pb_url)
+    price_per_1k = float(((routing.get("budget", {}) or {}).get("default_price_rub_per_1k_tokens", 0.0) or 0.0))
+    total_cost_rub = (float(total_tokens or 0) / 1000.0) * price_per_1k
+    _append_ai_usage_monthly(tenant_code, usage, total_cost_rub)
+    _audit_log(
+        "analyze_success",
+        {
+            "deal_id": deal_id,
+            "provider": used_provider,
+            "engine": used_engine,
+            "score": score,
+            "summary": summary,
+            "suggestions": suggestions,
+            "token_usage": total_tokens,
+            "insight_id": ai_record.get("id", ""),
+        },
     )
     return {
         "ok": True,
@@ -1008,6 +1309,13 @@ def default_routing_matrix():
         "budget": {
             "default_price_rub_per_1k_tokens": 0.1,
         },
+        "prompts": {
+            "deal_analysis": (
+                "Ты AI-ассистент CRM по B2B продажам. Проанализируй контекст сделки и верни строго JSON: "
+                '{"score": number 0..100, "summary": string, "suggestions": string, "risks": string}. '
+                "Учитывай историю коммуникации, динамику событий и обязательства клиента."
+            )
+        },
     }
 
 
@@ -1059,7 +1367,7 @@ def _normalize_routing_matrix(data):
 
     routes = data.get("routes", {})
     budget = data.get("budget", {})
-    out = {"routes": {}, "budget": {}}
+    out = {"routes": {}, "budget": {}, "prompts": {}}
     for route_key, default_entry in default["routes"].items():
         route_raw = routes.get(route_key, {}) if isinstance(routes, dict) else {}
         merged = dict(default_entry)
@@ -1068,6 +1376,10 @@ def _normalize_routing_matrix(data):
 
     out["budget"]["default_price_rub_per_1k_tokens"] = float(
         budget.get("default_price_rub_per_1k_tokens", default["budget"]["default_price_rub_per_1k_tokens"]) or 0
+    )
+    prompts = data.get("prompts", {}) if isinstance(data.get("prompts"), dict) else {}
+    out["prompts"]["deal_analysis"] = str(
+        prompts.get("deal_analysis", default.get("prompts", {}).get("deal_analysis", ""))
     )
     return out
 

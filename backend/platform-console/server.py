@@ -1017,11 +1017,16 @@ def _tenant_api_update(pb_url, collection, record_id, data, admin_token):
     )
 
 
-def _tenant_api_get(pb_url, collection, record_id, admin_token):
+def _tenant_api_get(pb_url, collection, record_id, admin_token, query=None):
     base = pb_url.rstrip("/")
+    url = f"{base}/collections/{collection}/records/{record_id}"
+    if query:
+        qs = urlencode({k: str(v) for k, v in query.items() if v is not None})
+        if qs:
+            url = f"{url}?{qs}"
     return _http_json(
         "GET",
-        f"{base}/collections/{collection}/records/{record_id}",
+        url,
         None,
         headers={"Authorization": admin_token},
         timeout=30,
@@ -1102,11 +1107,17 @@ def _safe_filter_value(raw):
 
 
 def _build_ai_context(tenant_pb_url, deal_id, admin_token, ui_context):
-    deal = _tenant_api_get(tenant_pb_url, "deals", deal_id, admin_token)
+    deal = _tenant_api_get(
+        tenant_pb_url,
+        "deals",
+        deal_id,
+        admin_token,
+        {"expand": "company_id,stage_id,responsible_id"},
+    )
     timeline = _tenant_api_list(
         tenant_pb_url,
         "timeline",
-        {"perPage": 60, "sort": "-created", "filter": f'deal_id="{_safe_filter_value(deal_id)}"'},
+        {"perPage": 200, "sort": "-created", "filter": f'deal_id="{_safe_filter_value(deal_id)}"'},
         admin_token,
     )
     insights = _tenant_api_list(
@@ -1131,6 +1142,39 @@ def _build_ai_context(tenant_pb_url, deal_id, admin_token, ui_context):
         if action == "comment":
             comments.append(row)
 
+    contacts_items = []
+    try:
+        contacts = _tenant_api_list(
+            tenant_pb_url,
+            "contacts_found",
+            {
+                "perPage": 200,
+                "sort": "-created",
+                "filter": f'deal_id="{_safe_filter_value(deal_id)}"',
+            },
+            admin_token,
+        )
+        contacts_items = contacts.get("items", []) if isinstance(contacts, dict) else []
+    except Exception:
+        contacts_items = []
+
+    entity_file_items = []
+    try:
+        ef = _tenant_api_list(
+            tenant_pb_url,
+            "entity_files",
+            {
+                "perPage": 100,
+                "sort": "-created",
+                "expand": "file_id",
+                "filter": f'entity_type="deal" && entity_id="{_safe_filter_value(deal_id)}"',
+            },
+            admin_token,
+        )
+        entity_file_items = ef.get("items", []) if isinstance(ef, dict) else []
+    except Exception:
+        entity_file_items = []
+
     context = {
         "source": {
             "frontend_context": ui_context if isinstance(ui_context, dict) else {},
@@ -1139,6 +1183,8 @@ def _build_ai_context(tenant_pb_url, deal_id, admin_token, ui_context):
             "notes_recent": notes,
             "comments_recent": comments,
             "ai_insights_recent": insights.get("items", []) if isinstance(insights, dict) else [],
+            "contacts_found": contacts_items,
+            "entity_files_deal": entity_file_items,
         }
     }
     return context

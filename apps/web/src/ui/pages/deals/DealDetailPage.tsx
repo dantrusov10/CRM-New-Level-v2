@@ -466,9 +466,17 @@ export function DealDetailPage() {
         userId: auth?.id,
         taskCode: "deal_analysis",
         context: {
+          deal_id: deal.id,
           title: deal.title || "",
           stage: deal?.expand?.stage_id?.stage_name || "",
           company: deal?.expand?.company_id?.name || "",
+          company_inn: deal?.expand?.company_id?.inn || "",
+          company_city: deal?.expand?.company_id?.city || "",
+          responsible_name:
+            deal?.expand?.responsible_id?.name ||
+            deal?.expand?.responsible_id?.full_name ||
+            deal?.expand?.responsible_id?.email ||
+            "",
           budget: deal.budget ?? null,
           turnover: deal.turnover ?? null,
           margin_percent: deal.margin_percent ?? null,
@@ -478,8 +486,21 @@ export function DealDetailPage() {
           distributor: deal.distributor || "",
           purchase_format: deal.purchase_format || "",
           activity_type: deal.activity_type || "",
+          endpoints: deal.endpoints ?? null,
           infrastructure_size: deal.infrastructure_size || "",
           presale: deal.presale || "",
+          attraction_channel: deal.attraction_channel || "",
+          attraction_date: deal.attraction_date || "",
+          registration_deadline: deal.registration_deadline || "",
+          test_start: deal.test_start || "",
+          test_end: deal.test_end || "",
+          delivery_date: deal.delivery_date || "",
+          expected_payment_date: deal.expected_payment_date || "",
+          payment_received_date: deal.payment_received_date || "",
+          project_map_link: deal.project_map_link || "",
+          kaiten_link: deal.kaiten_link || "",
+          current_score: deal.current_score ?? null,
+          current_recommendations: deal.current_recommendations ?? null,
         },
       });
       await Promise.all([aiQ.refetch(), tlQ.refetch(), dealQ.refetch()]);

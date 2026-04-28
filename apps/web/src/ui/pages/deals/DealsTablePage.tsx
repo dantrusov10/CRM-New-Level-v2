@@ -132,7 +132,7 @@ export function DealsTablePage() {
             {owner ? <Badge>ответственный</Badge> : null}
             {channel ? <Badge>канал: {channel}</Badge> : null}
             {fromIso ? <Badge>период</Badge> : null}
-            <span className="rounded-full border border-[rgba(51,215,255,0.45)] bg-[rgba(51,215,255,0.14)] px-3 py-1 text-xs font-semibold text-text">Operational view</span>
+            <span className="rounded-md border border-[rgba(87,183,255,0.35)] bg-[rgba(45,123,255,0.18)] px-3 py-1 text-xs font-semibold text-text">Operational view</span>
           </div>
         </div>
       </CardHeader>
@@ -144,18 +144,18 @@ export function DealsTablePage() {
         ) : (
           <div className="overflow-auto">
             <div className="mb-3 grid grid-cols-1 gap-2 lg:grid-cols-3">
-              <div className="rounded-card border border-[rgba(51,215,255,0.28)] bg-[linear-gradient(135deg,rgba(45,123,255,0.35),rgba(51,215,255,0.14))] p-3">
+              <div className="rounded-card border border-[rgba(87,183,255,0.24)] bg-[#14345b] p-3">
                 <div className="text-xs text-text2">Сделок на странице</div>
                 <div className="mt-1 text-lg font-semibold">{items.length}</div>
               </div>
-              <div className="rounded-card border border-[rgba(99,102,241,0.32)] bg-[linear-gradient(135deg,rgba(49,46,129,0.46),rgba(99,102,241,0.14))] p-3">
+              <div className="rounded-card border border-[rgba(87,183,255,0.24)] bg-[#123053] p-3">
                 <div className="text-xs text-text2">Выбрано для массовых действий</div>
                 <div className="mt-1 text-lg font-semibold">
                   {selectedCount}
                   {selectedCount > 0 && selectedCount === items.length ? <span className="text-sm text-text2"> (вся страница)</span> : null}
                 </div>
               </div>
-              <div className="rounded-card border border-[rgba(45,123,255,0.3)] bg-[linear-gradient(135deg,rgba(30,58,138,0.48),rgba(45,123,255,0.14))] p-3">
+              <div className="rounded-card border border-[rgba(87,183,255,0.24)] bg-[#102947] p-3">
                 <div className="text-xs text-text2">Текущий режим</div>
                 <div className="mt-1 text-sm font-semibold">{search || stage || owner || channel ? "Фильтрованный список" : "Все сделки"}</div>
               </div>

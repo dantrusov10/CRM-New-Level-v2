@@ -2427,11 +2427,12 @@ def run_ai_deal_analysis(payload):
     fallback_provider = str(route.get("fallback_provider", "")).strip().lower()
     fallback_engine = str(route.get("fallback_engine", "")).strip()
     if task_code == "client_research":
-        # Force deep-research route via OpenRouter aliases for this scenario.
-        if not primary_provider.startswith("or_"):
-            primary_provider = "or_deepseek"
+        # Respect founder routing choice for provider/engine.
+        # Use OpenRouter-oriented defaults only when fields are missing.
+        if not primary_provider:
+            primary_provider = "or_kimi"
         if not primary_engine:
-            primary_engine = "deepseek/deepseek-r1"
+            primary_engine = "moonshotai/kimi-k2.5"
         if not fallback_provider:
             fallback_provider = "or_qwen"
         if not fallback_engine:

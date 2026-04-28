@@ -1718,6 +1718,7 @@ def run_ai_deal_analysis(payload):
     suggestions = str(normalized.get("suggestions", "")).strip()
     risks_value = normalized.get("risks")
     explainability = normalized.get("explainability")
+    llm_explainability_is_meaningful = _has_meaningful_explainability(explainability)
     if isinstance(explainability, dict):
         explainability["_scoring"] = {
             "model": scoring_model,
@@ -1737,8 +1738,7 @@ def run_ai_deal_analysis(payload):
                 "llm_probability_raw": llm_score,
             },
         }
-    explainability_is_meaningful = _has_meaningful_explainability(explainability)
-    if (not summary and not suggestions and risks_value in (None, "", [], {}) and not explainability_is_meaningful):
+    if (not summary and not suggestions and risks_value in (None, "", [], {}) and not llm_explainability_is_meaningful):
         fb = _build_fallback_analysis_from_scoring(full_context, score, deterministic.get("breakdown", []))
         if not summary:
             summary = str(fb.get("summary", "")).strip()

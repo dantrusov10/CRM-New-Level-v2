@@ -100,7 +100,7 @@ function ParserAiControls({ parserKey }: { parserKey: "contacts" | "media" | "te
 
   async function load() {
     const productRows = await pb.collection("semantic_packs").getList(1, 200, {
-      filter: 'type="product_profile" && model="product_profile_v1"',
+      filter: 'model="product_profile_v1"',
       sort: "-updated",
     }).catch(() => ({ items: [] as ProductProfileItem[] }));
     const mapped = (productRows.items || []).map((p: ProductProfileItem) => ({

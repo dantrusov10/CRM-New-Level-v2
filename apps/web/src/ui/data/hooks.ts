@@ -168,7 +168,7 @@ export function useProductProfiles() {
       const res = await pb
         .collection("semantic_packs")
         .getList(1, 200, {
-          filter: 'type="product_profile" && model="product_profile_v1"',
+          filter: 'model="product_profile_v1"',
           sort: "-updated",
         })
         .catch(() => ({ items: [] as ProductProfile[] }));

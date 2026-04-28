@@ -44,7 +44,7 @@ export function AdminProductsPage() {
     setLoading(true);
     try {
       const list = await pb.collection("semantic_packs").getList(1, 200, {
-        filter: 'type="product_profile" && model="product_profile_v1"',
+        filter: 'model="product_profile_v1"',
         sort: "-updated",
       }).catch(() => ({ items: [] as ProductProfile[] }));
       const rows = (list.items || []) as ProductProfile[];
@@ -115,7 +115,7 @@ export function AdminProductsPage() {
     setStatus("");
     try {
       const rec = await pb.collection("semantic_packs").create({
-        type: "product_profile",
+        type: "deal",
         model: "product_profile_v1",
         language: "ru",
         base_text: "product_profile",
@@ -130,16 +130,16 @@ export function AdminProductsPage() {
   }
 
   async function save() {
-    const profileId = await ensureActiveProfileId();
-    if (!profileId) {
-      setStatus("Ошибка: не удалось создать/выбрать продукт");
-      return;
-    }
     setSaving(true);
     setStatus("");
     try {
+      const profileId = await ensureActiveProfileId();
+      if (!profileId) {
+        setStatus("Ошибка: не удалось создать/выбрать продукт");
+        return;
+      }
       await pb.collection("semantic_packs").update(profileId, {
-        type: "product_profile",
+        type: "deal",
         model: "product_profile_v1",
         language: "ru",
         base_text: "product_profile",
@@ -164,7 +164,7 @@ export function AdminProductsPage() {
   async function ensureActiveProfileId(): Promise<string> {
     if (activeId) return activeId;
     const created = await pb.collection("semantic_packs").create({
-      type: "product_profile",
+      type: "deal",
       model: "product_profile_v1",
       language: "ru",
       base_text: "product_profile",
@@ -188,11 +188,6 @@ export function AdminProductsPage() {
   async function addProductUploadedFile() {
     if (!uploadFile) return;
     setUploadError("");
-    const profileId = await ensureActiveProfileId();
-    if (!profileId) {
-      setUploadError("Не удалось создать профиль продукта для загрузки файла.");
-      return;
-    }
     const readAsDataUrl = (file: File) =>
       new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
@@ -201,6 +196,11 @@ export function AdminProductsPage() {
         reader.readAsDataURL(file);
       });
     try {
+      const profileId = await ensureActiveProfileId();
+      if (!profileId) {
+        setUploadError("Не удалось создать профиль продукта для загрузки файла.");
+        return;
+      }
       const dataUrl = await readAsDataUrl(uploadFile);
       const title = fileTitle.trim() || uploadFile.name;
       const file = await pb.collection("files").create({
@@ -229,8 +229,8 @@ export function AdminProductsPage() {
         return { id: String(x.id || ""), filename: String(f?.filename || "Файл"), path: String(f?.path || ""), tag: String(x.tag || "") };
       }));
       setFileModalOpen(false);
-    } catch {
-      setUploadError("Не удалось загрузить файл. Попробуйте файл меньшего размера.");
+    } catch (e) {
+      setUploadError(`Не удалось загрузить файл: ${e instanceof Error ? e.message : "unknown error"}`);
     }
   }
 

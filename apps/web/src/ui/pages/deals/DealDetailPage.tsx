@@ -479,9 +479,12 @@ function extractActionItems(raw: unknown): string[] {
   }
   const text = valueToText(raw);
   if (!text) return [];
-  const parsed = parseJsonLoose(text);
-  if (parsed && typeof parsed === "object") {
-    return extractActionItems(parsed);
+  // Parse JSON only for string input to avoid recursive loops for object values.
+  if (typeof raw === "string") {
+    const parsed = parseJsonLoose(text);
+    if (parsed && typeof parsed === "object") {
+      return extractActionItems(parsed);
+    }
   }
   return text
     .split(/\n|;|•|-/)

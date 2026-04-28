@@ -846,12 +846,13 @@ export function DealDetailPage() {
 
   return (
     <div className="grid gap-4">
-      <Card>
+      <Card className="neon-accent">
         <CardHeader>
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <div className="text-sm font-semibold">Сделка</div>
+                <span className="neon-pill">Deal card</span>
                 <Badge>{deal?.expand?.stage_id?.stage_name || "Без этапа"}</Badge>
                 <Badge>{deal?.expand?.company_id?.name ? "Компания: " + deal.expand.company_id.name : "Компания: —"}</Badge>
               </div>
@@ -916,8 +917,12 @@ export function DealDetailPage() {
           {tab === "overview" ? (
             <Card>
               <CardHeader>
-                <div className="text-sm font-semibold">Карточка сделки</div>
+                <div className="flex items-center gap-2">
+                  <div className="text-sm font-semibold">Карточка сделки</div>
+                  <span className="neon-pill">Primary section</span>
+                </div>
                 <div className="text-xs text-text2 mt-1">Полностью настраивается в Админ → Поля (разделы + поля).</div>
+                <div className="mt-2 neon-divider" />
               </CardHeader>
               <CardContent>
                 <DynamicEntityFormWithRef
@@ -938,7 +943,10 @@ export function DealDetailPage() {
               <CardHeader>
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <div className="text-sm font-semibold">Timeline</div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm font-semibold">Timeline</div>
+                      <span className="neon-pill">Activity feed</span>
+                    </div>
                     <div className="text-xs text-text2 mt-1">События: комментарии / этапы / изменения / AI</div>
                   </div>
                   <div className="w-56">
@@ -1168,7 +1176,10 @@ export function DealDetailPage() {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold">Комментарии</div>
+                <div className="flex items-center gap-2">
+                  <div className="text-sm font-semibold">Комментарии</div>
+                  <span className="neon-pill">Quick notes</span>
+                </div>
                 <Badge>Все</Badge>
               </div>
             </CardHeader>
@@ -1236,11 +1247,14 @@ export function DealDetailPage() {
         </div>
 
         <div className="col-span-12 min-w-0">
-          <Card className="border-infoBorder bg-infoBg">
+          <Card className="border-infoBorder bg-infoBg neon-accent">
             <CardHeader className="border-infoBorder">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold">AI-отчёт по сделке</div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm font-semibold">AI-отчёт по сделке</div>
+                    <span className="neon-pill">AI command mode</span>
+                  </div>
                   <div className="text-xs text-text2 mt-1">Сначала вывод и действия, ниже — детальная декомпозиция сигналов и рисков</div>
                 </div>
                 <Button onClick={runAiAnalysis} disabled={aiRunLoading || !deal?.id}>

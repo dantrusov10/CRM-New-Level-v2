@@ -409,6 +409,30 @@ body:after{
   background: #123053;
 }
 
+/* Neon accents for key moments */
+.neon-accent{
+  border: 1px solid rgba(51,215,255,0.48) !important;
+  box-shadow: 0 0 0 1px rgba(51,215,255,0.12) inset, 0 0 24px rgba(51,215,255,0.22);
+}
+.neon-pill{
+  display: inline-flex;
+  align-items: center;
+  border-radius: 8px;
+  border: 1px solid rgba(51,215,255,0.5);
+  background: rgba(45,123,255,0.2);
+  color: rgba(226,232,240,0.98);
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  box-shadow: 0 0 16px rgba(51,215,255,0.2);
+}
+.neon-divider{
+  height: 1px;
+  width: 100%;
+  background: linear-gradient(90deg, rgba(51,215,255,0), rgba(51,215,255,0.55), rgba(51,215,255,0));
+}
+
 /* The main “glass panel” look */
 .theme-cockpit .ui-card,
 .theme-cockpit .ui-modal,

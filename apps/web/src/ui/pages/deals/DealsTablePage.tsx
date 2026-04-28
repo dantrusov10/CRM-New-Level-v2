@@ -123,7 +123,7 @@ export function DealsTablePage() {
       <CardHeader>
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <div className="text-sm font-semibold">Сделки и pipeline</div>
+            <div className="text-base font-extrabold tracking-wide">Deals list / pipeline</div>
             <div className="text-xs text-text2 mt-1">Быстрый список для ежедневной работы менеджера: фильтр → выбор → массовое действие</div>
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end">
@@ -132,6 +132,7 @@ export function DealsTablePage() {
             {owner ? <Badge>ответственный</Badge> : null}
             {channel ? <Badge>канал: {channel}</Badge> : null}
             {fromIso ? <Badge>период</Badge> : null}
+            <span className="rounded-full border border-[rgba(51,215,255,0.45)] bg-[rgba(51,215,255,0.14)] px-3 py-1 text-xs font-semibold text-text">Operational view</span>
           </div>
         </div>
       </CardHeader>
@@ -143,18 +144,18 @@ export function DealsTablePage() {
         ) : (
           <div className="overflow-auto">
             <div className="mb-3 grid grid-cols-1 gap-2 lg:grid-cols-3">
-              <div className="rounded-card border border-border bg-white p-3">
+              <div className="rounded-card border border-[rgba(51,215,255,0.28)] bg-[linear-gradient(135deg,rgba(45,123,255,0.35),rgba(51,215,255,0.14))] p-3">
                 <div className="text-xs text-text2">Сделок на странице</div>
                 <div className="mt-1 text-lg font-semibold">{items.length}</div>
               </div>
-              <div className="rounded-card border border-border bg-white p-3">
+              <div className="rounded-card border border-[rgba(99,102,241,0.32)] bg-[linear-gradient(135deg,rgba(49,46,129,0.46),rgba(99,102,241,0.14))] p-3">
                 <div className="text-xs text-text2">Выбрано для массовых действий</div>
                 <div className="mt-1 text-lg font-semibold">
                   {selectedCount}
                   {selectedCount > 0 && selectedCount === items.length ? <span className="text-sm text-text2"> (вся страница)</span> : null}
                 </div>
               </div>
-              <div className="rounded-card border border-border bg-white p-3">
+              <div className="rounded-card border border-[rgba(45,123,255,0.3)] bg-[linear-gradient(135deg,rgba(30,58,138,0.48),rgba(45,123,255,0.14))] p-3">
                 <div className="text-xs text-text2">Текущий режим</div>
                 <div className="mt-1 text-sm font-semibold">{search || stage || owner || channel ? "Фильтрованный список" : "Все сделки"}</div>
               </div>
@@ -189,9 +190,9 @@ export function DealsTablePage() {
               </div>
             </div>
 
-            <table className="min-w-[1100px] w-full text-sm">
+            <table className="min-w-[1100px] w-full text-sm rounded-card overflow-hidden">
               <thead>
-                <tr className="h-10 bg-[#EEF1F6] text-[#374151] font-semibold">
+                <tr className="h-10 bg-[rgba(17,24,39,0.52)] text-[#374151] font-semibold">
                   <th className="text-left px-3 w-10">
                     <input
                       type="checkbox"
@@ -215,7 +216,7 @@ export function DealsTablePage() {
                 {items.map((d: Deal) => (
                   <tr
                     key={d.id}
-                    className="h-11 border-b border-border hover:bg-rowHover cursor-pointer transition-colors"
+                    className="h-11 border-b border-border hover:bg-[rgba(51,215,255,0.12)] cursor-pointer transition-colors"
                     onClick={() => nav(`/deals/${d.id}`)}
                   >
                     <td className="px-3" onClick={(e) => e.stopPropagation()}>

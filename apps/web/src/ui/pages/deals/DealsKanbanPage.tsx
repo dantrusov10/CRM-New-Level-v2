@@ -348,8 +348,15 @@ export function DealsKanbanPage() {
   return (
     <Card className="min-w-0">
       <CardHeader>
-        <div className="text-sm font-semibold">Pipeline board</div>
-        <div className="text-xs text-text2 mt-1">Deep-focus канбан: быстрый обзор этапов, суммы и приоритетов</div>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-base font-extrabold tracking-wide">Pipeline board</div>
+            <div className="text-xs text-text2 mt-1">Deep-focus канбан: быстрый обзор этапов, суммы и приоритетов</div>
+          </div>
+          <div className="rounded-full border border-[rgba(51,215,255,0.45)] bg-[rgba(51,215,255,0.14)] px-3 py-1 text-xs font-semibold text-text">
+            Live board
+          </div>
+        </div>
       </CardHeader>
 
       <CardContent className="min-w-0">
@@ -359,22 +366,22 @@ export function DealsKanbanPage() {
           <>
             {/* Top analytics */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-4">
-              <div className="rounded-card border border-border bg-white p-4">
+              <div className="rounded-card border border-[rgba(51,215,255,0.28)] bg-[linear-gradient(135deg,rgba(45,123,255,0.35),rgba(51,215,255,0.14))] p-4">
                 <div className="text-xs text-text2">Открытых сделок</div>
                 <div className="text-xl font-semibold mt-1">{topStats.openCount}</div>
                 <div className="text-xs text-text2 mt-1">в работе сейчас</div>
               </div>
-              <div className="rounded-card border border-border bg-white p-4">
+              <div className="rounded-card border border-[rgba(45,123,255,0.3)] bg-[linear-gradient(135deg,rgba(30,58,138,0.48),rgba(45,123,255,0.14))] p-4">
                 <div className="text-xs text-text2">Пайплайн</div>
                 <div className="text-xl font-semibold mt-1">{money(topStats.pipeline)} ₽</div>
                 <div className="text-xs text-text2 mt-1">сумма по сделкам</div>
               </div>
-              <div className="rounded-card border border-border bg-white p-4">
+              <div className="rounded-card border border-[rgba(99,102,241,0.35)] bg-[linear-gradient(135deg,rgba(49,46,129,0.45),rgba(99,102,241,0.14))] p-4">
                 <div className="text-xs text-text2">Взвешенный пайплайн</div>
                 <div className="text-xl font-semibold mt-1">{money(Math.round(topStats.weighted))} ₽</div>
                 <div className="text-xs text-text2 mt-1">с учётом score</div>
               </div>
-              <div className="rounded-card border border-border bg-white p-4">
+              <div className="rounded-card border border-[rgba(34,197,94,0.32)] bg-[linear-gradient(135deg,rgba(20,83,45,0.46),rgba(34,197,94,0.14))] p-4">
                 <div className="text-xs text-text2">Горячих (≥70)</div>
                 <div className="text-xl font-semibold mt-1">{topStats.hot}</div>
                 <div className="text-xs text-text2 mt-1">приоритет на неделю</div>

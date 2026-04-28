@@ -811,11 +811,90 @@ def _has_meaningful_explainability(value):
     return True
 
 
+def _extract_sections_from_plaintext(text):
+    txt = str(text or "").strip()
+    if not txt:
+        return {}
+    lines = [ln.rstrip() for ln in txt.splitlines()]
+    key_aliases = [
+        ("summary", ["summary", "резюме", "вероятность сделки", "оценка сделки"]),
+        ("explainability", ["explainability", "объяснение оценки"]),
+        ("risks", ["risks", "риск", "риски сделки"]),
+        ("upside", ["upside", "точки роста", "growth"]),
+        ("next_best_actions", ["next best actions", "следующие шаги", "план действий"]),
+        ("data_gaps", ["data gaps", "что не хватает", "чего не хватает", "missing data"]),
+        ("commercial_evaluation", ["commercial", "коммерческая оценка"]),
+        ("closing_strategy", ["strategy", "стратегия закрытия"]),
+        ("executive_summary", ["executive summary", "краткий вывод"]),
+        ("suggestions", ["suggestions", "recommendations", "рекомендации"]),
+        ("comments", ["comments", "комментарии"]),
+    ]
+
+    def detect_heading(line):
+        s = line.strip().strip("*").strip()
+        if not s:
+            return ""
+        if s.startswith("#"):
+            s = s.lstrip("#").strip()
+        if s.endswith(":"):
+            s = s[:-1].strip()
+        if len(s) > 120:
+            return ""
+        n = s.lower().replace("ё", "е")
+        for key, patterns in key_aliases:
+            if any(p in n for p in patterns):
+                return key
+        return ""
+
+    sections = {}
+    preamble = []
+    current = ""
+    for ln in lines:
+        maybe = detect_heading(ln)
+        if maybe:
+            current = maybe
+            sections.setdefault(current, [])
+            continue
+        if not ln.strip():
+            continue
+        if current:
+            sections.setdefault(current, []).append(ln)
+        else:
+            preamble.append(ln)
+
+    out = {}
+    for k, arr in sections.items():
+        val = "\n".join(arr).strip()
+        if val:
+            out[k] = val
+    if preamble and "summary" not in out:
+        out["summary"] = "\n".join(preamble[:8]).strip()
+    return out
+
+
+def _llm_result_has_structured_payload(llm_result):
+    if not isinstance(llm_result, dict):
+        return False
+    parsed = llm_result.get("parsed")
+    if isinstance(parsed, dict) and bool(parsed):
+        return True
+    content = str(llm_result.get("content", "") or "")
+    parsed_from_content = _extract_json_value(content)
+    if isinstance(parsed_from_content, dict) and bool(parsed_from_content):
+        return True
+    text_sections = _extract_sections_from_plaintext(content)
+    return bool(text_sections)
+
+
 def _normalize_ai_result(raw_content, parsed):
     parsed_from_content = _extract_json_value(raw_content)
     normalized_payload = parsed if isinstance(parsed, dict) and bool(parsed) else None
     if isinstance(parsed_from_content, dict):
         normalized_payload = parsed_from_content
+    if not isinstance(normalized_payload, dict):
+        text_sections = _extract_sections_from_plaintext(raw_content)
+        if text_sections:
+            normalized_payload = text_sections
 
     score = 0
     summary = ""
@@ -831,8 +910,17 @@ def _normalize_ai_result(raw_content, parsed):
             score = max(0, min(100, int(float(score_raw))))
         except Exception:
             score = 0
-        summary = _value_to_text(normalized_payload.get("summary"))
-        suggestions = _value_to_text(normalized_payload.get("suggestions") or normalized_payload.get("recommendations"))
+        summary = _value_to_text(
+            normalized_payload.get("summary")
+            or normalized_payload.get("executive_summary")
+            or normalized_payload.get("comments")
+        )
+        suggestions = _value_to_text(
+            normalized_payload.get("suggestions")
+            or normalized_payload.get("recommendations")
+            or normalized_payload.get("next_best_actions")
+            or normalized_payload.get("action_plan")
+        )
         risks_value = normalized_payload.get("risks")
         if risks_value is None:
             risks_value = normalized_payload.get("risk")
@@ -1656,8 +1744,11 @@ def run_ai_deal_analysis(payload):
     used_engine = primary_engine
     primary_error = ""
     fallback_error = ""
+    primary_structured = _llm_result_has_structured_payload(llm_result)
     if not llm_result.get("ok"):
         primary_error = str(llm_result.get("error", "primary provider failed"))
+    elif not primary_structured:
+        primary_error = "primary returned unstructured/empty payload"
     parsed_payload = llm_result.get("parsed", {})
     content_preview = ""
     if isinstance(parsed_payload, dict) and not parsed_payload:
@@ -1675,7 +1766,8 @@ def run_ai_deal_analysis(payload):
             "content_preview": content_preview,
         },
     )
-    if not llm_result.get("ok") and fallback_provider and fallback_engine:
+    should_try_fallback = (not llm_result.get("ok")) or (not primary_structured)
+    if should_try_fallback and fallback_provider and fallback_engine:
         # Only fallback if token for fallback provider is configured.
         fb_creds = _provider_creds(fallback_provider)
         if fb_creds.get("api_key"):
@@ -1684,6 +1776,8 @@ def run_ai_deal_analysis(payload):
             used_engine = fallback_engine
             if not llm_result.get("ok"):
                 fallback_error = str(llm_result.get("error", "fallback provider failed"))
+            elif not _llm_result_has_structured_payload(llm_result):
+                fallback_error = "fallback returned unstructured/empty payload"
             fb_parsed_payload = llm_result.get("parsed", {})
             fb_content_preview = ""
             if isinstance(fb_parsed_payload, dict) and not fb_parsed_payload:

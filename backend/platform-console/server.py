@@ -1559,6 +1559,7 @@ def _default_scoring_model():
         "version": "v1",
         "recommended": True,
         "acknowledged": False,
+        "llm_blend_percent": 25,
         "factors": [
             {"code": "stage_progress", "name": "Прогресс этапа", "weight": 22, "enabled": True},
             {"code": "decision_maker_coverage", "name": "Покрытие ЛПР/ЛВР", "weight": 18, "enabled": True},
@@ -1671,6 +1672,8 @@ def _calc_factor_value(code, full_context):
                 " ".join(str((e or {}).get("comment", "")) for e in timeline if isinstance(e, dict)),
             ]
         ).lower()
+        if any(k in hay for k in ["менее реализуем", "вероятность сниз", "шансы ниже", "блокер", "стоп", "отказ", "замороз"]):
+            return 28.0
         if any(k in hay for k in ["пилот окончен", "пилот заверш", "pilot complete", "pilot done", "успешн"]):
             return 90.0
         if "пилот" in hay:
@@ -1679,6 +1682,8 @@ def _calc_factor_value(code, full_context):
 
     if code == "competition_pressure":
         hay = " ".join(str((e or {}).get("comment", "")) for e in timeline if isinstance(e, dict)).lower()
+        if any(k in hay for k in ["менее реализуем", "сделка проседает", "риск срыва", "конкурент", "демпинг", "не согласовали"]):
+            return 30.0
         if any(k in hay for k in ["конкур", "айтеко", "тендер", "демпинг"]):
             return 38.0
         return 72.0
@@ -1771,8 +1776,16 @@ def _compute_deterministic_score(scoring_model, full_context, llm_score):
             "method": "llm_fallback",
             "breakdown": breakdown,
         }
-    final_score = int(max(0, min(100, round(weighted_sum / weight_total))))
-    return {"score": final_score, "method": "weighted_factors_v1", "breakdown": breakdown}
+    deterministic_score = int(max(0, min(100, round(weighted_sum / weight_total))))
+    llm_score_num = int(max(0, min(100, round(_to_float(llm_score, 0)))))
+    blend_percent = int(max(0, min(100, round(_to_float(model.get("llm_blend_percent", 25), 25)))))
+    if llm_score_num > 0 and blend_percent > 0:
+        final_score = int(round((deterministic_score * (100 - blend_percent) + llm_score_num * blend_percent) / 100.0))
+        method = "weighted_factors_v1_plus_llm"
+    else:
+        final_score = deterministic_score
+        method = "weighted_factors_v1"
+    return {"score": final_score, "method": method, "breakdown": breakdown}
 
 
 def _build_fallback_analysis_from_scoring(full_context, score, scoring_breakdown):
@@ -2132,7 +2145,6 @@ def run_ai_deal_analysis(payload):
     suggestions = str(normalized.get("suggestions", "")).strip()
     risks_value = normalized.get("risks")
     explainability = normalized.get("explainability")
-    llm_explainability_is_meaningful = _has_meaningful_explainability(explainability)
     if isinstance(explainability, dict):
         explainability["_scoring"] = {
             "model": scoring_model,
@@ -2152,7 +2164,8 @@ def run_ai_deal_analysis(payload):
                 "llm_probability_raw": llm_score,
             },
         }
-    if (not summary and not suggestions and risks_value in (None, "", [], {}) and not llm_explainability_is_meaningful):
+    need_fallback = (not summary) or (not suggestions) or (risks_value in (None, "", [], {}))
+    if need_fallback:
         fb = _build_fallback_analysis_from_scoring(full_context, score, deterministic.get("breakdown", []))
         if not summary:
             summary = str(fb.get("summary", "")).strip()

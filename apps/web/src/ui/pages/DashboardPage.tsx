@@ -90,14 +90,14 @@ const StatCard = ({
   icon: React.ComponentType<{ size?: number; className?: string }>;
   hint?: string;
 }) => (
-  <div className="ui-card p-4">
+  <div className="ui-card p-3.5">
     <div className="flex items-start justify-between gap-3">
       <div>
         <div className="text-xs text-text2 font-semibold">{title}</div>
-        <div className="mt-1 text-2xl font-extrabold text-text">{value}</div>
+        <div className="mt-1 text-xl font-extrabold text-text">{value}</div>
         {hint ? <div className="mt-1 text-xs text-text2">{hint}</div> : null}
       </div>
-      <div className="w-10 h-10 rounded-2xl flex items-center justify-center border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.08)]">
+      <div className="w-9 h-9 rounded-xl flex items-center justify-center border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.08)]">
         <Icon size={18} className="text-text" />
       </div>
     </div>
@@ -529,11 +529,11 @@ export function DashboardPage() {
             <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(51,215,255,0.35)] bg-[rgba(51,215,255,0.12)] px-3 py-1 text-xs font-semibold mb-2">
               Executive control panel
             </div>
-            <div className="text-2xl font-extrabold tracking-wide">Dashboard</div>
+            <div className="text-xl font-extrabold tracking-wide">Dashboard</div>
             <div className="mt-1 text-sm subtle">Каждый блок настраивается отдельно (период/фильтры) + есть проваливание в сделки</div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={openDashboardSettings} className="h-10">
+            <Button small variant="secondary" onClick={openDashboardSettings} className="h-9">
               <span className="inline-flex items-center gap-2"><BarChart3 size={16} /> Настройки дашборда</span>
             </Button>
           </div>

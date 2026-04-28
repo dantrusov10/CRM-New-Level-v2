@@ -10,7 +10,7 @@ import { useAuth } from "../../app/AuthProvider";
 import { usePermissions } from "../data/hooks";
 import { can } from "../../lib/rbac";
 
-const SIDEBAR_W = 260;
+const SIDEBAR_W = 228;
 
 export function AppLayout() {
   const [openCompany, setOpenCompany] = React.useState(false);
@@ -71,7 +71,7 @@ export function AppLayout() {
         />
 
         {/* Page content scrolls; header stays sticky */}
-        <main className="p-6 min-w-0 relative">
+        <main className="p-5 min-w-0 relative">
           <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(700px_280px_at_60%_0%,rgba(51,215,255,0.12),transparent_70%)]" />
           <Outlet />
         </main>

@@ -122,9 +122,9 @@ body:after{
 
 .cockpit-nav-item{
   display:flex; align-items:center; gap:12px;
-  border-radius: 14px;
-  padding: 10px 12px;
-  font-size: 14px;
+  border-radius: 10px;
+  padding: 9px 10px;
+  font-size: 13px;
   font-weight: 750;
   color: rgba(226,232,240,0.88);
   border:1px solid rgba(255,255,255,0.05);
@@ -178,7 +178,7 @@ body:after{
 /* Buttons */
 .ui-btn{
   display:inline-flex; align-items:center; justify-content:center; gap:8px;
-  height:42px;
+  height:38px;
   padding: 0 14px;
   border-radius: 10px;
   border: 1px solid rgba(87,183,255,0.24);
@@ -215,7 +215,7 @@ body:after{
 
 /* Inputs */
 .ui-input{
-  height:42px;
+  height:38px;
   width:100%;
   border-radius: 10px;
   border: 1px solid rgba(87,183,255,0.22);
@@ -324,8 +324,8 @@ body:after{
 .theme-cockpit .bg-white{
   /* make "white" surfaces inside cockpit darker + a bit more neon (refs-style) */
   background: linear-gradient(135deg, rgba(7,26,51,0.70), rgba(8,42,75,0.42)) !important;
-  backdrop-filter: blur(12px);
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.08) inset, 0 14px 40px rgba(0,0,0,0.40);
+  backdrop-filter: none;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.06) inset, 0 10px 24px rgba(0,0,0,0.30);
 }
 
 /* Native selects: keep inside theme (avoid unreadable system dropdown) */

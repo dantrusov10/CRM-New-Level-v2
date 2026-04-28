@@ -40,14 +40,14 @@ export function Header({
 
   return (
     <header className="cockpit-topbar">
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-[rgba(51,215,255,0.18)] bg-[linear-gradient(90deg,rgba(17,24,39,0.46),rgba(30,58,138,0.24),rgba(17,24,39,0.46))]">
-        <div className="text-sm font-extrabold tracking-wide uppercase w-[190px] flex items-center gap-2">
+      <div className="flex items-center gap-2 px-5 py-3 border-b border-[rgba(51,215,255,0.18)] bg-[linear-gradient(90deg,rgba(17,24,39,0.46),rgba(30,58,138,0.24),rgba(17,24,39,0.46))]">
+        <div className="text-xs font-extrabold tracking-wide uppercase w-[170px] flex items-center gap-2">
           <span className="brand-dot" />
           {titleByPath(pathname)}
         </div>
 
         <div className="flex-1 flex items-center gap-2">
-          <div className="relative w-full max-w-[560px]">
+          <div className="relative w-full max-w-[520px]">
             <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[rgba(226,232,240,0.72)]">
               <Search size={16} />
             </div>
@@ -55,7 +55,7 @@ export function Header({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Поиск (глобальный)"
-              className="pl-9"
+              className="pl-9 h-10"
               onKeyDown={(e) => {
                 if (e.key === "Enter") nav(`/deals?search=${encodeURIComponent(query)}`);
               }}
@@ -77,25 +77,25 @@ export function Header({
         <div className="flex items-center gap-2">
           <NotificationsBell />
           {can(perms, "import_export", "read") ? (
-            <Button variant="secondary" onClick={onImport} disabled={!can(perms, "import_export", "create")}>
+            <Button small variant="secondary" onClick={onImport} disabled={!can(perms, "import_export", "create")}>
               <Upload size={16} />
               Импорт
             </Button>
           ) : null}
           {can(perms, "import_export", "read") ? (
-            <Button variant="secondary" onClick={onExport}>
+            <Button small variant="secondary" onClick={onExport}>
               <Download size={16} />
               Экспорт
             </Button>
           ) : null}
           {can(perms, "companies", "create") ? (
-            <Button variant="secondary" onClick={onCreateCompany}>
+            <Button small variant="secondary" onClick={onCreateCompany}>
               <Plus size={16} />
               Компания
             </Button>
           ) : null}
           {can(perms, "deals", "create") ? (
-            <Button onClick={onCreateDeal}>
+            <Button small onClick={onCreateDeal}>
               <Plus size={16} />
               Сделка
             </Button>

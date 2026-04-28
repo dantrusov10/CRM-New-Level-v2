@@ -73,12 +73,15 @@ ssh -o BatchMode=yes root@2.58.69.58 "echo connected && hostname && whoami"
 Нужно отдельное обновление на сервере:
 
 1. Обновить файл/код в `/opt/pb-control/platform-console/`.
+   - обычно минимум: `server.py`.
+   - при ops/security задачах также: `audit_tenant_schema.py`, `repair_instances.py`, `drop_tenants.py`.
 2. Перезапустить сервис:
 
 ```bash
 systemctl restart platform-console.service
 systemctl is-active platform-console.service
 journalctl -u platform-console.service -n 50 --no-pager
+systemctl show platform-console.service --property=Environment --no-pager
 ```
 
 3. Проверить аудит:
@@ -97,6 +100,8 @@ tail -n 50 /opt/pb-control/ai-gateway-audit.jsonl
   - `ai_insights`
   - `timeline` (`ai_analysis`)
   - `deals.current_score/current_recommendations`
+- Security policy key (control DB): `ai.data_policy.v1`.
+- Runtime audit markers: `structured_ok`, `fallback_used`, `provider_used`, `quality_gate`, `data_policy_version`.
 
 Частый источник путаницы:
 
@@ -133,7 +138,16 @@ ssh root@2.58.69.58 "systemctl is-active platform-console.service"
    - `systemctl restart platform-console.service`,
    - smoke-check endpoint и аудит (`structured_ok`, `fallback_used`, `provider_used`).
 5. Для профилактики schema-404 регулярно запускать `backend/platform-console/audit_tenant_schema.py`.
-6. После изменений давать короткий отчёт:
+6. При работах по tenant инфраструктуре:
+   - сначала `repair_instances.py`,
+   - затем `audit_tenant_schema.py --fix`,
+   - только после этого ручной разбор проблемных инстансов.
+7. Никогда не оставлять в unit placeholders (`__SET_...`) после деплоя.
+8. Для security-правок всегда проверять:
+   - `GIGACHAT_INSECURE_TLS=0`,
+   - cookie с `Secure`,
+   - отсутствие сырого PII в audit.
+9. После изменений давать короткий отчёт:
    - что изменено,
    - что проверено,
    - что задеплоено,
@@ -162,3 +176,15 @@ ssh root@2.58.69.58 (ключ уже настроен в профиле поль
 
 Начни с проверки git/remote/ssh и только потом выполняй задачу end-to-end.
 ```
+
+---
+
+## 9) Текущий фактический статус
+
+- Активные tenant в control-plane: `test-client-1 (pb.nwlvl.ru)`, `tenant-admintest14`, `tenant-admintest15`.
+- Битые тестовые tenant записи уже удалены (`drop_tenants.py`).
+- AI gateway:
+  - quality-gate и security policy включены,
+  - PII sanitizer включен,
+  - fallback на `settings_funnel_stages` поддерживается,
+  - server-side check доступа к `deal_id` перед AI-записью включен.

@@ -14,6 +14,9 @@
 - Гибкий формат AI-ответа: 4/9/20+ секций без жесткой привязки UI к фиксированным полям.
 - Запись AI-результата в tenant данные (`ai_insights`, `timeline`, `deals.current_score/current_recommendations`).
 - Автодеплой frontend через Vercel из этого GitHub-репозитория.
+- Quality-gate AI-аудита (`structured_ok`, `fallback_used`, `provider_used`, `ai_quality_alert`).
+- Policy-driven PII sanitization перед отправкой в LLM (control key: `ai.data_policy.v1`).
+- Server-side проверка доступа к сделке перед AI-записью (ownership/privileged role guard).
 
 ---
 
@@ -170,6 +173,10 @@
 - Политика хранения:
   - хранить только маскированные данные в AI gateway audit;
   - не хранить полный prompt и не хранить raw PII в логах.
+- Конфиг policy:
+  - `GET /api/ai-data-policy`
+  - `POST /api/ai-data-policy`
+  - системный ключ: `ai.data_policy.v1`.
 
 ### На frontend
 
@@ -192,8 +199,11 @@
   - `CONTROL_DB_PATH`
   - `PLATFORM_CONSOLE_USER`
   - `PLATFORM_CONSOLE_PASSWORD`
+  - `TENANT_PB_ADMIN_EMAIL`
+  - `TENANT_PB_ADMIN_PASSWORD`
   - `PLATFORM_AI_SECRETS_FILE`
   - `PUBLIC_AI_ALLOWED_ORIGINS`
+  - `GIGACHAT_INSECURE_TLS` (production: `0`)
   - `AI_GATEWAY_AUDIT_LOG`
 
 Template unit в репозитории: `backend/platform-console/platform-console.service`
@@ -282,6 +292,30 @@ python backend/platform-console/audit_tenant_schema.py --from-env
 
 ---
 
+## 8.2) Instance repair и tenant cleanup
+
+Для выравнивания control DB и endpoint-адресов tenant инстансов:
+
+```bash
+python backend/platform-console/repair_instances.py \
+  --control-db-path /opt/pb-control/pb_data/data.db \
+  --admin-email "$TENANT_PB_ADMIN_EMAIL" \
+  --admin-password "$TENANT_PB_ADMIN_PASSWORD" \
+  --insecure-tls --apply
+```
+
+Для удаления битых тестовых tenant записей из control-plane:
+
+```bash
+python backend/platform-console/drop_tenants.py \
+  --control-db-path /opt/pb-control/pb_data/data.db \
+  --tenant-code tenant-foo --tenant-code tenant-bar --apply
+```
+
+> Перед `drop_tenants.py --apply` обязательно сделать backup `data.db`.
+
+---
+
 ## 9) Локальная разработка
 
 ### Frontend
@@ -358,6 +392,9 @@ cd backend/pocketbase
 4. Если UI обновился, а смысл AI не изменился:
    - вероятнее всего не обновлен `platform-console`;
    - проверить unit и журнал сервиса.
+5. Проверка безопасности:
+   - `analyze_success` содержит `structured_ok/fallback_used/provider_used/data_policy_version`;
+   - в audit нет сырого PII в `analyze_request.context` и `provider_attempt.content_preview`.
 
 ---
 
@@ -372,3 +409,12 @@ cd backend/pocketbase
 ---
 
 Если документ нужно превратить в "операционную вики" (с отдельными страницами по инцидентам, онбордингу инженера и SRE-чеклистами), лучше вынести в `docs/` и связать ссылками из этого README.
+
+---
+
+## Актуальный статус (оперативно)
+
+- Активные tenant-инстансы после cleanup: `pb.nwlvl.ru`, `admintest14.nwlvl.ru`, `admintest15.nwlvl.ru`.
+- Битые тестовые tenant записи удалены из control-plane реестра.
+- Sprint 1 (AI-гибкость + scoring + master prompt) — внедрен.
+- Sprint 2 (PII/security baseline + data policy + quality gate) — внедрен.

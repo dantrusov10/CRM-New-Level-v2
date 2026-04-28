@@ -1300,6 +1300,14 @@ AI_DEAL_OUTPUT_RULES = (
     "Для action-oriented разделов (next_steps/recommendations/suggestions и аналоги) пиши конкретные шаги с ролями, темой и горизонтом."
 )
 
+AI_CLIENT_RESEARCH_OUTPUT_RULES = (
+    "Правила содержания для client_research (обязательно): "
+    "верни глубокое исследование в JSON с разделами executive_summary, business_context, it_landscape, "
+    "stakeholders_map, pains_confirmed, pains_hypotheses, risks, entry_strategy, action_plan_7_14_30, data_gaps, sources. "
+    "Для каждого ключевого вывода укажи evidence/source_ref, а гипотезы явно пометь как hypothesis. "
+    "В action_plan дай конкретные шаги с owner, due_window и expected_outcome."
+)
+
 
 def _run_openai_compatible(provider, engine, prompt):
     creds = _provider_creds(provider)
@@ -2135,7 +2143,16 @@ def _save_ai_data_policy(payload):
     return {"ok": True, "policy": policy}
 
 
-def _get_tenant_prompt(tenant_pb_url, admin_token):
+def _get_tenant_prompt(tenant_pb_url, admin_token, task_code="deal_analysis"):
+    model_by_task = {
+        "deal_analysis": "deal_analysis_prompt",
+        "deal_update_analysis": "deal_analysis_prompt",
+        "decision_support": "deal_analysis_prompt",
+        "client_research": "client_research_prompt",
+        "tender_tz_analysis": "tz_analysis_prompt",
+        "semantic_enrichment": "semantic_enrichment_prompt",
+    }
+    model = model_by_task.get(str(task_code or "").strip(), "deal_analysis_prompt")
     try:
         packs = _tenant_api_list(
             tenant_pb_url,
@@ -2143,7 +2160,7 @@ def _get_tenant_prompt(tenant_pb_url, admin_token):
             {
                 "perPage": 1,
                 "sort": "-created",
-                "filter": 'type="deal" && model="deal_analysis_prompt"',
+                "filter": f'type="deal" && model="{model}"',
             },
             admin_token,
         )
@@ -2154,6 +2171,26 @@ def _get_tenant_prompt(tenant_pb_url, admin_token):
                 return txt
     except Exception:
         pass
+    # Backward compatibility: if scenario-specific prompt is not set, fallback to deal_analysis_prompt.
+    if model != "deal_analysis_prompt":
+        try:
+            packs = _tenant_api_list(
+                tenant_pb_url,
+                "semantic_packs",
+                {
+                    "perPage": 1,
+                    "sort": "-created",
+                    "filter": 'type="deal" && model="deal_analysis_prompt"',
+                },
+                admin_token,
+            )
+            items = packs.get("items", []) if isinstance(packs, dict) else []
+            if items:
+                txt = str((items[0] or {}).get("base_text", "")).strip()
+                if txt:
+                    return txt
+        except Exception:
+            pass
     return ""
 
 
@@ -2473,7 +2510,7 @@ def run_ai_deal_analysis(payload):
     owner_prompt = str((prompts_map.get("deal_update_analysis") if is_update_mode else prompts_map.get(task_code)) or "").strip()
     if not owner_prompt:
         owner_prompt = str((prompts_map.get("deal_analysis") or "")).strip()
-    tenant_prompt = _get_tenant_prompt(tenant_pb_url, admin_token)
+    tenant_prompt = _get_tenant_prompt(tenant_pb_url, admin_token, task_code)
     master_prompts = _get_master_prompts()
     master_prompt = str(master_prompts.get(task_code, "")).strip()
     if not master_prompt:
@@ -2503,6 +2540,9 @@ def run_ai_deal_analysis(payload):
             "карту ЛПР/ЛВР/блокеров, подтвержденные боли, зрелость, риски, окна входа и план действий на 7/14/30 дней. "
             "Отдельно перечисли data-gaps и какие вопросы задать клиенту для валидации гипотез.\n"
         )
+    output_rules = AI_DEAL_OUTPUT_RULES
+    if task_code == "client_research":
+        output_rules = AI_CLIENT_RESEARCH_OUTPUT_RULES
     prompt = (
         f"{deal_prompt}\n"
         + (f"{master_prompt}\n" if master_prompt else "")
@@ -2510,7 +2550,7 @@ def run_ai_deal_analysis(payload):
         + deep_research_instruction
         + f"Контекст сделки (JSON): {json.dumps(llm_context, ensure_ascii=False)}\n"
         "Формат ответа: один валидный JSON-объект без markdown и без текста вне JSON.\n"
-        + AI_DEAL_OUTPUT_RULES
+        + output_rules
     )
 
     llm_result = _run_provider(primary_provider, primary_engine, prompt)

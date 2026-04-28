@@ -31,7 +31,7 @@ import { analyzeDealWithAi } from "../../../lib/aiGateway";
 
 type AnyObj = Record<string, unknown>;
 type TimelinePayload = Record<string, unknown>;
-type AiSection = { title: string; raw: unknown };
+type AiSection = { key: string; title: string; raw: unknown };
 
 function extractScoreFromExplainability(ex: unknown): number | null {
   if (!ex || typeof ex !== "object" || Array.isArray(ex)) return null;
@@ -269,12 +269,53 @@ function toBusinessSectionTitle(key: string) {
     upside: "Точки роста",
     growth_points: "Точки роста",
     commercial_assessment: "Коммерческая оценка",
+    commercial_evaluation: "Коммерческая оценка",
     deal_closure_strategy: "Стратегия закрытия",
     close_strategy: "Стратегия закрытия",
+    closing_strategy: "Стратегия закрытия",
     explainability: "Объяснение оценки",
     score_explainability: "Объяснение оценки",
+    next_best_actions: "Следующие шаги",
+    company_context: "Контекст клиента",
+    contacts: "Контакты",
+    pains_and_needs: "Боли и потребности",
+    presell_depth: "Пресейл",
+    competitors: "Конкуренция",
+    timing: "Тайминг",
   };
   return aliases[k] || toSectionTitle(key);
+}
+
+function sectionPriority(key: string): number {
+  const k = String(key || "").trim().toLowerCase();
+  const order: Record<string, number> = {
+    executive_summary: 10,
+    exec_summary: 10,
+    short_summary: 10,
+    explainability: 20,
+    score_explainability: 20,
+    next_best_actions: 30,
+    next_steps: 30,
+    next_actions: 30,
+    action_plan: 30,
+    recommendations: 40,
+    suggestions: 40,
+    risks: 50,
+    risk_register: 50,
+    upside: 60,
+    upsides: 60,
+    growth_points: 60,
+    data_gaps: 70,
+    missing_data: 70,
+    commercial_assessment: 80,
+    commercial_evaluation: 80,
+    deal_closure_strategy: 90,
+    close_strategy: 90,
+    closing_strategy: 90,
+    comments: 100,
+    notes: 100,
+  };
+  return order[k] ?? 500;
 }
 
 function valueToText(value: unknown): string {
@@ -376,8 +417,13 @@ function buildDynamicSections(insight: AiInsight | null): AiSection[] {
     if (seenTitles.has(nt) || seenSigs.has(sig)) continue;
     seenTitles.add(nt);
     seenSigs.add(sig);
-    sections.push({ title, raw });
+    sections.push({ key, title, raw });
   }
+  sections.sort((a, b) => {
+    const p = sectionPriority(a.key) - sectionPriority(b.key);
+    if (p !== 0) return p;
+    return a.title.localeCompare(b.title, "ru");
+  });
   return sections;
 }
 

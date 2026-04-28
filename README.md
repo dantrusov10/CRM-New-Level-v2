@@ -151,6 +151,26 @@
    - `deals.current_score/current_recommendations`.
 8. Аудит в `AI_GATEWAY_AUDIT_LOG`.
 
+### Quality-gate и диагностика качества
+
+- В `analyze_success` пишутся маркеры:
+  - `structured_ok` — удалось ли получить структурный payload от LLM.
+  - `fallback_used` — использован ли fallback-движок.
+  - `provider_used` — фактически использованный провайдер/движок.
+  - `quality_gate` — статистика окна за 1 час.
+- Если в скользящем окне 1 часа fallback используется слишком часто или структура ответа деградирует, пишется `ai_quality_alert`.
+- Для отладки случаев `parsed={}` в `provider_attempt` добавляется `content_preview` (обрезанный фрагмент ответа).
+
+### PII sanitizer перед LLM
+
+- Перед отправкой контекста в модель применяется санитайзер:
+  - email, телефоны, банковские/реквизитные номера, ИНН/КПП/БИК и похожие идентификаторы;
+  - поля контактов/ФИО маскируются по key-based правилам.
+- В аудит не пишется сырой frontend context: используется уже санитайзированная версия.
+- Политика хранения:
+  - хранить только маскированные данные в AI gateway audit;
+  - не хранить полный prompt и не хранить raw PII в логах.
+
 ### На frontend
 
 - AI-панель рендерит:
@@ -213,7 +233,8 @@ Vercel деплоит **только frontend**.
    - UI загружается;
    - `POST /owner/api/public/ai/analyze-deal` -> 200;
    - запись в `ai_insights` создается;
-   - в audit log появляется `analyze_success`.
+   - в audit log появляется `analyze_success` c `structured_ok/fallback_used/provider_used`.
+   - нет свежих `ai_quality_alert` после smoke-run.
 
 ---
 
@@ -236,6 +257,28 @@ Vercel деплоит **только frontend**.
 
 - Изменения UI видны после успешного build + release на Vercel.
 - Изменения gateway не появляются от Vercel: это отдельный deployment track.
+
+---
+
+## 8.1) Аудит tenant-схемы (анти-404)
+
+Для предотвращения падений контекста из-за отсутствующих коллекций/полей:
+
+```bash
+python backend/platform-console/audit_tenant_schema.py \
+  --tenant https://pb.nwlvl.ru \
+  --admin-email "$TENANT_PB_ADMIN_EMAIL" \
+  --admin-password "$TENANT_PB_ADMIN_PASSWORD"
+```
+
+Или массово по env:
+
+```bash
+export TENANT_PB_URLS="https://pb1.nwlvl.ru,https://pb2.nwlvl.ru"
+python backend/platform-console/audit_tenant_schema.py --from-env
+```
+
+Скрипт завершится кодом `1`, если найдены missing collections/fields.
 
 ---
 

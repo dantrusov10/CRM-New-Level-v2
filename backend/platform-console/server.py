@@ -7,6 +7,7 @@ import secrets
 import sqlite3
 import ssl
 import uuid
+import re
 from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.error import HTTPError, URLError
@@ -30,6 +31,7 @@ AI_GATEWAY_AUDIT_LOG = os.getenv("AI_GATEWAY_AUDIT_LOG", "/opt/pb-control/ai-gat
 
 SESSIONS = {}
 PUBLIC_AI_RATE_LIMIT = {}
+AI_QUALITY_GATE_WINDOW = {}
 
 MASTER_PROMPT_KEY_DEAL_ANALYSIS = "ai.master_prompt.deal_analysis"
 
@@ -738,6 +740,105 @@ def _check_rate_limit(user_id):
         return False
     slot.append(now)
     return True
+
+
+def _mask_email(text):
+    s = str(text or "")
+    if "@" not in s:
+        return s
+    parts = s.split("@", 1)
+    local = parts[0]
+    domain = parts[1]
+    if not local:
+        return "***@" + domain
+    if len(local) <= 2:
+        return local[0] + "***@" + domain
+    return local[:2] + "***@" + domain
+
+
+def _mask_phone(text):
+    s = str(text or "")
+    digits = [ch for ch in s if ch.isdigit()]
+    if len(digits) < 7:
+        return s
+    d = "".join(digits)
+    return f"+{d[:2]}***{d[-2:]}"
+
+
+def _mask_account_like(text):
+    s = str(text or "")
+    d = "".join(ch for ch in s if ch.isdigit())
+    if len(d) < 6:
+        return s
+    return d[:2] + ("*" * (len(d) - 4)) + d[-2:]
+
+
+def _sanitize_scalar_by_key(key, value):
+    k = str(key or "").lower()
+    s = str(value or "")
+    if "email" in k or "mail" in k:
+        return _mask_email(s)
+    if any(x in k for x in ["phone", "tel", "mobile", "telegram", "whatsapp"]):
+        return _mask_phone(s)
+    if any(x in k for x in ["inn", "кпп", "kpp", "bik", "счет", "account", "iban", "swift", "ogrn"]):
+        return _mask_account_like(s)
+    if any(x in k for x in ["full_name", "fio", "name", "contact"]):
+        if len(s.split()) >= 2:
+            p = s.split()
+            masked = [p[0][0] + "***"]
+            for x in p[1:]:
+                masked.append((x[0] + "***") if x else "")
+            return " ".join(masked)
+    return s
+
+
+def _sanitize_text_pii(text):
+    s = str(text or "")
+    s = re.sub(r"([A-Za-z0-9._%+-]{2})[A-Za-z0-9._%+-]*@([A-Za-z0-9.-]+\.[A-Za-z]{2,})", r"\1***@\2", s)
+    s = re.sub(r"(?<!\d)(\+?\d[\d\-\(\)\s]{8,}\d)(?!\d)", "[masked_phone]", s)
+    s = re.sub(r"(?<!\d)\d{10,20}(?!\d)", "[masked_number]", s)
+    return s
+
+
+def _sanitize_for_llm(value, key_hint=""):
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        out = {}
+        for k, v in value.items():
+            out[k] = _sanitize_for_llm(v, str(k))
+        return out
+    if isinstance(value, list):
+        return [_sanitize_for_llm(v, key_hint) for v in value]
+    if isinstance(value, tuple):
+        return [_sanitize_for_llm(v, key_hint) for v in value]
+    if isinstance(value, (int, float, bool)):
+        return value
+    txt = _sanitize_scalar_by_key(key_hint, value)
+    return _sanitize_text_pii(txt)
+
+
+def _quality_gate_check(tenant_pb_url, fallback_used, structured_ok):
+    now = datetime.utcnow()
+    key = str(tenant_pb_url or "").strip().lower() or "unknown"
+    buf = AI_QUALITY_GATE_WINDOW.setdefault(key, [])
+    threshold = now - timedelta(hours=1)
+    buf[:] = [x for x in buf if x["ts"] > threshold]
+    buf.append({"ts": now, "fallback_used": bool(fallback_used), "structured_ok": bool(structured_ok)})
+    total = len(buf)
+    fallback_count = sum(1 for x in buf if x["fallback_used"])
+    structured_count = sum(1 for x in buf if x["structured_ok"])
+    fallback_ratio = (fallback_count / total) if total else 0.0
+    structured_ratio = (structured_count / total) if total else 0.0
+    alert = total >= 8 and (fallback_ratio >= 0.45 or structured_ratio <= 0.55)
+    return {
+        "window_events_1h": total,
+        "fallback_count_1h": fallback_count,
+        "structured_count_1h": structured_count,
+        "fallback_ratio_1h": round(fallback_ratio, 3),
+        "structured_ratio_1h": round(structured_ratio, 3),
+        "alert": alert,
+    }
 
 
 def _extract_json_object(text):
@@ -1678,6 +1779,7 @@ def run_ai_deal_analysis(payload):
     user_id = str(payload.get("user_id", "")).strip()
     tenant_user_token = str(payload.get("tenant_user_token", "")).strip()
     context = payload.get("context", {}) if isinstance(payload.get("context"), dict) else {}
+    safe_request_context = _sanitize_for_llm(context, "context")
     _audit_log(
         "analyze_request",
         {
@@ -1685,7 +1787,7 @@ def run_ai_deal_analysis(payload):
             "tenant_pb_url": tenant_pb_url,
             "task_code": task_code,
             "user_id": user_id,
-            "context": context,
+            "context": safe_request_context,
         },
     )
     if not deal_id or not tenant_pb_url:
@@ -1719,6 +1821,7 @@ def run_ai_deal_analysis(payload):
         return {"ok": False, "error": f"tenant admin auth failed: {e}"}
 
     full_context = _build_ai_context(tenant_pb_url, deal_id, admin_token, context)
+    llm_context = _sanitize_for_llm(full_context, "context")
     owner_prompt = str(
         ((routing.get("prompts", {}) if isinstance(routing.get("prompts"), dict) else {}).get("deal_analysis") or "")
     ).strip()
@@ -1734,7 +1837,7 @@ def run_ai_deal_analysis(payload):
     prompt = (
         f"{deal_prompt}\n"
         + (f"{master_prompt}\n" if master_prompt else "")
-        + f"Контекст сделки (JSON): {json.dumps(full_context, ensure_ascii=False)}\n"
+        + f"Контекст сделки (JSON): {json.dumps(llm_context, ensure_ascii=False)}\n"
         "Формат ответа: один валидный JSON-объект без markdown и без текста вне JSON.\n"
         + AI_DEAL_OUTPUT_RULES
     )
@@ -1908,12 +2011,32 @@ def run_ai_deal_analysis(payload):
     price_per_1k = float(((routing.get("budget", {}) or {}).get("default_price_rub_per_1k_tokens", 0.0) or 0.0))
     total_cost_rub = (float(total_tokens or 0) / 1000.0) * price_per_1k
     _append_ai_usage_monthly(tenant_code, usage, total_cost_rub)
+    structured_ok = _llm_result_has_structured_payload(llm_result)
+    fallback_used = used_provider != primary_provider or used_engine != primary_engine
+    quality_gate = _quality_gate_check(tenant_pb_url, fallback_used, structured_ok)
+    if quality_gate.get("alert"):
+        _audit_log(
+            "ai_quality_alert",
+            {
+                "deal_id": deal_id,
+                "tenant_pb_url": tenant_pb_url,
+                "provider_used": f"{used_provider}:{used_engine}",
+                "primary": f"{primary_provider}:{primary_engine}",
+                "fallback_used": fallback_used,
+                "structured_ok": structured_ok,
+                "quality_gate": quality_gate,
+            },
+        )
     _audit_log(
         "analyze_success",
         {
             "deal_id": deal_id,
             "provider": used_provider,
             "engine": used_engine,
+            "provider_used": f"{used_provider}:{used_engine}",
+            "fallback_used": fallback_used,
+            "structured_ok": structured_ok,
+            "quality_gate": quality_gate,
             "score": score,
             "llm_score_raw": llm_score,
             "summary": summary,

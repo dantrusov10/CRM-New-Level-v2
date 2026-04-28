@@ -127,7 +127,13 @@ ssh root@2.58.69.58 "systemctl is-active platform-console.service"
 3. Любые изменения по AI/gateway считать двуступенчатыми:
    - git push (frontend/кодовая история),
    - отдельный rollout backend на сервер.
-4. После изменений давать короткий отчёт:
+4. Операционный протокол AI-изменений (обязательный):
+   - push в `main`,
+   - rollout `backend/platform-console/server.py` на `/opt/pb-control/platform-console/server.py`,
+   - `systemctl restart platform-console.service`,
+   - smoke-check endpoint и аудит (`structured_ok`, `fallback_used`, `provider_used`).
+5. Для профилактики schema-404 регулярно запускать `backend/platform-console/audit_tenant_schema.py`.
+6. После изменений давать короткий отчёт:
    - что изменено,
    - что проверено,
    - что задеплоено,

@@ -106,9 +106,10 @@ body:after{
 /* ========= Cockpit utility classes (no @apply, to avoid Tailwind build issues) ========= */
 .cockpit-topbar{
   position:sticky; top:0; z-index:40;
-  background: rgba(6,16,35,0.58);
-  border-bottom: 1px solid rgba(255,255,255,0.10);
+  background: rgba(6,16,35,0.72);
+  border-bottom: 1px solid rgba(51,215,255,0.22);
   backdrop-filter: blur(14px);
+  box-shadow: 0 10px 26px rgba(0,0,0,0.24);
 }
 
 .cockpit-sidebar{
@@ -126,16 +127,18 @@ body:after{
   font-size: 14px;
   font-weight: 750;
   color: rgba(226,232,240,0.88);
-  border:1px solid transparent;
+  border:1px solid rgba(255,255,255,0.06);
 }
 .cockpit-nav-item:hover{
-  background: rgba(255,255,255,0.08);
-  border-color: rgba(255,255,255,0.10);
+  background: rgba(51,215,255,0.16);
+  border-color: rgba(51,215,255,0.30);
+  box-shadow: 0 0 20px rgba(51,215,255,0.16);
 }
 .cockpit-nav-item.active{
-  background: rgba(96,165,250,0.16);
-  border-color: rgba(96,165,250,0.30);
+  background: linear-gradient(135deg, rgba(45,123,255,0.32), rgba(51,215,255,0.22));
+  border-color: rgba(51,215,255,0.45);
   color: #fff;
+  box-shadow: 0 0 24px rgba(51,215,255,0.18);
 }
 
 /* Core surfaces */
@@ -208,8 +211,8 @@ body:after{
 
 .ui-btn-primary{
   background: linear-gradient(180deg, rgba(96,165,250,0.95), rgba(37,99,235,0.92));
-  border-color: rgba(96,165,250,0.45);
-  box-shadow: 0 16px 44px rgba(96,165,250,0.20);
+  border-color: rgba(51,215,255,0.55);
+  box-shadow: 0 16px 44px rgba(96,165,250,0.24), 0 0 24px rgba(51,215,255,0.16);
 }
 .ui-btn-primary:hover{ border-color: rgba(96,165,250,0.75); }
 

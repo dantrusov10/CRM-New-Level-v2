@@ -60,7 +60,7 @@ export function AppLayout() {
         <Sidebar perms={perms} />
       </div>
 
-      <div className="min-h-screen" style={{ marginLeft: SIDEBAR_W }}>
+      <div className="min-h-screen relative" style={{ marginLeft: SIDEBAR_W }}>
         <Header
           pathname={location.pathname}
           onCreateCompany={() => setOpenCompany(true)}
@@ -71,7 +71,8 @@ export function AppLayout() {
         />
 
         {/* Page content scrolls; header stays sticky */}
-        <main className="p-6 min-w-0">
+        <main className="p-6 min-w-0 relative">
+          <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(700px_280px_at_60%_0%,rgba(51,215,255,0.12),transparent_70%)]" />
           <Outlet />
         </main>
       </div>

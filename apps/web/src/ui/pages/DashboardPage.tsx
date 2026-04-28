@@ -526,7 +526,10 @@ export function DashboardPage() {
       <div className={pageWrapperClass}>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="text-xl font-extrabold">Dashboard</div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(51,215,255,0.35)] bg-[rgba(51,215,255,0.12)] px-3 py-1 text-xs font-semibold mb-2">
+              Executive control panel
+            </div>
+            <div className="text-2xl font-extrabold tracking-wide">Dashboard</div>
             <div className="mt-1 text-sm subtle">Каждый блок настраивается отдельно (период/фильтры) + есть проваливание в сделки</div>
           </div>
           <div className="flex items-center gap-2">

@@ -40,8 +40,8 @@ export function Header({
 
   return (
     <header className="cockpit-topbar">
-      <div className="flex items-center gap-3 px-6 py-4">
-        <div className="text-sm font-extrabold tracking-wide uppercase w-[160px] flex items-center gap-2">
+      <div className="flex items-center gap-3 px-6 py-4 border-b border-[rgba(51,215,255,0.18)] bg-[linear-gradient(90deg,rgba(17,24,39,0.46),rgba(30,58,138,0.24),rgba(17,24,39,0.46))]">
+        <div className="text-sm font-extrabold tracking-wide uppercase w-[190px] flex items-center gap-2">
           <span className="brand-dot" />
           {titleByPath(pathname)}
         </div>
@@ -63,7 +63,7 @@ export function Header({
           </div>
 
           <button
-            className="ui-btn ui-icon-btn"
+            className="ui-btn ui-icon-btn border-[rgba(51,215,255,0.3)] bg-[rgba(51,215,255,0.12)]"
             onClick={() => setFiltersOpen(true)}
             title="Фильтры"
             aria-label="Фильтры"
@@ -100,7 +100,7 @@ export function Header({
               Сделка
             </Button>
           ) : null}
-          <button className="ui-btn ui-icon-btn" title="Выйти" onClick={logout} aria-label="Выйти">
+          <button className="ui-btn ui-icon-btn border-[rgba(239,68,68,0.45)] bg-[rgba(239,68,68,0.18)]" title="Выйти" onClick={logout} aria-label="Выйти">
             <LogOut size={18} />
           </button>
         </div>

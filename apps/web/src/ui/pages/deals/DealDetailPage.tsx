@@ -1112,6 +1112,26 @@ export function DealDetailPage() {
   const hasRiskSignals =
     Boolean(latestAi?.risks) ||
     dynamicSections.some((section) => /риск|risk/i.test(section.key) || /риск|risk/i.test(section.title));
+  const latestAiTimelineEvent = React.useMemo(
+    () =>
+      tlAll.find((t) => {
+        const action = String(t.action || "").toLowerCase();
+        return action === "ai_analysis" || action === "ai_update_analysis" || action.startsWith("ai");
+      }) || null,
+    [tlAll],
+  );
+  const latestAiMode = React.useMemo(() => {
+    if (!latestAiTimelineEvent) return "full";
+    const payload =
+      latestAiTimelineEvent.payload && typeof latestAiTimelineEvent.payload === "object"
+        ? (latestAiTimelineEvent.payload as Record<string, unknown>)
+        : null;
+    const payloadMode = String(payload?.analysis_mode || "").toLowerCase();
+    if (payloadMode === "update") return "update";
+    const action = String(latestAiTimelineEvent.action || "").toLowerCase();
+    if (action === "ai_update_analysis") return "update";
+    return "full";
+  }, [latestAiTimelineEvent]);
 
   const tlFiltered = tlAll.filter((t) => {
     if (timelineFilter === "comments") return String(t.action) === "comment";
@@ -1305,7 +1325,10 @@ export function DealDetailPage() {
                         <div className="mt-2"><Badge>{sb.label}</Badge></div>
                       </div>
                       <div className="col-span-12 lg:col-span-9 rounded-lg border border-border bg-rowHover/60 p-3">
-                        <div className="text-xs text-text2">Последнее обновление AI</div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-xs text-text2">Последнее обновление AI</div>
+                          <Badge>{latestAiMode === "update" ? "Режим: UPDATE" : "Режим: FULL"}</Badge>
+                        </div>
                         <div className="mt-1 text-sm">{latestAi.created ? dayjs(latestAi.created).format("DD.MM.YYYY HH:mm") : "—"}</div>
                       </div>
                     </div>

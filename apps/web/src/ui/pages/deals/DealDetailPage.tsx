@@ -1,6 +1,7 @@
 import React from "react";
 import { useParams } from "react-router-dom";
 import dayjs from "dayjs";
+import { AlertTriangle, CheckCircle2, Lightbulb, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
@@ -391,6 +392,16 @@ function formatRisksForDisplay(raw: unknown): string {
     return s;
   }
   return valueToText(raw);
+}
+
+function extractActionItems(raw: unknown): string[] {
+  const text = valueToText(raw);
+  if (!text) return [];
+  return text
+    .split(/\n|;|•|-/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 5)
+    .slice(0, 4);
 }
 
 function buildDynamicSections(insight: AiInsight | null): AiSection[] {
@@ -820,6 +831,10 @@ export function DealDetailPage() {
   const score = resolveDisplayScore(latestAi);
   const sb = scoreBadge(score);
   const dynamicSections = React.useMemo(() => buildDynamicSections(latestAi), [latestAi]);
+  const nextActions = React.useMemo(
+    () => extractActionItems(latestAi?.suggestions || latestAi?.recommendations || ""),
+    [latestAi],
+  );
 
   const tlAll = (tlQ.data ?? []) as Array<TimelineItem & { expand?: { user_id?: { name?: string; email?: string } } }>;
   const tlFiltered = tlAll.filter((t) => {
@@ -1225,8 +1240,8 @@ export function DealDetailPage() {
             <CardHeader className="border-infoBorder">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold">Сигналы и риски</div>
-                  <div className="text-xs text-text2 mt-1">Отчёт по сделке: структурированные блоки из ответа модели</div>
+                  <div className="text-sm font-semibold">AI-отчёт по сделке</div>
+                  <div className="text-xs text-text2 mt-1">Сначала вывод и действия, ниже — детальная декомпозиция сигналов и рисков</div>
                 </div>
                 <Button onClick={runAiAnalysis} disabled={aiRunLoading || !deal?.id}>
                   {aiRunLoading ? "AI анализ..." : "Запустить AI-анализ"}
@@ -1239,39 +1254,72 @@ export function DealDetailPage() {
                 <div className="text-sm text-text2">Загрузка...</div>
               ) : latestAi ? (
                 <div className="grid gap-4 lg:grid-cols-2">
-                  <div className="lg:col-span-2 flex flex-wrap items-start justify-between gap-3">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge>{sb.label}</Badge>
-                      <Badge>Compliance: Balanced</Badge>
+                  <div className="lg:col-span-2 grid gap-3 rounded-xl border border-infoBorder bg-card/90 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge>{sb.label}</Badge>
+                        <Badge>AI-ready snapshot</Badge>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-text2">Score</div>
+                        <div className="text-[26px] font-semibold leading-none text-text">{typeof score === "number" ? `${score}/100` : "—"}</div>
+                        <div className="text-xs text-text2 mt-1">Версия: {latestAi.created ? dayjs(latestAi.created).format("DD.MM.YYYY") : "—"}</div>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-xs text-text2">Score</div>
-                      <div className="text-[26px] font-semibold leading-none text-text">{typeof score === "number" ? `${score}/100` : "—"}</div>
-                      <div className="text-xs text-text2 mt-1">Версия: {latestAi.created ? dayjs(latestAi.created).format("DD.MM.YYYY") : "—"}</div>
-                    </div>
-                  </div>
-                  {latestAi.summary ? (
-                    <div className="rounded-xl border border-infoBorder bg-card/90 p-4 lg:col-span-2">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-text2">Резюме</div>
-                      <div className="mt-3">
+
+                    {latestAi.summary ? (
+                      <div className="rounded-lg border border-border bg-rowHover/60 p-3">
+                        <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text2">
+                          <Sparkles size={14} />
+                          Краткий вывод
+                        </div>
                         <SmartStringContent text={latestAi.summary} />
                       </div>
-                    </div>
-                  ) : null}
-                  {latestAi.suggestions || latestAi.recommendations ? (
-                    <div className="rounded-xl border border-infoBorder bg-card/90 p-4 lg:col-span-2">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-text2">Рекомендации</div>
-                      <div className="mt-3">
-                        <SmartStringContent text={String(latestAi.suggestions || latestAi.recommendations || "")} />
+                    ) : null}
+
+                    {nextActions.length ? (
+                      <div className="rounded-lg border border-border bg-rowHover/60 p-3">
+                        <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text2">
+                          <CheckCircle2 size={14} />
+                          Next actions
+                        </div>
+                        <ul className="grid gap-1.5 text-sm">
+                          {nextActions.map((item, idx) => (
+                            <li key={`${item}-${idx}`} className="flex items-start gap-2">
+                              <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary/80" />
+                              <span className="leading-relaxed">{item}</span>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                    </div>
-                  ) : null}
-                  {latestAi.risks ? (
-                    <div className="rounded-xl border border-infoBorder bg-card/90 p-4">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-text2">Риски</div>
-                      <div className="mt-3">
+                    ) : (
+                      <div className="rounded-lg border border-border bg-rowHover/60 p-3 text-sm text-text2">
+                        Добавьте или обновите AI-анализ, чтобы получить список следующих шагов.
+                      </div>
+                    )}
+
+                    {latestAi.risks ? (
+                      <div className="rounded-lg border border-amber-500/35 bg-[rgba(251,191,36,0.07)] p-3">
+                        <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text2">
+                          <AlertTriangle size={14} />
+                          Ключевые риски
+                        </div>
                         <AiRisksVisual raw={latestAi.risks} />
                       </div>
+                    ) : (
+                      <div className="rounded-lg border border-border bg-rowHover/60 p-3 text-sm text-text2">
+                        Риски не зафиксированы в последнем AI-ответе.
+                      </div>
+                    )}
+                  </div>
+
+                  {latestAi.suggestions || latestAi.recommendations ? (
+                    <div className="rounded-xl border border-infoBorder bg-card/90 p-4 lg:col-span-2">
+                      <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text2">
+                        <Lightbulb size={14} />
+                        Расширенные рекомендации
+                      </div>
+                      <SmartStringContent text={String(latestAi.suggestions || latestAi.recommendations || "")} />
                     </div>
                   ) : null}
                   {dynamicSections.map((section, idx) => (

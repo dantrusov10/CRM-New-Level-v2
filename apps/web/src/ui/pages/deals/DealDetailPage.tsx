@@ -1039,7 +1039,7 @@ export function DealDetailPage() {
       await analyzeDealWithAi({
         dealId: deal.id,
         userId: auth?.id,
-        taskCode: mode === "update" ? "deal_update_analysis" : "deal_analysis",
+        taskCode: "deal_analysis",
         context: {
           analysis_mode: mode,
           deal_id: deal.id,

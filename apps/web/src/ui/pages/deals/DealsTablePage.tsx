@@ -144,25 +144,25 @@ export function DealsTablePage() {
         ) : (
           <div className="overflow-auto">
             <div className="mb-3 grid grid-cols-1 gap-2 lg:grid-cols-3">
-              <div className="board-panel p-3">
+              <div className="board-panel p-3 neon-accent">
                 <div className="text-xs text-text2">Сделок на странице</div>
                 <div className="mt-1 text-lg font-semibold">{items.length}</div>
               </div>
-              <div className="board-panel p-3">
+              <div className="board-panel p-3 neon-accent">
                 <div className="text-xs text-text2">Выбрано для массовых действий</div>
                 <div className="mt-1 text-lg font-semibold">
                   {selectedCount}
                   {selectedCount > 0 && selectedCount === items.length ? <span className="text-sm text-text2"> (вся страница)</span> : null}
                 </div>
               </div>
-              <div className="board-panel p-3">
+              <div className="board-panel p-3 neon-accent">
                 <div className="text-xs text-text2">Текущий режим</div>
                 <div className="mt-1 text-sm font-semibold">{search || stage || owner || channel ? "Фильтрованный список" : "Все сделки"}</div>
               </div>
             </div>
 
             {/* Bulk actions bar (always visible so it’s obvious) */}
-            <div className="mb-3 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 board-panel p-3">
+            <div className="mb-3 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 board-panel p-3 neon-accent">
               <div className="flex flex-wrap items-center gap-2">
                 <Button variant="secondary" onClick={() => togglePage(true)} disabled={!items.length}>Выбрать страницу</Button>
                 <Button variant="secondary" onClick={selectAllMatching} disabled={dealsQ.isLoading}>Выбрать все по фильтру</Button>

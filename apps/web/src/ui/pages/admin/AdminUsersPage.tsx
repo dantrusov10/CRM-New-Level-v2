@@ -72,12 +72,12 @@ export function AdminUsersPage() {
             <div className="text-base font-extrabold tracking-wide">Пользователи</div>
             <div className="text-xs text-text2 mt-1">Список + добавление + назначение ролей (матрица доступов хранится в `settings_roles`)</div>
           </div>
-          <Button small onClick={() => setOpen(true)}>Добавить пользователя</Button>
+          <Button small onClick={() => setOpen(true)} className="neon-accent">Добавить пользователя</Button>
         </div>
       </CardHeader>
       <CardContent>
         <div className="overflow-auto">
-          <div className="board-shell">
+          <div className="board-shell neon-accent">
           <table className="min-w-[900px] board-table text-sm">
             <thead>
               <tr className="text-[#374151] font-semibold">

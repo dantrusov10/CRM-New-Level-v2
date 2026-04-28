@@ -173,7 +173,7 @@ export function AdminFunnelPage() {
       </CardHeader>
       <CardContent>
         <div className="grid gap-3">
-          <div className="grid grid-cols-[1fr_120px_110px] gap-2 items-end board-panel p-3">
+          <div className="grid grid-cols-[1fr_120px_110px] gap-2 items-end board-panel p-3 neon-accent">
             <div>
               <div className="text-xs text-text2 mb-1">Название этапа</div>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Квалификация" />
@@ -193,7 +193,7 @@ export function AdminFunnelPage() {
           </div>
 
           <div className="overflow-auto">
-            <div className="board-shell">
+            <div className="board-shell neon-accent">
             <table className="min-w-[980px] board-table text-sm">
               <thead>
                 <tr className="text-[#374151] font-semibold">

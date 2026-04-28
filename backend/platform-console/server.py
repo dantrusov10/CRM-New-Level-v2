@@ -147,7 +147,7 @@ INDEX_HTML = """<!doctype html>
 
       <div class="card">
         <h2>Маршрутизация задач AI</h2>
-        <div class="hint">Шаг 2: для каждой задачи выбери провайдера и движок. Названия полей нейтральные и не привязаны к конкретной модели.</div>
+        <div class="hint">Шаг 2: для каждого AI-сценария выбери провайдера и движок. Названия сценариев соответствуют CRM.</div>
 
         <div class="task">
           <h3>Анализ сделки</h3>
@@ -165,7 +165,7 @@ INDEX_HTML = """<!doctype html>
         </div>
 
         <div class="task">
-          <h3>Поддержка решения</h3>
+          <h3>Поддержка решения (point action)</h3>
           <div class="row">
             <div><label>Основной провайдер</label><input id="rtDecisionPrimaryProvider" type="text" placeholder="deepseek"/></div>
             <div><label>Основной движок</label><input id="rtDecisionPrimaryEngine" type="text" placeholder="v3"/></div>
@@ -180,7 +180,7 @@ INDEX_HTML = """<!doctype html>
         </div>
 
         <div class="task">
-          <h3>Обогащение клиента</h3>
+          <h3>Исследование клиента</h3>
           <div class="row">
             <div><label>Основной провайдер</label><input id="rtEnrichPrimaryProvider" type="text" placeholder="gigachat"/></div>
             <div><label>Основной движок</label><input id="rtEnrichPrimaryEngine" type="text" placeholder="lite"/></div>
@@ -195,7 +195,7 @@ INDEX_HTML = """<!doctype html>
         </div>
 
         <div class="task">
-          <h3>Стратегия конкурентов</h3>
+          <h3>Общая семантика / парсеры</h3>
           <div class="row">
             <div><label>Основной провайдер</label><input id="rtStrategyPrimaryProvider" type="text" placeholder="gigachat"/></div>
             <div><label>Основной движок</label><input id="rtStrategyPrimaryEngine" type="text" placeholder="pro"/></div>

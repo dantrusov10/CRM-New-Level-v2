@@ -788,10 +788,15 @@ export function DealDetailPage() {
   const [timelineFilter, setTimelineFilter] = React.useState<string>("all");
   const [aiRunLoading, setAiRunLoading] = React.useState(false);
   const [aiRunError, setAiRunError] = React.useState<string>("");
-  const [selectedProductId, setSelectedProductId] = React.useState<string>("");
-  const [aiScenario, setAiScenario] = React.useState<AiScenario>("deal_analysis");
+  const [selectedProductIds, setSelectedProductIds] = React.useState<string[]>([]);
+  const [latestTzFileId, setLatestTzFileId] = React.useState<string>("");
   const [productPickerOpen, setProductPickerOpen] = React.useState(false);
-  const [pendingRun, setPendingRun] = React.useState<{ mode: "full" | "update"; scenario: AiScenario } | null>(null);
+  const [analysisPickerOpen, setAnalysisPickerOpen] = React.useState(false);
+  const [analysisSelection, setAnalysisSelection] = React.useState<string[]>([]);
+  const [analysisMode, setAnalysisMode] = React.useState<"full" | "update">("full");
+  const [clientResearchPickerOpen, setClientResearchPickerOpen] = React.useState(false);
+  const [clientResearchProductId, setClientResearchProductId] = React.useState("");
+  const [productFiles, setProductFiles] = React.useState<Array<{ id: string; profileId: string; profileName: string; filename: string; url: string; tag?: string }>>([]);
   const formRef = React.useRef<DynamicEntityFormHandle | null>(null);
 
   const auth = getAuthUser();
@@ -891,8 +896,15 @@ export function DealDetailPage() {
       kaiten_link: deal.kaiten_link ?? "",
     };
     const dealProduct = String((deal as Record<string, unknown>)?.product_id || "");
-    const cached = localStorage.getItem(`deal:${deal.id}:product_id`) || "";
-    setSelectedProductId(dealProduct || cached);
+    const cached = localStorage.getItem(`deal:${deal.id}:product_ids`) || "";
+    const ids = cached
+      ? cached.split(",").map((x) => x.trim()).filter(Boolean)
+      : dealProduct
+        ? [dealProduct]
+        : [];
+    setSelectedProductIds(ids);
+    const cachedTz = localStorage.getItem(`deal:${deal.id}:latest_tz_file_id`) || "";
+    setLatestTzFileId(cachedTz);
   }, [deal?.id]);
 
   const productProfiles = React.useMemo(() => {
@@ -907,9 +919,9 @@ export function DealDetailPage() {
     });
   }, [productProfilesQ.data]);
 
-  const selectedProduct = React.useMemo(
-    () => productProfiles.find((p) => p.id === selectedProductId) || null,
-    [productProfiles, selectedProductId],
+  const selectedProducts = React.useMemo(
+    () => productProfiles.filter((p) => selectedProductIds.includes(p.id)),
+    [productProfiles, selectedProductIds],
   );
 
   async function createTimelineEvent(action: string, commentText?: string, payload?: TimelinePayload) {
@@ -960,13 +972,15 @@ export function DealDetailPage() {
     tlQ.refetch();
   }
 
-  async function changeProduct(productId: string) {
+  async function saveSelectedProducts(nextIds: string[]) {
     if (!id) return;
-    setSelectedProductId(productId);
-    localStorage.setItem(`deal:${id}:product_id`, productId);
-    await pb.collection("deals").update(id, { product_id: productId || null }).catch(() => null);
-    const productName = productProfiles.find((p) => p.id === productId)?.name || "Не выбран";
-    await createTimelineEvent("product_selected", `Продукт сделки: ${productName}`, { product_id: productId || null });
+    const clean = Array.from(new Set(nextIds.filter(Boolean)));
+    setSelectedProductIds(clean);
+    localStorage.setItem(`deal:${id}:product_ids`, clean.join(","));
+    const primary = clean[0] || "";
+    await pb.collection("deals").update(id, { product_id: primary || null }).catch(() => null);
+    const productNames = productProfiles.filter((p) => clean.includes(p.id)).map((p) => p.name).join(", ") || "Не выбраны";
+    await createTimelineEvent("products_selected", `Продукты сделки: ${productNames}`, { product_ids: clean });
     await dealQ.refetch();
     tlQ.refetch();
   }
@@ -1133,21 +1147,18 @@ export function DealDetailPage() {
     tlQ.refetch();
   }
 
-  async function runAiAnalysis(mode: "full" | "update" = "full", scenario: AiScenario = "deal_analysis", forcedProductId?: string) {
+  async function runAiAnalysis(mode: "full" | "update" = "full", scenario: AiScenario = "deal_analysis", forcedProductIds?: string[]) {
     if (!deal?.id) return;
-    const effectiveProductId = forcedProductId || selectedProductId || (productProfiles.length === 1 ? productProfiles[0].id : "");
-    if (!effectiveProductId && scenario !== "semantic_enrichment" && productProfiles.length > 1) {
-      setPendingRun({ mode, scenario });
-      setProductPickerOpen(true);
-      return;
-    }
-    if (!effectiveProductId && scenario !== "semantic_enrichment") {
+    const effectiveProductIds = (forcedProductIds && forcedProductIds.length ? forcedProductIds : selectedProductIds).filter(Boolean);
+    const effectivePrimaryProductId = effectiveProductIds[0] || (productProfiles.length === 1 ? productProfiles[0].id : "");
+    if (!effectivePrimaryProductId && scenario !== "semantic_enrichment" && productProfiles.length > 1) return;
+    if (!effectivePrimaryProductId && scenario !== "semantic_enrichment") {
       setAiRunError("Выберите продукт для сделки перед запуском AI-сценария.");
       return;
     }
     if (scenario === "client_research") {
       const companyKey = String(deal.company_id || deal.expand?.company_id?.id || "");
-      const cooldownKey = `client_research:${companyKey}:${selectedProductId}`;
+      const cooldownKey = `client_research:${companyKey}:${effectivePrimaryProductId}`;
       const raw = localStorage.getItem(cooldownKey);
       if (raw) {
         const nextAllowedTs = Number(raw);
@@ -1176,13 +1187,16 @@ export function DealDetailPage() {
       const prevInsight = ((aiQ.data ?? [])[1] ?? null) as AiInsight | null;
       const lastCommentEntry = recentNotes.find((t) => t.action === "comment" || t.action === "note") || null;
       const lastCommentText = String(lastCommentEntry?.comment || "").trim();
-      const effectiveProduct = productProfiles.find((p) => p.id === effectiveProductId) || null;
+      const effectiveProduct = productProfiles.find((p) => p.id === effectivePrimaryProductId) || null;
+      const effectiveProductNames = productProfiles.filter((p) => effectiveProductIds.includes(p.id)).map((p) => p.name);
       const requestContext = {
         analysis_mode: mode,
         ai_scenario: scenario,
         deal_id: deal.id,
         company_id: deal.company_id || deal.expand?.company_id?.id || "",
-        product_id: effectiveProductId,
+        product_id: effectivePrimaryProductId,
+        product_ids: effectiveProductIds,
+        product_names: effectiveProductNames,
         product_profile: effectiveProduct?.variants || {},
         product_name: effectiveProduct?.name || "",
         title: deal.title || "",
@@ -1253,7 +1267,7 @@ export function DealDetailPage() {
       });
       if (scenario === "client_research") {
         const companyKey = String(deal.company_id || deal.expand?.company_id?.id || "");
-        const cooldownKey = `client_research:${companyKey}:${effectiveProductId}`;
+        const cooldownKey = `client_research:${companyKey}:${effectivePrimaryProductId}`;
         const nextAllowedTs = Date.now() + 180 * 24 * 60 * 60 * 1000;
         localStorage.setItem(cooldownKey, String(nextAllowedTs));
       }
@@ -1351,6 +1365,33 @@ export function DealDetailPage() {
     tlQ.refetch();
   }
 
+  async function loadProductFilesForDeal() {
+    if (!selectedProductIds.length) {
+      setProductFiles([]);
+      return;
+    }
+    const rows: Array<{ id: string; profileId: string; profileName: string; filename: string; url: string; tag?: string }> = [];
+    for (const pid of selectedProductIds) {
+      const res = await pb.collection("entity_files").getList(1, 200, {
+        filter: `entity_type="product_profile" && entity_id="${pid}"`,
+        sort: "-created",
+        expand: "file_id",
+      }).catch(() => ({ items: [] as Array<Record<string, unknown>> }));
+      for (const item of (res.items || []) as Array<Record<string, unknown>>) {
+        const file = item.expand && typeof item.expand === "object" ? (item.expand as Record<string, unknown>).file_id as Record<string, unknown> : null;
+        const url = normalizeExternalUrl(String(file?.path || ""));
+        const filename = String(file?.filename || "Файл");
+        const profileName = productProfiles.find((p) => p.id === pid)?.name || "Продукт";
+        rows.push({ id: String(item.id || ""), profileId: pid, profileName, filename, url, tag: String(item.tag || "") });
+      }
+    }
+    setProductFiles(rows);
+  }
+
+  React.useEffect(() => {
+    void loadProductFilesForDeal();
+  }, [selectedProductIds.join(","), productProfiles.length]);
+
   return (
     <div className="grid gap-4">
       <Card className="neon-accent">
@@ -1371,7 +1412,7 @@ export function DealDetailPage() {
                   placeholder="Название сделки"
                 />
               </div>
-              <div className="col-span-12 xl:col-span-3">
+              <div className="col-span-12 xl:col-span-5">
                 <div className="text-xs text-text2 mb-1">Этап сделки</div>
                 <Select value={deal?.stage_id || ""} onChange={changeStage}>
                   <option value="">Этап</option>
@@ -1382,16 +1423,17 @@ export function DealDetailPage() {
                   ))}
                 </Select>
               </div>
-              <div className="col-span-12 xl:col-span-3">
-                <div className="text-xs text-text2 mb-1">Продукт</div>
-                <Select value={selectedProductId} onChange={changeProduct}>
-                  <option value="">Не выбран</option>
-                  {productProfiles.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </Select>
+              <div className="col-span-12 xl:col-span-3 grid gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setClientResearchProductId(selectedProductIds[0] || "");
+                    setClientResearchPickerOpen(true);
+                  }}
+                  disabled={aiRunLoading || !deal?.id}
+                >
+                  Исследовать клиента
+                </Button>
               </div>
               <div className="col-span-12 xl:col-span-2">
                 <Button className="w-full" onClick={saveDealHeader} disabled={upd.isPending || !title.trim()}>
@@ -1468,6 +1510,26 @@ export function DealDetailPage() {
                       </div>
                     </div>
                     <div className="col-span-12 md:col-span-6 xl:col-span-3 rounded-card border border-border bg-white p-2">
+                      <div className="text-xs text-text2">Основное: продукты сделки</div>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {selectedProducts.length ? selectedProducts.map((p) => (
+                          <Badge key={p.id}>{p.name}</Badge>
+                        )) : <span className="text-sm text-text2">Не выбраны</span>}
+                      </div>
+                      <div className="mt-2">
+                        <Button
+                          small
+                          variant="secondary"
+                          onClick={() => {
+                            setAnalysisSelection(selectedProductIds);
+                            setProductPickerOpen(true);
+                          }}
+                        >
+                          Выбрать продукты
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="col-span-12 md:col-span-6 xl:col-span-3 rounded-card border border-border bg-white p-2">
                       <div className="text-xs text-text2">Ключевые даты</div>
                       <div className="mt-1 text-xs text-text2">
                         Рег.: {registrationDeadline || "—"}<br />
@@ -1525,20 +1587,24 @@ export function DealDetailPage() {
                     <div className="text-xs text-text2 mt-1">Формат управленческого исследования: изменения, риски, причины, план</div>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap justify-end">
-                    <Select value={aiScenario} onChange={(v) => setAiScenario(v as AiScenario)}>
-                      <option value="deal_analysis">Анализ сделки</option>
-                      <option value="decision_support">Поддержка решения</option>
-                      <option value="client_research">Исследование клиента</option>
-                      <option value="semantic_enrichment">Обогащение семантики</option>
-                      <option value="tender_tz_analysis">Анализ ТЗ</option>
-                    </Select>
-                    <Button onClick={() => void runAiAnalysis("full", aiScenario)} disabled={aiRunLoading || !deal?.id}>
+                    <Button
+                      onClick={() => {
+                        setAnalysisMode("full");
+                        setAnalysisSelection(selectedProductIds);
+                        setAnalysisPickerOpen(true);
+                      }}
+                      disabled={aiRunLoading || !deal?.id}
+                    >
                       {aiRunLoading ? "AI анализ..." : "Запустить AI-анализ"}
                     </Button>
                     <Button
                       variant="secondary"
-                      onClick={() => void runAiAnalysis("update", aiScenario)}
-                      disabled={aiRunLoading || !deal?.id || aiScenario !== "deal_analysis"}
+                      onClick={() => {
+                        setAnalysisMode("update");
+                        setAnalysisSelection(selectedProductIds);
+                        setAnalysisPickerOpen(true);
+                      }}
+                      disabled={aiRunLoading || !deal?.id}
                     >
                       Обновить AI-анализ
                     </Button>
@@ -1827,18 +1893,27 @@ export function DealDetailPage() {
                     <div className="text-sm font-semibold">Файлы</div>
                     <div className="text-xs text-text2 mt-1">Хранилище документов и ссылок по сделке</div>
                   </div>
-                  <label className="ui-btn ui-btn-secondary h-9 px-3 cursor-pointer">
-                    Загрузить
-                    <input
-                      type="file"
-                      className="hidden"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0] || null;
-                        setWsUploadFile(f);
-                        if (f && !wsTitle.trim()) setWsTitle(f.name);
-                      }}
-                    />
-                  </label>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      onClick={() => void runAiAnalysis("full", "tender_tz_analysis", selectedProductIds)}
+                      disabled={aiRunLoading || !selectedProductIds.length}
+                    >
+                      Анализ ТЗ
+                    </Button>
+                    <label className="ui-btn ui-btn-secondary h-9 px-3 cursor-pointer">
+                      Загрузить
+                      <input
+                        type="file"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0] || null;
+                          setWsUploadFile(f);
+                          if (f && !wsTitle.trim()) setWsTitle(f.name);
+                        }}
+                      />
+                    </label>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -1930,6 +2005,40 @@ export function DealDetailPage() {
                         ) : null}
                       </div>
                     </div>
+
+                    <div className="col-span-12">
+                      <div className="rounded-card border border-border bg-rowHover p-3">
+                        <div className="text-sm font-semibold mb-2">Файлы выбранных продуктов</div>
+                        <div className="grid gap-2">
+                          {productFiles.map((pf) => (
+                            <div key={pf.id} className="rounded-card border border-border bg-white p-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="text-xs text-text2">{pf.profileName}{pf.tag ? ` · ${pf.tag}` : ""}</div>
+                                  <div className="text-sm font-semibold truncate">{pf.filename}</div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <a className="text-sm text-primary underline" href={pf.url} target="_blank" rel="noreferrer">Скачать</a>
+                                  <label className="flex items-center gap-1 text-xs text-text2">
+                                    <input
+                                      type="radio"
+                                      name="latest_tz_file"
+                                      checked={latestTzFileId === pf.id}
+                                      onChange={() => {
+                                        setLatestTzFileId(pf.id);
+                                        if (id) localStorage.setItem(`deal:${id}:latest_tz_file_id`, pf.id);
+                                      }}
+                                    />
+                                    Последнее ТЗ
+                                  </label>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          {!productFiles.length ? <div className="text-sm text-text2">По выбранным продуктам файлы пока не добавлены.</div> : null}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -1959,10 +2068,26 @@ export function DealDetailPage() {
                   <div className="mt-2 text-2xl font-extrabold">{typeof score === "number" ? `${score}/100` : "—"}</div>
                 </div>
 
-                <Button onClick={() => void runAiAnalysis("full", aiScenario)} disabled={aiRunLoading || !deal?.id} className="neon-accent">
+                <Button
+                  onClick={() => {
+                    setAnalysisMode("full");
+                    setAnalysisSelection(selectedProductIds);
+                    setAnalysisPickerOpen(true);
+                  }}
+                  disabled={aiRunLoading || !deal?.id}
+                  className="neon-accent"
+                >
                   {aiRunLoading ? "AI анализ..." : "Запустить AI-анализ"}
                 </Button>
-                <Button variant="secondary" onClick={() => void runAiAnalysis("update", aiScenario)} disabled={aiRunLoading || !deal?.id || aiScenario !== "deal_analysis"}>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setAnalysisMode("update");
+                    setAnalysisSelection(selectedProductIds);
+                    setAnalysisPickerOpen(true);
+                  }}
+                  disabled={aiRunLoading || !deal?.id}
+                >
                   Обновить AI-анализ
                 </Button>
 
@@ -2118,34 +2243,108 @@ export function DealDetailPage() {
       </Modal>
       <Modal
         open={productPickerOpen}
-        title="Выберите продукт для AI-сценария"
+        title="Выберите продукты сделки"
         onClose={() => {
           setProductPickerOpen(false);
-          setPendingRun(null);
         }}
       >
         <div className="grid gap-3">
           <div className="text-sm text-text2">
-            Для этой сделки доступно несколько продуктовых профилей. Выберите, по какому продукту запускать сценарий.
+            Отметьте один или несколько продуктов. Эти продукты будут использоваться в контексте сделки по умолчанию.
           </div>
           <div className="grid gap-2">
             {productProfiles.map((p) => (
-              <button
+              <label
                 key={p.id}
-                className="text-left rounded-md border border-border bg-white px-3 py-2 hover:border-primary/50"
-                onClick={() => {
-                  setSelectedProductId(p.id);
-                  localStorage.setItem(`deal:${id}:product_id`, p.id);
-                  setProductPickerOpen(false);
-                  const run = pendingRun;
-                  setPendingRun(null);
-                  if (run) void runAiAnalysis(run.mode, run.scenario, p.id);
-                }}
+                className="text-left rounded-md border border-border bg-white px-3 py-2 hover:border-primary/50 flex items-start gap-2"
               >
+                <input
+                  type="checkbox"
+                  checked={analysisSelection.includes(p.id)}
+                  onChange={(e) => {
+                    setAnalysisSelection((prev) => e.target.checked ? Array.from(new Set([...prev, p.id])) : prev.filter((x) => x !== p.id));
+                  }}
+                />
+                <div>
                 <div className="text-sm font-semibold">{p.name}</div>
                 {p.manufacturer ? <div className="text-xs text-text2 mt-1">{p.manufacturer}</div> : null}
-              </button>
+                </div>
+              </label>
             ))}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setProductPickerOpen(false)}>Отмена</Button>
+            <Button
+              onClick={async () => {
+                await saveSelectedProducts(analysisSelection);
+                setProductPickerOpen(false);
+              }}
+            >
+              Сохранить выбор
+            </Button>
+          </div>
+        </div>
+      </Modal>
+      <Modal
+        open={analysisPickerOpen}
+        title={analysisMode === "update" ? "Обновить AI-анализ" : "Запустить AI-анализ"}
+        onClose={() => setAnalysisPickerOpen(false)}
+      >
+        <div className="grid gap-3">
+          <div className="text-sm text-text2">Выберите продукты для анализа этой комплексной сделки.</div>
+          <div className="grid gap-2 max-h-[320px] overflow-y-auto pr-1">
+            {productProfiles.map((p) => (
+              <label key={p.id} className="rounded-md border border-border bg-white px-3 py-2 flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={analysisSelection.includes(p.id)}
+                  onChange={(e) => setAnalysisSelection((prev) => e.target.checked ? Array.from(new Set([...prev, p.id])) : prev.filter((x) => x !== p.id))}
+                />
+                <div>
+                  <div className="text-sm font-semibold">{p.name}</div>
+                  {p.manufacturer ? <div className="text-xs text-text2">{p.manufacturer}</div> : null}
+                </div>
+              </label>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setAnalysisPickerOpen(false)}>Отмена</Button>
+            <Button
+              disabled={!analysisSelection.length}
+              onClick={async () => {
+                setAnalysisPickerOpen(false);
+                await runAiAnalysis(analysisMode, "deal_analysis", analysisSelection);
+              }}
+            >
+              Запустить
+            </Button>
+          </div>
+        </div>
+      </Modal>
+      <Modal
+        open={clientResearchPickerOpen}
+        title="Исследовать клиента"
+        onClose={() => setClientResearchPickerOpen(false)}
+      >
+        <div className="grid gap-3">
+          <div className="text-sm text-text2">Выберите один продукт для исследования клиента (лимит 1 раз в 6 месяцев на связку клиент+продукт).</div>
+          <Select value={clientResearchProductId} onChange={setClientResearchProductId}>
+            <option value="">Выберите продукт</option>
+            {productProfiles.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </Select>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setClientResearchPickerOpen(false)}>Отмена</Button>
+            <Button
+              disabled={!clientResearchProductId}
+              onClick={async () => {
+                setClientResearchPickerOpen(false);
+                await runAiAnalysis("full", "client_research", [clientResearchProductId]);
+              }}
+            >
+              Запустить исследование
+            </Button>
           </div>
         </div>
       </Modal>

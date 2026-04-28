@@ -2231,7 +2231,18 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(403, json.dumps({"ok": False, "error": "forbidden origin"}), "application/json; charset=utf-8")
                     return
                 payload["tenant_user_token"] = self.headers.get("Authorization", "")
-                result = run_ai_deal_analysis(payload)
+                try:
+                    result = run_ai_deal_analysis(payload)
+                except Exception as e:
+                    _audit_log(
+                        "analyze_exception",
+                        {
+                            "deal_id": payload.get("deal_id", ""),
+                            "tenant_pb_url": payload.get("tenant_pb_url", ""),
+                            "error": str(e),
+                        },
+                    )
+                    result = {"ok": False, "error": f"internal gateway error: {e}"}
                 self._send(
                     200 if result.get("ok") else 400,
                     json.dumps(result, ensure_ascii=False),
@@ -2263,6 +2274,15 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self._send(404, "not found")
         except Exception as e:
+            if self._is_public_api_path(path):
+                origin = self.headers.get("Origin", "")
+                self._send(
+                    500,
+                    json.dumps({"ok": False, "error": str(e)}, ensure_ascii=False),
+                    "application/json; charset=utf-8",
+                    headers=self._public_headers(origin),
+                )
+                return
             self._json(500, {"error": str(e)})
 
 

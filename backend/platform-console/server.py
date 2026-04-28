@@ -2640,14 +2640,19 @@ def update_settings(payload):
 class Handler(BaseHTTPRequestHandler):
     def _send(self, status=200, body="", content_type="text/plain; charset=utf-8", headers=None):
         data = body.encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(data)))
-        if headers:
-            for k, v in headers.items():
-                self.send_header(k, v)
-        self.end_headers()
-        self.wfile.write(data)
+        try:
+            self.send_response(status)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(data)))
+            if headers:
+                for k, v in headers.items():
+                    self.send_header(k, v)
+            self.end_headers()
+            self.wfile.write(data)
+        except (BrokenPipeError, ConnectionResetError):
+            # Client closed connection while response was being sent.
+            # Request may already be processed successfully; avoid noisy 500 fallback path.
+            return
 
     def _json(self, status, obj):
         self._send(status, json.dumps(obj, ensure_ascii=False), "application/json; charset=utf-8")

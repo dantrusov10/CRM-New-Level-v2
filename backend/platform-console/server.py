@@ -2005,11 +2005,14 @@ def run_ai_deal_analysis(payload):
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
+    context_mode = str((context or {}).get("analysis_mode", "")).strip().lower()
+    is_update_mode = task_code == "deal_update_analysis" or context_mode == "update"
     full_context = _build_ai_context(tenant_pb_url, deal_id, admin_token, context)
     llm_context = _sanitize_for_llm(full_context, "context", data_policy)
-    owner_prompt = str(
-        ((routing.get("prompts", {}) if isinstance(routing.get("prompts"), dict) else {}).get("deal_analysis") or "")
-    ).strip()
+    prompts_map = (routing.get("prompts", {}) if isinstance(routing.get("prompts"), dict) else {})
+    owner_prompt = str((prompts_map.get("deal_update_analysis") if is_update_mode else prompts_map.get("deal_analysis")) or "").strip()
+    if not owner_prompt:
+        owner_prompt = str((prompts_map.get("deal_analysis") or "")).strip()
     tenant_prompt = _get_tenant_prompt(tenant_pb_url, admin_token)
     master_prompt = _get_master_prompt_deal_analysis()
     scoring_bundle = _get_tenant_scoring_model(tenant_pb_url, admin_token)
@@ -2020,7 +2023,7 @@ def run_ai_deal_analysis(payload):
             "Проанализируй сделку и дай оценку риска/шансов. Учитывай динамику комментариев, заметки, timeline и предыдущие AI-оценки."
         )
     update_instruction = ""
-    if task_code == "deal_update_analysis":
+    if is_update_mode:
         update_instruction = (
             "Режим UPDATE-анализа: это НЕ первичное исследование. "
             "Сфокусируйся на изменениях после прошлого AI-среза: "
@@ -2181,16 +2184,23 @@ def run_ai_deal_analysis(payload):
         admin_token,
     )
 
-    timeline_text = f"AI-анализ обновлен. Score: {score}/100.\nРезюме: {summary}\nРекомендации: {suggestions}"
+    mode_label = "обновление контекста" if is_update_mode else "полный срез"
+    timeline_text = f"AI-анализ обновлен ({mode_label}). Score: {score}/100.\nРезюме: {summary}\nРекомендации: {suggestions}"
     _tenant_api_create(
         tenant_pb_url,
         "timeline",
         {
             "deal_id": deal_id,
             "user_id": user_id or None,
-            "action": "ai_analysis",
+            "action": "ai_update_analysis" if is_update_mode else "ai_analysis",
             "comment": timeline_text,
-            "payload": {"provider": used_provider, "engine": used_engine, "insight_id": ai_record.get("id", "")},
+            "payload": {
+                "provider": used_provider,
+                "engine": used_engine,
+                "insight_id": ai_record.get("id", ""),
+                "analysis_mode": "update" if is_update_mode else "full",
+                "requested_task_code": task_code,
+            },
             "timestamp": datetime.utcnow().isoformat() + "Z",
         },
         admin_token,

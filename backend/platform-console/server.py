@@ -796,29 +796,19 @@ def _value_to_text(value):
         return str(value)
 
 
-def _summarize_dynamic_sections(parsed):
-    if not isinstance(parsed, dict):
-        return "", "", None
-    reserved = {"score", "summary", "suggestions", "recommendations", "risks", "risk", "token_usage", "usage", "model"}
-    section_lines = []
-    risks_value = parsed.get("risks")
-    for key, value in parsed.items():
-        if key in reserved:
-            continue
-        if value is None:
-            continue
-        value_text = _value_to_text(value)
-        if not value_text:
-            continue
-        title = str(key).replace("_", " ").strip().capitalize()
-        section_lines.append(f"{title}:\n{value_text}")
-    summary = "\n\n".join(section_lines[:2]).strip()
-    suggestions = "\n\n".join(section_lines[2:5]).strip()
-    if risks_value is None:
-        risk_like = parsed.get("risk")
-        if risk_like is not None:
-            risks_value = risk_like
-    return summary, suggestions, risks_value
+def _has_meaningful_explainability(value):
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, tuple, set)):
+        return len(value) > 0
+    if isinstance(value, dict):
+        for v in value.values():
+            if _has_meaningful_explainability(v):
+                return True
+        return False
+    return True
 
 
 def _normalize_ai_result(raw_content, parsed):
@@ -833,6 +823,10 @@ def _normalize_ai_result(raw_content, parsed):
     risks_value = None
     if isinstance(normalized_payload, dict):
         score_raw = normalized_payload.get("score", 0)
+        if score_raw in (None, "", 0, "0"):
+            score_raw = normalized_payload.get("probability", score_raw)
+        if score_raw in (None, "", 0, "0"):
+            score_raw = normalized_payload.get("deal_probability", score_raw)
         try:
             score = max(0, min(100, int(float(score_raw))))
         except Exception:
@@ -840,14 +834,8 @@ def _normalize_ai_result(raw_content, parsed):
         summary = _value_to_text(normalized_payload.get("summary"))
         suggestions = _value_to_text(normalized_payload.get("suggestions") or normalized_payload.get("recommendations"))
         risks_value = normalized_payload.get("risks")
-        if not summary or not suggestions:
-            s2, rec2, risk2 = _summarize_dynamic_sections(normalized_payload)
-            if not summary:
-                summary = s2
-            if not suggestions:
-                suggestions = rec2
-            if risks_value is None:
-                risks_value = risk2
+        if risks_value is None:
+            risks_value = normalized_payload.get("risk")
     else:
         summary = _value_to_text(parsed_from_content if parsed_from_content is not None else raw_content)
 
@@ -876,13 +864,11 @@ def _audit_log(event, payload):
 # Сжатые правила вывода для deal_analysis (дополняют tenant/owner промпт).
 AI_DEAL_OUTPUT_RULES = (
     "Правила содержания (обязательно соблюдай в JSON): "
-    "Поле summary — 4–8 предложений, только выводы из переданного контекста CRM: "
-    "имя клиента/отрасли, этап воронки, суммы и сроки если есть, конкуренты и факты из timeline. "
-    "Запрещены общие фразы без привязки к этой сделке (без имён, цифр, дат из контекста). "
-    "Если факта в данных нет — явно пометь как гипотезу или «в CRM не видно». "
-    "Поле suggestions или recommendations — 5–10 нумерованных строк; каждая строка: "
-    "конкретное действие, с кем (роль/ЛПР), по какой теме, горизонт (например 2–5 дней) или измеримый результат. "
-    "Не пиши «усилить работу» без указания объекта, канала и ожидаемого сигнала от клиента."
+    "Структуру и состав полей бери ИМЕННО из master_prompt и tenant_prompt: "
+    "не добавляй лишние обязательные поля, если их не просили, и не опускай запрошенные. "
+    "Любой текст должен быть предметным по этой конкретной сделке: имена, этап, числа, даты, сигналы из timeline/context. "
+    "Если факта нет в данных — явно помечай как гипотезу или «в CRM не видно». "
+    "Для action-oriented разделов (next_steps/recommendations/suggestions и аналоги) пиши конкретные шаги с ролями, темой и горизонтом."
 )
 
 
@@ -1451,6 +1437,79 @@ def _compute_deterministic_score(scoring_model, full_context, llm_score):
     return {"score": final_score, "method": "weighted_factors_v1", "breakdown": breakdown}
 
 
+def _build_fallback_analysis_from_scoring(full_context, score, scoring_breakdown):
+    src = _get_source(full_context)
+    deal = src.get("deal_record", {}) if isinstance(src.get("deal_record"), dict) else {}
+    stage_name = str((((deal.get("expand") or {}).get("stage_id") or {}).get("stage_name") or "").strip() or str(deal.get("stage_id", "")).strip() or "не указан")
+    company_name = str((((deal.get("expand") or {}).get("company_id") or {}).get("name") or "").strip() or "клиент")
+    budget = _to_float(deal.get("budget"), 0)
+    turnover = _to_float(deal.get("turnover"), 0)
+
+    summary_parts = [
+        f"Сделка '{str(deal.get('title', '')).strip() or 'без названия'}' у {company_name} на этапе '{stage_name}'.",
+        f"Детерминированная вероятность закрытия: {int(score)}/100 по факторной модели.",
+    ]
+    if budget > 0:
+        summary_parts.append(f"Бюджет в CRM: {int(budget)}.")
+    elif turnover > 0:
+        summary_parts.append(f"Ориентир по обороту: {int(turnover)}.")
+
+    low = [b for b in (scoring_breakdown or []) if isinstance(b, dict) and _to_float(b.get("value"), 100) < 55]
+    if low:
+        top = sorted(low, key=lambda x: _to_float(x.get("value"), 100))[:3]
+        names = ", ".join(str(x.get("name", x.get("code", "фактор"))) for x in top)
+        summary_parts.append(f"Основные зоны риска по модели: {names}.")
+
+    summary = " ".join(summary_parts).strip()
+
+    actions = []
+    for b in sorted(low, key=lambda x: _to_float(x.get("value"), 100))[:5]:
+        code = str(b.get("code", ""))
+        if code == "decision_maker_coverage":
+            actions.append("1) За 3 дня выйти на ЛПР/ЛВР, подтвердить состав стейкхолдеров и критерии принятия решения.")
+        elif code == "competition_pressure":
+            actions.append("2) За 5 дней собрать конкурентную карту (кто, за счёт чего, где слабые места) и обновить позиционирование КП.")
+        elif code == "stage_progress":
+            actions.append("3) За 2 дня согласовать следующий milestone по этапу и зафиксировать дедлайн в timeline.")
+        elif code == "budget_clarity":
+            actions.append("4) За 3 дня подтвердить бюджетный контур: диапазон, источник, условия оплаты и ограничения.")
+        elif code == "data_completeness":
+            actions.append("5) За 2 дня дозаполнить ключевые поля сделки и артефакты для качественного прогноза.")
+        elif code == "pilot_status":
+            actions.append("6) За 4 дня оформить post-pilot протокол: результаты, отклонения, решение по масштабированию.")
+        elif code == "activity_freshness":
+            actions.append("7) В течение 48 часов провести касание с клиентом и зафиксировать результат в timeline.")
+    if not actions:
+        actions = [
+            "1) В течение 48 часов уточнить следующий шаг сделки с ЛПР и зафиксировать дедлайн.",
+            "2) За 3 дня синхронизировать бюджет/объём/сроки с клиентом и обновить карточку сделки.",
+            "3) За 5 дней провести risk-review по конкуренции и подготовить контраргументы в КП.",
+        ]
+    suggestions = "\n".join(actions[:7]).strip()
+
+    risks = []
+    for b in sorted(low, key=lambda x: _to_float(x.get("value"), 100))[:3]:
+        val = _to_float(b.get("value"), 50)
+        crit = "low"
+        if val < 35:
+            crit = "high"
+        elif val < 55:
+            crit = "medium"
+        risks.append(
+            {
+                "name": str(b.get("name", b.get("code", "risk"))),
+                "description": f"Фактор '{str(b.get('code', ''))}' имеет низкое значение {round(val, 1)}.",
+                "criticality": crit,
+                "probability": int(max(10, min(95, round(100 - val)))),
+            }
+        )
+    if not risks:
+        risks = [
+            {"name": "Недостаток данных", "description": "В контексте недостаточно сигналов для полноценного вывода модели.", "criticality": "medium", "probability": 45}
+        ]
+    return {"summary": summary, "suggestions": suggestions, "risks": risks}
+
+
 def _get_master_prompt_deal_analysis():
     con = sqlite3.connect(DB_PATH)
     cur = con.cursor()
@@ -1678,6 +1737,15 @@ def run_ai_deal_analysis(payload):
                 "llm_probability_raw": llm_score,
             },
         }
+    explainability_is_meaningful = _has_meaningful_explainability(explainability)
+    if (not summary and not suggestions and risks_value in (None, "", [], {}) and not explainability_is_meaningful):
+        fb = _build_fallback_analysis_from_scoring(full_context, score, deterministic.get("breakdown", []))
+        if not summary:
+            summary = str(fb.get("summary", "")).strip()
+        if not suggestions:
+            suggestions = str(fb.get("suggestions", "")).strip()
+        if risks_value in (None, "", [], {}):
+            risks_value = fb.get("risks")
     total_tokens = usage.get("total_tokens", 0) if isinstance(usage, dict) else 0
     try:
         total_tokens = float(total_tokens or 0)

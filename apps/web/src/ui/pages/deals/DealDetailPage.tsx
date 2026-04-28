@@ -245,6 +245,38 @@ function toSectionTitle(key: string) {
     .replace(/^./, (s) => s.toUpperCase());
 }
 
+function toBusinessSectionTitle(key: string) {
+  const k = String(key || "").trim().toLowerCase();
+  const aliases: Record<string, string> = {
+    comments: "Комментарии",
+    comment: "Комментарии",
+    notes: "Комментарии",
+    executive_summary: "Краткий вывод",
+    exec_summary: "Краткий вывод",
+    short_summary: "Краткий вывод",
+    next_steps: "Следующие шаги",
+    next_actions: "Следующие шаги",
+    action_plan: "Следующие шаги",
+    plan_of_actions: "Следующие шаги",
+    recommendations: "Рекомендации",
+    suggestion: "Рекомендации",
+    suggestions: "Рекомендации",
+    risks: "Риски",
+    risk_register: "Риски",
+    data_gaps: "Чего не хватает",
+    missing_data: "Чего не хватает",
+    upsides: "Точки роста",
+    upside: "Точки роста",
+    growth_points: "Точки роста",
+    commercial_assessment: "Коммерческая оценка",
+    deal_closure_strategy: "Стратегия закрытия",
+    close_strategy: "Стратегия закрытия",
+    explainability: "Объяснение оценки",
+    score_explainability: "Объяснение оценки",
+  };
+  return aliases[k] || toSectionTitle(key);
+}
+
 function valueToText(value: unknown): string {
   if (value == null) return "";
   if (typeof value === "string") return value.trim();
@@ -312,7 +344,20 @@ function buildDynamicSections(insight: AiInsight | null): AiSection[] {
   if (!insight || !insight.explainability || typeof insight.explainability !== "object") return [];
   const source = insight.explainability as Record<string, unknown>;
   const sections: AiSection[] = [];
-  const reserved = new Set(["score", "summary", "suggestions", "recommendations", "risks", "risk", "model", "usage", "token_usage"]);
+  const reserved = new Set([
+    "score",
+    "summary",
+    "suggestions",
+    "recommendations",
+    "risks",
+    "risk",
+    "model",
+    "usage",
+    "token_usage",
+    "_scoring",
+    "scoring",
+    "raw_model_output",
+  ]);
   const seenTitles = new Set<string>();
   const seenSigs = new Set<string>();
   for (const [key, raw] of Object.entries(source)) {
@@ -320,7 +365,7 @@ function buildDynamicSections(insight: AiInsight | null): AiSection[] {
     if (raw === undefined || raw === null || raw === "") continue;
     const text = valueToText(raw);
     if (!text) continue;
-    const title = toSectionTitle(key);
+    const title = toBusinessSectionTitle(key);
     const nt = title.toLowerCase();
     let sig: string;
     try {
@@ -1168,7 +1213,10 @@ export function DealDetailPage() {
                     </div>
                   ) : null}
                   {dynamicSections.map((section, idx) => (
-                    <div key={`${section.title}-${idx}`} className="rounded-xl border border-border bg-card/90 p-4">
+                    <div
+                      key={`${section.title}-${idx}`}
+                      className={`rounded-xl border border-border bg-card/90 p-4 ${dynamicSections.length === 1 ? "lg:col-span-2" : ""}`}
+                    >
                       <div className="text-xs font-semibold uppercase tracking-wide text-text2">{section.title}</div>
                       <div className="mt-3 min-w-0">
                         <AiInsightSectionBody value={section.raw} />

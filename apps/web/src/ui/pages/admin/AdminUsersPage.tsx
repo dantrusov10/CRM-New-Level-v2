@@ -67,19 +67,20 @@ export function AdminUsersPage() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <div className="text-sm font-semibold">Пользователи</div>
+            <div className="text-base font-extrabold tracking-wide">Пользователи</div>
             <div className="text-xs text-text2 mt-1">Список + добавление + назначение ролей (матрица доступов хранится в `settings_roles`)</div>
           </div>
-          <Button onClick={() => setOpen(true)}>Добавить пользователя</Button>
+          <Button small onClick={() => setOpen(true)}>Добавить пользователя</Button>
         </div>
       </CardHeader>
       <CardContent>
         <div className="overflow-auto">
-          <table className="min-w-[900px] w-full text-sm">
+          <div className="board-shell">
+          <table className="min-w-[900px] board-table text-sm">
             <thead>
-              <tr className="h-10 bg-[#EEF1F6] text-[#374151] font-semibold">
+              <tr className="text-[#374151] font-semibold">
                 <th className="text-left px-3">Имя</th>
                 <th className="text-left px-3">Email</th>
                 <th className="text-left px-3">Роль</th>
@@ -87,7 +88,7 @@ export function AdminUsersPage() {
             </thead>
             <tbody>
               {users.map((u) => (
-                <tr key={u.id} className="h-11 border-b border-border">
+                <tr key={u.id}>
                   <td className="px-3">{u.name ?? "—"}</td>
                   <td className="px-3 text-text2">{u.email}</td>
                   <td className="px-3">
@@ -119,6 +120,7 @@ export function AdminUsersPage() {
               ))}
             </tbody>
           </table>
+          </div>
           {!users.length ? <div className="text-sm text-text2 py-6">Пользователей пока нет.</div> : null}
         </div>
       </CardContent>

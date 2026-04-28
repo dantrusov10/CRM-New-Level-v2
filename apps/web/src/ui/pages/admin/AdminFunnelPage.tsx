@@ -147,13 +147,13 @@ export function AdminFunnelPage() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <div className="text-sm font-semibold">Воронка продаж</div>
+            <div className="text-base font-extrabold tracking-wide">Воронка продаж</div>
             <div className="text-xs text-text2 mt-1">Этапы: название, порядок, цвет, финальность + импорт/экспорт шаблона</div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={exportJson}>
+            <Button small variant="secondary" onClick={exportJson}>
               Экспорт
             </Button>
             <label className="inline-flex">
@@ -166,14 +166,14 @@ export function AdminFunnelPage() {
                   if (f) importJson(f);
                 }}
               />
-              <Button variant="secondary">Импорт</Button>
+              <Button small variant="secondary">Импорт</Button>
             </label>
           </div>
         </div>
       </CardHeader>
       <CardContent>
         <div className="grid gap-3">
-          <div className="grid grid-cols-[1fr_140px_120px] gap-2 items-end">
+          <div className="grid grid-cols-[1fr_120px_110px] gap-2 items-end board-panel p-3">
             <div>
               <div className="text-xs text-text2 mb-1">Название этапа</div>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Квалификация" />
@@ -193,9 +193,10 @@ export function AdminFunnelPage() {
           </div>
 
           <div className="overflow-auto">
-            <table className="min-w-[980px] w-full text-sm">
+            <div className="board-shell">
+            <table className="min-w-[980px] board-table text-sm">
               <thead>
-                <tr className="h-10 bg-[#EEF1F6] text-[#374151] font-semibold">
+                <tr className="text-[#374151] font-semibold">
                   <th className="text-left px-3">Порядок</th>
                   <th className="text-left px-3">Название</th>
                   <th className="text-left px-3">Цвет</th>
@@ -207,7 +208,7 @@ export function AdminFunnelPage() {
               </thead>
               <tbody>
                 {stages.map((s) => (
-                  <tr key={s.id} className="h-11 border-b border-border">
+                  <tr key={s.id}>
                     <td className="px-3 w-[110px]">
                       <Input
                         value={String(s.position ?? 0)}
@@ -259,6 +260,7 @@ export function AdminFunnelPage() {
                 ))}
               </tbody>
             </table>
+            </div>
             {!stages.length ? <div className="text-sm text-text2 py-6">Этапов пока нет.</div> : null}
           </div>
         </div>

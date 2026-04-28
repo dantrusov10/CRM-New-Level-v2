@@ -373,6 +373,42 @@ body:after{
 .theme-cockpit .bg-tableHeader{ background: rgba(17,24,39,.30) !important; }
 .theme-cockpit .hover\:bg-rowHover:hover{ background: rgba(255,255,255,.10) !important; }
 
+/* Dense "single board" tables close to reference renders */
+.board-shell{
+  border: 1px solid rgba(87,183,255,0.22);
+  border-radius: 12px;
+  background: #0f2644;
+  box-shadow: 0 12px 28px rgba(0,0,0,0.28);
+  overflow: hidden;
+}
+.board-table{
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.board-table thead tr{
+  background: #112d50;
+}
+.board-table th{
+  height: 40px;
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(226,232,240,0.9);
+  border-bottom: 1px solid rgba(87,183,255,0.2);
+}
+.board-table td{
+  height: 42px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.board-table tbody tr:hover{
+  background: rgba(87,183,255,0.10);
+}
+.board-panel{
+  border: 1px solid rgba(87,183,255,0.2);
+  border-radius: 10px;
+  background: #123053;
+}
+
 /* The main “glass panel” look */
 .theme-cockpit .ui-card,
 .theme-cockpit .ui-modal,

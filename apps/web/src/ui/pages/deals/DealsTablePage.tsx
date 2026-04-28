@@ -144,25 +144,25 @@ export function DealsTablePage() {
         ) : (
           <div className="overflow-auto">
             <div className="mb-3 grid grid-cols-1 gap-2 lg:grid-cols-3">
-              <div className="rounded-card border border-[rgba(87,183,255,0.24)] bg-[#14345b] p-3">
+              <div className="board-panel p-3">
                 <div className="text-xs text-text2">Сделок на странице</div>
                 <div className="mt-1 text-lg font-semibold">{items.length}</div>
               </div>
-              <div className="rounded-card border border-[rgba(87,183,255,0.24)] bg-[#123053] p-3">
+              <div className="board-panel p-3">
                 <div className="text-xs text-text2">Выбрано для массовых действий</div>
                 <div className="mt-1 text-lg font-semibold">
                   {selectedCount}
                   {selectedCount > 0 && selectedCount === items.length ? <span className="text-sm text-text2"> (вся страница)</span> : null}
                 </div>
               </div>
-              <div className="rounded-card border border-[rgba(87,183,255,0.24)] bg-[#102947] p-3">
+              <div className="board-panel p-3">
                 <div className="text-xs text-text2">Текущий режим</div>
                 <div className="mt-1 text-sm font-semibold">{search || stage || owner || channel ? "Фильтрованный список" : "Все сделки"}</div>
               </div>
             </div>
 
             {/* Bulk actions bar (always visible so it’s obvious) */}
-            <div className="mb-3 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 rounded-card border border-border bg-white p-3">
+            <div className="mb-3 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 board-panel p-3">
               <div className="flex flex-wrap items-center gap-2">
                 <Button variant="secondary" onClick={() => togglePage(true)} disabled={!items.length}>Выбрать страницу</Button>
                 <Button variant="secondary" onClick={selectAllMatching} disabled={dealsQ.isLoading}>Выбрать все по фильтру</Button>
@@ -190,9 +190,10 @@ export function DealsTablePage() {
               </div>
             </div>
 
-            <table className="min-w-[1100px] w-full text-sm rounded-card overflow-hidden">
+            <div className="board-shell">
+            <table className="min-w-[1100px] board-table text-sm">
               <thead>
-                <tr className="h-10 bg-[rgba(17,24,39,0.52)] text-[#374151] font-semibold">
+                <tr className="text-[#374151] font-semibold">
                   <th className="text-left px-3 w-10">
                     <input
                       type="checkbox"
@@ -216,7 +217,7 @@ export function DealsTablePage() {
                 {items.map((d: Deal) => (
                   <tr
                     key={d.id}
-                    className="h-11 border-b border-border hover:bg-[rgba(51,215,255,0.12)] cursor-pointer transition-colors"
+                    className="cursor-pointer transition-colors"
                     onClick={() => nav(`/deals/${d.id}`)}
                   >
                     <td className="px-3" onClick={(e) => e.stopPropagation()}>
@@ -242,6 +243,7 @@ export function DealsTablePage() {
                 ))}
               </tbody>
             </table>
+            </div>
             {!(dealsQ.data?.items ?? []).length ? <div className="text-sm text-text2 py-6">Сделок пока нет.</div> : null}
 
             <Pagination

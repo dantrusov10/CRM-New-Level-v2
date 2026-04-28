@@ -35,6 +35,9 @@ AI_QUALITY_GATE_WINDOW = {}
 LOGIN_RATE_LIMIT = {}
 
 MASTER_PROMPT_KEY_DEAL_ANALYSIS = "ai.master_prompt.deal_analysis"
+MASTER_PROMPT_KEY_CLIENT_RESEARCH = "ai.master_prompt.client_research"
+MASTER_PROMPT_KEY_TZ_ANALYSIS = "ai.master_prompt.tz_analysis"
+MASTER_PROMPT_KEY_SEMANTIC_ENRICHMENT = "ai.master_prompt.semantic_enrichment"
 AI_DATA_POLICY_KEY = "ai.data_policy.v1"
 AI_CLIENT_RESEARCH_COOLDOWN_KEY = "ai.cooldown.client_research.v1"
 AI_DECISION_SUPPORT_LIMIT_KEY = "ai.limit.decision_support.v1"
@@ -241,9 +244,27 @@ INDEX_HTML = """<!doctype html>
         </div>
         <div class="row" style="margin-top:10px;">
           <div style="min-width:100%;">
-            <label title="Founder-only. Не виден клиентам. Главный промпт-модератор конкретности и формата.">Master Prompt (только founder)</label>
+            <label title="Founder-only. Не виден клиентам. Главный промпт-модератор конкретности и формата для анализа сделки.">Master Prompt: Анализ сделки (только founder)</label>
             <textarea id="rtMasterPromptDeal" rows="6" placeholder="Системные правила конкретности и anti-water для всех клиентов..."></textarea>
             <div class="hint">Этот промпт применяется поверх tenant-промпта и хранится только в control DB.</div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <div style="min-width:100%;">
+            <label title="Founder-only. Базовый родительский промпт для исследования клиента.">Master Prompt: Исследование клиента</label>
+            <textarea id="rtMasterPromptClient" rows="4" placeholder="Системные правила для client_research..."></textarea>
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <div style="min-width:100%;">
+            <label title="Founder-only. Базовый родительский промпт для анализа ТЗ.">Master Prompt: Анализ ТЗ</label>
+            <textarea id="rtMasterPromptTz" rows="4" placeholder="Системные правила для tender_tz_analysis..."></textarea>
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <div style="min-width:100%;">
+            <label title="Founder-only. Базовый родительский промпт для обогащения семантики.">Master Prompt: Обогащение семантики</label>
+            <textarea id="rtMasterPromptSemantic" rows="4" placeholder="Системные правила для semantic_enrichment..."></textarea>
           </div>
         </div>
 
@@ -475,7 +496,10 @@ INDEX_HTML = """<!doctype html>
       document.getElementById("rtPricePer1k").value = budget.default_price_rub_per_1k_tokens || "";
       document.getElementById("rtPromptDeal").value = prompts.deal_analysis || "";
       const mp = await getJson(api("master-prompt"));
-      document.getElementById("rtMasterPromptDeal").value = (mp.master_prompt || "");
+      document.getElementById("rtMasterPromptDeal").value = (mp.master_prompts?.deal_analysis || "");
+      document.getElementById("rtMasterPromptClient").value = (mp.master_prompts?.client_research || "");
+      document.getElementById("rtMasterPromptTz").value = (mp.master_prompts?.tender_tz_analysis || "");
+      document.getElementById("rtMasterPromptSemantic").value = (mp.master_prompts?.semantic_enrichment || "");
     }
 
     function buildRoute(primaryProviderId, primaryEngineId, fallbackProviderId, fallbackEngineId, tokenProviderId, maxReqId, maxOutId) {
@@ -514,7 +538,12 @@ INDEX_HTML = """<!doctype html>
       await getJson(api("master-prompt"), {
         method: "POST",
         headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ master_prompt: document.getElementById("rtMasterPromptDeal").value || "" })
+        body: JSON.stringify({
+          deal_analysis: document.getElementById("rtMasterPromptDeal").value || "",
+          client_research: document.getElementById("rtMasterPromptClient").value || "",
+          tender_tz_analysis: document.getElementById("rtMasterPromptTz").value || "",
+          semantic_enrichment: document.getElementById("rtMasterPromptSemantic").value || "",
+        })
       });
       setMsg("Матрица маршрутизации сохранена");
       document.getElementById("routingMsg").textContent = "Сохранено";
@@ -1998,44 +2027,74 @@ def _build_fallback_analysis_from_scoring(full_context, score, scoring_breakdown
     return {"summary": summary, "suggestions": suggestions, "risks": risks}
 
 
-def _get_master_prompt_deal_analysis():
+def _master_prompt_key_by_task(task_code):
+    code = str(task_code or "").strip().lower()
+    if code == "client_research":
+        return MASTER_PROMPT_KEY_CLIENT_RESEARCH
+    if code == "tender_tz_analysis":
+        return MASTER_PROMPT_KEY_TZ_ANALYSIS
+    if code == "semantic_enrichment":
+        return MASTER_PROMPT_KEY_SEMANTIC_ENRICHMENT
+    return MASTER_PROMPT_KEY_DEAL_ANALYSIS
+
+
+def _get_master_prompts():
+    keys = {
+        "deal_analysis": MASTER_PROMPT_KEY_DEAL_ANALYSIS,
+        "client_research": MASTER_PROMPT_KEY_CLIENT_RESEARCH,
+        "tender_tz_analysis": MASTER_PROMPT_KEY_TZ_ANALYSIS,
+        "semantic_enrichment": MASTER_PROMPT_KEY_SEMANTIC_ENRICHMENT,
+    }
     con = sqlite3.connect(DB_PATH)
     cur = con.cursor()
-    cur.execute("SELECT value FROM system_settings WHERE key=?", (MASTER_PROMPT_KEY_DEAL_ANALYSIS,))
-    row = cur.fetchone()
+    out = {}
+    for k, setting_key in keys.items():
+        cur.execute("SELECT value FROM system_settings WHERE key=?", (setting_key,))
+        row = cur.fetchone()
+        out[k] = str(row[0]).strip() if row and row[0] else ""
     con.close()
-    if not row or not row[0]:
-        return ""
-    return str(row[0]).strip()
+    return out
 
 
-def _save_master_prompt_deal_analysis(text):
+def _get_master_prompt_deal_analysis():
+    return _get_master_prompts().get("deal_analysis", "")
+
+
+def _save_master_prompts(payload):
+    values = payload if isinstance(payload, dict) else {}
+    keys = {
+        "deal_analysis": MASTER_PROMPT_KEY_DEAL_ANALYSIS,
+        "client_research": MASTER_PROMPT_KEY_CLIENT_RESEARCH,
+        "tender_tz_analysis": MASTER_PROMPT_KEY_TZ_ANALYSIS,
+        "semantic_enrichment": MASTER_PROMPT_KEY_SEMANTIC_ENRICHMENT,
+    }
     ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S.%fZ")
-    value = str(text or "").strip()
     con = sqlite3.connect(DB_PATH)
     cur = con.cursor()
-    cur.execute("SELECT id FROM system_settings WHERE key=?", (MASTER_PROMPT_KEY_DEAL_ANALYSIS,))
-    row = cur.fetchone()
-    if row:
-        cur.execute("UPDATE system_settings SET value=?, updated=? WHERE key=?", (value, ts, MASTER_PROMPT_KEY_DEAL_ANALYSIS))
-    else:
-        rid = "r" + secrets.token_hex(7)
-        cur.execute(
-            """
-            INSERT INTO system_settings (id, key, value, description, group_name, is_public, created, updated)
-            VALUES (?,?,?,?,?,?,?,?)
-            """,
-            (
-                rid,
-                MASTER_PROMPT_KEY_DEAL_ANALYSIS,
-                value,
-                "Master prompt (founder-only) for deal_analysis moderation",
-                "ai",
-                0,
-                ts,
-                ts,
-            ),
-        )
+    for field, setting_key in keys.items():
+        value = str(values.get(field, "")).strip()
+        cur.execute("SELECT id FROM system_settings WHERE key=?", (setting_key,))
+        row = cur.fetchone()
+        if row:
+            cur.execute("UPDATE system_settings SET value=?, updated=? WHERE key=?", (value, ts, setting_key))
+        else:
+            rid = "r" + secrets.token_hex(7)
+            cur.execute(
+                """
+                INSERT INTO system_settings (id, key, value, description, group_name, is_public, created, updated)
+                VALUES (?,?,?,?,?,?,?,?)
+                """,
+                (
+                    rid,
+                    setting_key,
+                    value,
+                    f"Master prompt (founder-only) for {field}",
+                    "ai",
+                    0,
+                    ts,
+                    ts,
+                ),
+            )
     con.commit()
     con.close()
     return {"ok": True}
@@ -2390,7 +2449,10 @@ def run_ai_deal_analysis(payload):
     if not owner_prompt:
         owner_prompt = str((prompts_map.get("deal_analysis") or "")).strip()
     tenant_prompt = _get_tenant_prompt(tenant_pb_url, admin_token)
-    master_prompt = _get_master_prompt_deal_analysis()
+    master_prompts = _get_master_prompts()
+    master_prompt = str(master_prompts.get(task_code, "")).strip()
+    if not master_prompt:
+        master_prompt = _get_master_prompt_deal_analysis()
     scoring_bundle = _get_tenant_scoring_model(tenant_pb_url, admin_token)
     scoring_model = scoring_bundle.get("model", _default_scoring_model())
     deal_prompt = tenant_prompt or owner_prompt
@@ -3139,7 +3201,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(401, {"error": "unauthorized"})
                 return
             try:
-                self._json(200, {"master_prompt": _get_master_prompt_deal_analysis()})
+                self._json(200, {"master_prompts": _get_master_prompts()})
             except Exception as e:
                 self._json(500, {"error": str(e)})
             return
@@ -3268,7 +3330,10 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200, save_routing_matrix(payload))
                 return
             if path == "/api/master-prompt":
-                self._json(200, _save_master_prompt_deal_analysis(payload.get("master_prompt", "")))
+                if isinstance(payload, dict) and "master_prompt" in payload and len(payload.keys()) == 1:
+                    self._json(200, _save_master_prompts({"deal_analysis": payload.get("master_prompt", "")}))
+                else:
+                    self._json(200, _save_master_prompts(payload if isinstance(payload, dict) else {}))
                 return
             if path == "/api/ai-data-policy":
                 policy = payload.get("policy", payload if isinstance(payload, dict) else {})

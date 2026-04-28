@@ -1171,8 +1171,57 @@ export function DealDetailPage() {
           ) : null}
         </div>
 
-        {/* SIDEBAR: комментарии; AI-отчёт вынесен на полную ширину ниже */}
-        <div className="col-span-12 min-w-0 xl:col-span-4 grid gap-4">
+        {/* SIDEBAR: decision rail + комментарии */}
+        <div className="col-span-12 min-w-0 xl:col-span-4 grid gap-4 xl:sticky xl:top-24 self-start">
+          <Card className="neon-accent">
+            <CardHeader>
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold">Decision rail</div>
+                  <div className="text-xs text-text2 mt-1">Ключевой контур: AI + следующий шаг</div>
+                </div>
+                <span className="neon-pill">Priority</span>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3">
+                <div className="rounded-card border border-[rgba(51,215,255,0.35)] bg-[rgba(45,123,255,0.16)] p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs text-text2">Текущий score</div>
+                    <Badge>{sb.label}</Badge>
+                  </div>
+                  <div className="mt-2 text-2xl font-extrabold">{typeof score === "number" ? `${score}/100` : "—"}</div>
+                </div>
+
+                <Button onClick={runAiAnalysis} disabled={aiRunLoading || !deal?.id} className="neon-accent">
+                  {aiRunLoading ? "AI анализ..." : "Запустить AI-анализ"}
+                </Button>
+
+                <div className="rounded-card border border-border bg-white p-3">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-text2 mb-2">Следующие действия</div>
+                  {nextActions.length ? (
+                    <ul className="grid gap-1.5 text-sm">
+                      {nextActions.slice(0, 3).map((item, idx) => (
+                        <li key={`${item}-${idx}`} className="flex items-start gap-2">
+                          <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary/80" />
+                          <span className="leading-relaxed">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="text-sm text-text2">Запусти AI, чтобы получить action list.</div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <Button small variant="secondary" onClick={() => setTab("overview")}>Обзор</Button>
+                  <Button small variant="secondary" onClick={() => setTab("timeline")}>Timeline</Button>
+                  <Button small variant="secondary" onClick={() => setTab("workspace")}>Файлы</Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">

@@ -42,6 +42,7 @@ export function AdminFunnelPage() {
   const [stages, setStages] = React.useState<FunnelStage[]>([]);
   const [name, setName] = React.useState("");
   const [color, setColor] = React.useState("#004EEB");
+  const [guidedMode, setGuidedMode] = React.useState(true);
 
   async function load() {
     // PocketBase schema: stage_name + position
@@ -153,6 +154,9 @@ export function AdminFunnelPage() {
             <div className="text-xs text-text2 mt-1">Этапы: название, порядок, цвет, финальность + импорт/экспорт шаблона</div>
           </div>
           <div className="flex items-center gap-2">
+            <Button small variant="secondary" onClick={() => setGuidedMode((v) => !v)}>
+              {guidedMode ? "Скрыть подсказки" : "Пошаговый режим"}
+            </Button>
             <Button small variant="secondary" onClick={exportJson}>
               Экспорт
             </Button>
@@ -173,6 +177,18 @@ export function AdminFunnelPage() {
       </CardHeader>
       <CardContent>
         <div className="grid gap-3">
+          {guidedMode ? (
+            <div className="board-panel p-3 neon-accent">
+              <div className="text-sm font-semibold">Инструкции по настройке воронки</div>
+              <div className="mt-2 grid gap-2 text-xs text-text2">
+                <div><b>1.</b> Сначала проверь порядок этапов: это влияет на канбан и аналитику.</div>
+                <div><b>2.</b> `Финальный` + `Тип` определяют расчет win/loss и отчетность.</div>
+                <div><b>3.</b> `Вероятность` — базовый ориентир прогноза, не завышай искусственно.</div>
+                <div><b>4.</b> Перед массовым импортом всегда делай экспорт как backup.</div>
+              </div>
+            </div>
+          ) : null}
+
           <div className="grid grid-cols-[1fr_120px_110px] gap-2 items-end board-panel p-3 neon-accent">
             <div>
               <div className="text-xs text-text2 mb-1">Название этапа</div>

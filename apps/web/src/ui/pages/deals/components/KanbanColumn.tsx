@@ -41,12 +41,13 @@ export function KanbanColumn({
               }}
             />
             <div className="text-sm font-semibold text-text truncate">{name}</div>
+            <span className="neon-pill">Stage</span>
           </div>
           <div className="text-xs text-text2 mt-0.5">
             {(stats?.count ?? deals.length)} сделок • {money(stats?.sum ?? 0)} ₽
           </div>
         </div>
-        <div className="text-xs text-text2 tabular-nums rounded-full border border-border px-2 py-0.5 bg-[rgba(255,255,255,0.06)]">{deals.length}</div>
+        <div className="text-xs text-text2 tabular-nums rounded-md border border-[rgba(51,215,255,0.45)] px-2 py-0.5 bg-[rgba(51,215,255,0.14)] shadow-[0_0_14px_rgba(51,215,255,0.2)]">{deals.length}</div>
       </div>
 
       {/*

@@ -68,7 +68,7 @@ export function KanbanCard({
           </div>
 
           {score ? (
-            <div className="text-xs font-semibold rounded-card border border-border px-2 py-1 tabular-nums text-text bg-[rgba(255,255,255,0.08)]">
+            <div className="text-xs font-semibold rounded-md border border-[rgba(51,215,255,0.5)] px-2 py-1 tabular-nums text-text bg-[rgba(51,215,255,0.16)] shadow-[0_0_14px_rgba(51,215,255,0.22)]">
               {score}%
             </div>
           ) : null}

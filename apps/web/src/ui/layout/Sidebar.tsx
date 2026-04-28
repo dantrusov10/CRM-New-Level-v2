@@ -9,8 +9,9 @@ import logo from "../../assets/newlevel-logo.png";
 const Item = ({ to, icon: Icon, label }: { to: string; icon: LucideIcon; label: string }) => (
   <NavLink
     to={to}
-    className={({ isActive }) => `cockpit-nav-item ${isActive ? "active" : ""}`}
+    className={({ isActive }) => `cockpit-nav-item ${isActive ? "active neon-accent" : ""}`}
   >
+    <span className="h-1.5 w-1.5 rounded-full bg-[rgba(51,215,255,0.9)] shadow-[0_0_10px_rgba(51,215,255,0.8)]" />
     <Icon size={18} />
     <span>{label}</span>
   </NavLink>

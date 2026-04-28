@@ -175,9 +175,42 @@ export function AdminProductsPage() {
     }
   }
 
+  async function ensureActiveProfileId(): Promise<string> {
+    if (activeId) return activeId;
+    const created = await pb.collection("semantic_packs").create({
+      type: "product_profile",
+      model: "product_profile_v1",
+      language: "ru",
+      base_text: "product_profile",
+      variants: {
+        name: name.trim() || "Новый продукт",
+        manufacturer: manufacturer.trim(),
+        website: website.trim(),
+        docs: docs.trim(),
+        tz_passport: tzPassport.trim(),
+        lpr_map: lprMap.trim(),
+        parsers_config: parsersConfig.trim(),
+        ai_prompt_deal: promptDeal.trim(),
+        ai_prompt_client_research: promptClientResearch.trim(),
+        ai_prompt_tz_analysis: promptTz.trim(),
+      },
+    });
+    const newId = String((created as { id?: string }).id || "");
+    if (newId) {
+      setActiveId(newId);
+      setItems((prev) => [{ ...(created as ProductProfile) }, ...prev]);
+    }
+    return newId;
+  }
+
   async function addProductUploadedFile() {
-    if (!activeId || !uploadFile) return;
+    if (!uploadFile) return;
     setUploadError("");
+    const profileId = await ensureActiveProfileId();
+    if (!profileId) {
+      setUploadError("Не удалось создать профиль продукта для загрузки файла.");
+      return;
+    }
     const readAsDataUrl = (file: File) =>
       new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
@@ -197,7 +230,7 @@ export function AdminProductsPage() {
       if (!file?.id) throw new Error("Не удалось загрузить файл");
       await pb.collection("entity_files").create({
         entity_type: "product_profile",
-        entity_id: activeId,
+        entity_id: profileId,
         file_id: file.id,
         tag: fileTag,
         created_at: new Date().toISOString(),
@@ -205,7 +238,7 @@ export function AdminProductsPage() {
       setUploadFile(null);
       setFileTitle("");
       const links = await pb.collection("entity_files").getList(1, 200, {
-        filter: `entity_type="product_profile" && entity_id="${activeId}"`,
+        filter: `entity_type="product_profile" && entity_id="${profileId}"`,
         sort: "-created",
         expand: "file_id",
       }).catch(() => ({ items: [] as Array<Record<string, unknown>> }));
@@ -388,7 +421,7 @@ export function AdminProductsPage() {
           {uploadError ? <div className="text-xs text-danger">{uploadError}</div> : null}
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setFileModalOpen(false)}>Отмена</Button>
-            <Button onClick={addProductUploadedFile} disabled={!uploadFile || !activeId}>Добавить файл</Button>
+            <Button onClick={addProductUploadedFile} disabled={!uploadFile}>Добавить файл</Button>
           </div>
         </div>
       </Modal>

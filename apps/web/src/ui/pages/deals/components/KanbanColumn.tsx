@@ -24,7 +24,7 @@ export function KanbanColumn({
     <div
       ref={setNodeRef}
       data-kanban-column="true"
-      className="rounded-card border border-border bg-tableHeader p-3 overflow-hidden flex flex-col"
+      className="rounded-card border border-border bg-[rgba(12,31,60,0.62)] p-3 overflow-hidden flex flex-col backdrop-blur-[10px]"
       style={{
         outline: isOver ? `2px solid ${stage.color ?? "#33D7FF"}` : "none",
         boxShadow: isOver ? `0 0 0 1px rgba(255,255,255,0.12) inset, 0 0 28px ${stage.color ?? "#33D7FF"}` : undefined,
@@ -43,10 +43,10 @@ export function KanbanColumn({
             <div className="text-sm font-semibold text-text truncate">{name}</div>
           </div>
           <div className="text-xs text-text2 mt-0.5">
-            {(stats?.count ?? deals.length)} • {money(stats?.sum ?? 0)} ₽
+            {(stats?.count ?? deals.length)} сделок • {money(stats?.sum ?? 0)} ₽
           </div>
         </div>
-        <div className="text-xs text-text2 tabular-nums">{deals.length}</div>
+        <div className="text-xs text-text2 tabular-nums rounded-full border border-border px-2 py-0.5 bg-[rgba(255,255,255,0.06)]">{deals.length}</div>
       </div>
 
       {/*

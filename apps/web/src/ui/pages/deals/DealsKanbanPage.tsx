@@ -348,8 +348,8 @@ export function DealsKanbanPage() {
   return (
     <Card className="min-w-0">
       <CardHeader>
-        <div className="text-sm font-semibold">Канбан</div>
-        <div className="text-xs text-text2 mt-1">Drag&Drop между этапами, логирование переходов (US-02)</div>
+        <div className="text-sm font-semibold">Pipeline board</div>
+        <div className="text-xs text-text2 mt-1">Deep-focus канбан: быстрый обзор этапов, суммы и приоритетов</div>
       </CardHeader>
 
       <CardContent className="min-w-0">
@@ -358,7 +358,7 @@ export function DealsKanbanPage() {
         ) : (
           <>
             {/* Top analytics */}
-            <div className="grid grid-cols-4 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-4">
               <div className="rounded-card border border-border bg-white p-4">
                 <div className="text-xs text-text2">Открытых сделок</div>
                 <div className="text-xl font-semibold mt-1">{topStats.openCount}</div>
@@ -391,7 +391,7 @@ export function DealsKanbanPage() {
               {/* Horizontal scroll only inside the kanban strip */}
               <div
                 ref={kanbanScrollRef}
-                className="min-w-0 overflow-x-auto overflow-y-hidden neon-scroll"
+                className="min-w-0 overflow-x-auto overflow-y-hidden neon-scroll rounded-card border border-border bg-[rgba(17,24,39,0.18)] p-3"
               >
                 <div className="grid auto-cols-[320px] grid-flow-col gap-4 min-w-max">
                   {stages.map((s) => (

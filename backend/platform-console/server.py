@@ -36,6 +36,7 @@ LOGIN_RATE_LIMIT = {}
 
 MASTER_PROMPT_KEY_DEAL_ANALYSIS = "ai.master_prompt.deal_analysis"
 AI_DATA_POLICY_KEY = "ai.data_policy.v1"
+AI_CLIENT_RESEARCH_COOLDOWN_KEY = "ai.cooldown.client_research.v1"
 
 
 INDEX_HTML = """<!doctype html>
@@ -2013,6 +2014,104 @@ def _get_tenant_prompt(tenant_pb_url, admin_token):
         pass
     return ""
 
+
+def _extract_company_product_for_cooldown(full_context):
+    src = _get_source(full_context)
+    frontend_ctx = src.get("frontend_context", {}) if isinstance(src.get("frontend_context"), dict) else {}
+    deal = src.get("deal_record", {}) if isinstance(src.get("deal_record"), dict) else {}
+    company_id = str(frontend_ctx.get("company_id") or deal.get("company_id") or "").strip()
+    product_id = str(frontend_ctx.get("product_id") or deal.get("product_id") or "").strip()
+    return company_id, product_id
+
+
+def _read_json_system_setting(key):
+    con = sqlite3.connect(DB_PATH)
+    cur = con.cursor()
+    cur.execute("SELECT value FROM system_settings WHERE key=?", (key,))
+    row = cur.fetchone()
+    con.close()
+    if not row or not row[0]:
+        return {}
+    try:
+        data = json.loads(str(row[0]))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _write_json_system_setting(key, value, description):
+    payload = json.dumps(value if isinstance(value, dict) else {}, ensure_ascii=False)
+    ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S.%fZ")
+    con = sqlite3.connect(DB_PATH)
+    cur = con.cursor()
+    cur.execute("SELECT id FROM system_settings WHERE key=?", (key,))
+    row = cur.fetchone()
+    if row:
+        cur.execute("UPDATE system_settings SET value=?, updated=? WHERE key=?", (payload, ts, key))
+    else:
+        rid = "r" + secrets.token_hex(7)
+        cur.execute(
+            """
+            INSERT INTO system_settings (id, key, value, description, group_name, is_public, created, updated)
+            VALUES (?,?,?,?,?,?,?,?)
+            """,
+            (rid, key, payload, description, "ai", 0, ts, ts),
+        )
+    con.commit()
+    con.close()
+
+
+def _check_and_mark_client_research_cooldown(tenant_code, company_id, product_id, days=180):
+    if not tenant_code or not company_id or not product_id:
+        return {"ok": False, "error": "company_id and product_id are required for client_research"}
+    data = _read_json_system_setting(AI_CLIENT_RESEARCH_COOLDOWN_KEY)
+    records = data.get("records", []) if isinstance(data.get("records"), list) else []
+    now = datetime.utcnow()
+    key = f"{tenant_code}:{company_id}:{product_id}:client_research"
+    active = []
+    blocked_until = None
+    for rec in records:
+        if not isinstance(rec, dict):
+            continue
+        rec_key = str(rec.get("key", "")).strip()
+        next_at_raw = str(rec.get("next_allowed_at", "")).strip()
+        next_dt = _to_dt(next_at_raw)
+        if not rec_key or not next_dt:
+            continue
+        if next_dt > now:
+            active.append({"key": rec_key, "next_allowed_at": next_dt.isoformat() + "Z"})
+            if rec_key == key:
+                blocked_until = next_dt
+    if blocked_until:
+        return {"ok": False, "next_allowed_at": blocked_until.isoformat() + "Z"}
+    next_allowed = now + timedelta(days=int(days or 180))
+    active.append({"key": key, "next_allowed_at": next_allowed.isoformat() + "Z"})
+    _write_json_system_setting(
+        AI_CLIENT_RESEARCH_COOLDOWN_KEY,
+        {"records": active},
+        "Cooldown keys for tenant/product/company client research runs",
+    )
+    return {"ok": True, "next_allowed_at": next_allowed.isoformat() + "Z"}
+
+
+def _resolve_product_prompt(full_context, task_code):
+    src = _get_source(full_context)
+    frontend_ctx = src.get("frontend_context", {}) if isinstance(src.get("frontend_context"), dict) else {}
+    product_profile = frontend_ctx.get("product_profile", {}) if isinstance(frontend_ctx.get("product_profile"), dict) else {}
+    by_task = {
+        "deal_analysis": "ai_prompt_deal",
+        "deal_update_analysis": "ai_prompt_deal",
+        "decision_support": "ai_prompt_deal",
+        "client_research": "ai_prompt_client_research",
+        "tender_tz_analysis": "ai_prompt_tz_analysis",
+    }
+    key = by_task.get(task_code, "")
+    if key:
+        txt = str(product_profile.get(key, "")).strip()
+        if txt:
+            return txt
+    return ""
+
 def run_ai_deal_analysis(payload):
     deal_id = str(payload.get("deal_id", "")).strip()
     tenant_pb_url = str(payload.get("tenant_pb_url", "")).strip().rstrip("/")
@@ -2074,6 +2173,15 @@ def run_ai_deal_analysis(payload):
     context_mode = str((context or {}).get("analysis_mode", "")).strip().lower()
     is_update_mode = task_code == "deal_update_analysis" or context_mode == "update"
     full_context = _build_ai_context(tenant_pb_url, deal_id, admin_token, context)
+    tenant_code = _resolve_tenant_code_from_pb_url(tenant_pb_url)
+    company_id, product_id = _extract_company_product_for_cooldown(full_context)
+    if task_code == "client_research":
+        cooldown = _check_and_mark_client_research_cooldown(tenant_code, company_id, product_id, 180)
+        if not cooldown.get("ok"):
+            next_allowed = str(cooldown.get("next_allowed_at", "")).strip()
+            if next_allowed:
+                return {"ok": False, "error": f"client_research cooldown active until {next_allowed}"}
+            return {"ok": False, "error": str(cooldown.get("error", "client_research cooldown failed"))}
     llm_context = _sanitize_for_llm(full_context, "context", data_policy)
     prompts_map = (routing.get("prompts", {}) if isinstance(routing.get("prompts"), dict) else {})
     owner_prompt = str((prompts_map.get("deal_update_analysis") if is_update_mode else prompts_map.get(task_code)) or "").strip()
@@ -2084,6 +2192,9 @@ def run_ai_deal_analysis(payload):
     scoring_bundle = _get_tenant_scoring_model(tenant_pb_url, admin_token)
     scoring_model = scoring_bundle.get("model", _default_scoring_model())
     deal_prompt = tenant_prompt or owner_prompt
+    product_prompt = _resolve_product_prompt(full_context, task_code)
+    if product_prompt:
+        deal_prompt = f"{deal_prompt}\n\nПродуктовый контекст и правила:\n{product_prompt}".strip()
     if not deal_prompt:
         deal_prompt = (
             "Проанализируй сделку и дай оценку риска/шансов. Учитывай динамику комментариев, заметки, timeline и предыдущие AI-оценки."
@@ -2291,6 +2402,8 @@ def run_ai_deal_analysis(payload):
                 "insight_id": ai_record.get("id", ""),
                 "analysis_mode": "update" if is_update_mode else "full",
                 "requested_task_code": task_code,
+                "company_id": company_id,
+                "product_id": product_id,
             },
             "timestamp": datetime.utcnow().isoformat() + "Z",
         },
@@ -2303,7 +2416,6 @@ def run_ai_deal_analysis(payload):
         {"current_score": score, "current_recommendations": suggestions},
         admin_token,
     )
-    tenant_code = _resolve_tenant_code_from_pb_url(tenant_pb_url)
     price_per_1k = float(((routing.get("budget", {}) or {}).get("default_price_rub_per_1k_tokens", 0.0) or 0.0))
     total_cost_rub = (float(total_tokens or 0) / 1000.0) * price_per_1k
     _append_ai_usage_monthly(tenant_code, usage, total_cost_rub)

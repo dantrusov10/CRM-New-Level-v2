@@ -790,6 +790,8 @@ export function DealDetailPage() {
   const [aiRunError, setAiRunError] = React.useState<string>("");
   const [selectedProductId, setSelectedProductId] = React.useState<string>("");
   const [aiScenario, setAiScenario] = React.useState<AiScenario>("deal_analysis");
+  const [productPickerOpen, setProductPickerOpen] = React.useState(false);
+  const [pendingRun, setPendingRun] = React.useState<{ mode: "full" | "update"; scenario: AiScenario } | null>(null);
   const formRef = React.useRef<DynamicEntityFormHandle | null>(null);
 
   const auth = getAuthUser();
@@ -1131,9 +1133,15 @@ export function DealDetailPage() {
     tlQ.refetch();
   }
 
-  async function runAiAnalysis(mode: "full" | "update" = "full", scenario: AiScenario = "deal_analysis") {
+  async function runAiAnalysis(mode: "full" | "update" = "full", scenario: AiScenario = "deal_analysis", forcedProductId?: string) {
     if (!deal?.id) return;
-    if (!selectedProductId && scenario !== "semantic_enrichment") {
+    const effectiveProductId = forcedProductId || selectedProductId || (productProfiles.length === 1 ? productProfiles[0].id : "");
+    if (!effectiveProductId && scenario !== "semantic_enrichment" && productProfiles.length > 1) {
+      setPendingRun({ mode, scenario });
+      setProductPickerOpen(true);
+      return;
+    }
+    if (!effectiveProductId && scenario !== "semantic_enrichment") {
       setAiRunError("Выберите продукт для сделки перед запуском AI-сценария.");
       return;
     }
@@ -1168,13 +1176,15 @@ export function DealDetailPage() {
       const prevInsight = ((aiQ.data ?? [])[1] ?? null) as AiInsight | null;
       const lastCommentEntry = recentNotes.find((t) => t.action === "comment" || t.action === "note") || null;
       const lastCommentText = String(lastCommentEntry?.comment || "").trim();
+      const effectiveProduct = productProfiles.find((p) => p.id === effectiveProductId) || null;
       const requestContext = {
         analysis_mode: mode,
         ai_scenario: scenario,
         deal_id: deal.id,
-        product_id: selectedProductId,
-        product_profile: selectedProduct?.variants || {},
-        product_name: selectedProduct?.name || "",
+        company_id: deal.company_id || deal.expand?.company_id?.id || "",
+        product_id: effectiveProductId,
+        product_profile: effectiveProduct?.variants || {},
+        product_name: effectiveProduct?.name || "",
         title: deal.title || "",
         stage: deal?.expand?.stage_id?.stage_name || "",
         company: deal?.expand?.company_id?.name || "",
@@ -1243,7 +1253,7 @@ export function DealDetailPage() {
       });
       if (scenario === "client_research") {
         const companyKey = String(deal.company_id || deal.expand?.company_id?.id || "");
-        const cooldownKey = `client_research:${companyKey}:${selectedProductId}`;
+        const cooldownKey = `client_research:${companyKey}:${effectiveProductId}`;
         const nextAllowedTs = Date.now() + 180 * 24 * 60 * 60 * 1000;
         localStorage.setItem(cooldownKey, String(nextAllowedTs));
       }
@@ -2103,6 +2113,39 @@ export function DealDetailPage() {
           </div>
           <div className="text-xs text-text2">
             Обязательное: ФИО + хотя бы один контакт (телефон/email/telegram). Контакт сохранится в <code>contacts_found</code> как <code>source_type=manual</code>.
+          </div>
+        </div>
+      </Modal>
+      <Modal
+        open={productPickerOpen}
+        title="Выберите продукт для AI-сценария"
+        onClose={() => {
+          setProductPickerOpen(false);
+          setPendingRun(null);
+        }}
+      >
+        <div className="grid gap-3">
+          <div className="text-sm text-text2">
+            Для этой сделки доступно несколько продуктовых профилей. Выберите, по какому продукту запускать сценарий.
+          </div>
+          <div className="grid gap-2">
+            {productProfiles.map((p) => (
+              <button
+                key={p.id}
+                className="text-left rounded-md border border-border bg-white px-3 py-2 hover:border-primary/50"
+                onClick={() => {
+                  setSelectedProductId(p.id);
+                  localStorage.setItem(`deal:${id}:product_id`, p.id);
+                  setProductPickerOpen(false);
+                  const run = pendingRun;
+                  setPendingRun(null);
+                  if (run) void runAiAnalysis(run.mode, run.scenario, p.id);
+                }}
+              >
+                <div className="text-sm font-semibold">{p.name}</div>
+                {p.manufacturer ? <div className="text-xs text-text2 mt-1">{p.manufacturer}</div> : null}
+              </button>
+            ))}
           </div>
         </div>
       </Modal>

@@ -38,6 +38,7 @@ MASTER_PROMPT_KEY_DEAL_ANALYSIS = "ai.master_prompt.deal_analysis"
 AI_DATA_POLICY_KEY = "ai.data_policy.v1"
 AI_CLIENT_RESEARCH_COOLDOWN_KEY = "ai.cooldown.client_research.v1"
 AI_DECISION_SUPPORT_LIMIT_KEY = "ai.limit.decision_support.v1"
+AI_TENANT_LIMITS_KEY = "ai.tenant.limits.v1"
 
 
 INDEX_HTML = """<!doctype html>
@@ -254,6 +255,29 @@ INDEX_HTML = """<!doctype html>
 
       <div class="card">
         <h2>Клиенты и доступы модулей</h2>
+        <div class="hint" style="margin-bottom:10px;">Гибкие лимиты AI по каждому клиенту (tenant).</div>
+        <div class="row" style="margin-bottom:10px;">
+          <div>
+            <label>Tenant code</label>
+            <input id="limitTenantCode" type="text" placeholder="например: nwlvl_prod"/>
+          </div>
+          <div>
+            <label>Поддержка решения: лимит/месяц на 1 сделку</label>
+            <input id="limitDecisionMonthly" type="number" placeholder="10"/>
+          </div>
+          <div>
+            <label>Исследование клиента: cooldown (дней)</label>
+            <input id="limitClientCooldownDays" type="number" placeholder="180"/>
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <div style="display:flex;gap:8px;">
+              <button class="btn" onclick="loadTenantLimits()">Загрузить лимиты</button>
+              <button class="btn" onclick="saveTenantLimits()">Сохранить лимиты</button>
+            </div>
+          </div>
+        </div>
+        <div id="tenantLimitsMsg" class="ok"></div>
         <table id="tbl">
           <thead>
             <tr>
@@ -498,6 +522,39 @@ INDEX_HTML = """<!doctype html>
         const el = document.getElementById("routingMsg");
         if (el) el.textContent = "";
       }, 2500);
+    }
+
+    async function loadTenantLimits() {
+      const tenantCode = val("limitTenantCode");
+      if (!tenantCode) { setErr("Укажи tenant code"); return; }
+      const data = await getJson(api("tenant-limits") + "?tenant_code=" + encodeURIComponent(tenantCode));
+      const eff = data.effective || {};
+      document.getElementById("limitDecisionMonthly").value = eff.decision_support_monthly_per_deal || 10;
+      document.getElementById("limitClientCooldownDays").value = eff.client_research_cooldown_days || 180;
+      const el = document.getElementById("tenantLimitsMsg");
+      if (el) {
+        el.textContent = "Лимиты загружены";
+        setTimeout(() => { if (el) el.textContent = ""; }, 1800);
+      }
+    }
+
+    async function saveTenantLimits() {
+      const tenantCode = val("limitTenantCode");
+      if (!tenantCode) { setErr("Укажи tenant code"); return; }
+      await getJson(api("tenant-limits"), {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          tenant_code: tenantCode,
+          decision_support_monthly_per_deal: Number(val("limitDecisionMonthly") || 10),
+          client_research_cooldown_days: Number(val("limitClientCooldownDays") || 180),
+        }),
+      });
+      const el = document.getElementById("tenantLimitsMsg");
+      if (el) {
+        el.textContent = "Лимиты сохранены";
+        setTimeout(() => { if (el) el.textContent = ""; }, 2000);
+      }
     }
 
     async function downloadCsv() {
@@ -2087,6 +2144,83 @@ def _write_json_system_setting(key, value, description):
     con.close()
 
 
+def _normalize_limit_int(value, default_value, min_value=1, max_value=3650):
+    try:
+        n = int(float(value))
+    except Exception:
+        n = int(default_value)
+    return max(int(min_value), min(int(max_value), n))
+
+
+def _get_tenant_limits():
+    raw = _read_json_system_setting(AI_TENANT_LIMITS_KEY)
+    defaults = raw.get("default", {}) if isinstance(raw.get("default"), dict) else {}
+    tenants = raw.get("tenants", {}) if isinstance(raw.get("tenants"), dict) else {}
+    out = {
+        "default": {
+            "decision_support_monthly_per_deal": _normalize_limit_int(defaults.get("decision_support_monthly_per_deal", 10), 10, 1, 1000),
+            "client_research_cooldown_days": _normalize_limit_int(defaults.get("client_research_cooldown_days", 180), 180, 1, 3650),
+        },
+        "tenants": {},
+    }
+    for tcode, cfg in tenants.items():
+        if not isinstance(cfg, dict):
+            continue
+        out["tenants"][str(tcode).strip()] = {
+            "decision_support_monthly_per_deal": _normalize_limit_int(cfg.get("decision_support_monthly_per_deal", out["default"]["decision_support_monthly_per_deal"]), out["default"]["decision_support_monthly_per_deal"], 1, 1000),
+            "client_research_cooldown_days": _normalize_limit_int(cfg.get("client_research_cooldown_days", out["default"]["client_research_cooldown_days"]), out["default"]["client_research_cooldown_days"], 1, 3650),
+        }
+    return out
+
+
+def _resolve_tenant_limits(tenant_code):
+    limits = _get_tenant_limits()
+    out = dict(limits.get("default", {}))
+    if tenant_code and tenant_code in limits.get("tenants", {}):
+        out.update(limits["tenants"][tenant_code])
+    return out
+
+
+def _save_tenant_limit_override(payload):
+    tenant_code = str(payload.get("tenant_code", "")).strip()
+    if not tenant_code:
+        return {"ok": False, "error": "tenant_code is required"}
+    limits = _get_tenant_limits()
+    tenants = limits.get("tenants", {})
+    current = tenants.get(tenant_code, {})
+    current["decision_support_monthly_per_deal"] = _normalize_limit_int(
+        payload.get("decision_support_monthly_per_deal", current.get("decision_support_monthly_per_deal", limits["default"]["decision_support_monthly_per_deal"])),
+        limits["default"]["decision_support_monthly_per_deal"],
+        1,
+        1000,
+    )
+    current["client_research_cooldown_days"] = _normalize_limit_int(
+        payload.get("client_research_cooldown_days", current.get("client_research_cooldown_days", limits["default"]["client_research_cooldown_days"])),
+        limits["default"]["client_research_cooldown_days"],
+        1,
+        3650,
+    )
+    tenants[tenant_code] = current
+    _write_json_system_setting(
+        AI_TENANT_LIMITS_KEY,
+        {"default": limits.get("default", {}), "tenants": tenants},
+        "Per-tenant overrides for AI scenario limits",
+    )
+    return {"ok": True, "tenant_code": tenant_code, "limits": current}
+
+
+def _get_tenant_limit_override(tenant_code):
+    tenant_code = str(tenant_code or "").strip()
+    limits = _get_tenant_limits()
+    return {
+        "ok": True,
+        "tenant_code": tenant_code,
+        "default": limits.get("default", {}),
+        "override": (limits.get("tenants", {}) or {}).get(tenant_code, {}),
+        "effective": _resolve_tenant_limits(tenant_code),
+    }
+
+
 def _check_and_mark_client_research_cooldown(tenant_code, company_id, product_id, days=180):
     if not tenant_code or not company_id or not product_id:
         return {"ok": False, "error": "company_id and product_id are required for client_research"}
@@ -2236,15 +2370,18 @@ def run_ai_deal_analysis(payload):
     full_context = _build_ai_context(tenant_pb_url, deal_id, admin_token, context)
     tenant_code = _resolve_tenant_code_from_pb_url(tenant_pb_url)
     company_id, product_id = _extract_company_product_for_cooldown(full_context)
+    tenant_limits = _resolve_tenant_limits(tenant_code)
     if task_code == "client_research":
-        cooldown = _check_and_mark_client_research_cooldown(tenant_code, company_id, product_id, 180)
+        cooldown_days = int(tenant_limits.get("client_research_cooldown_days", 180) or 180)
+        cooldown = _check_and_mark_client_research_cooldown(tenant_code, company_id, product_id, cooldown_days)
         if not cooldown.get("ok"):
             next_allowed = str(cooldown.get("next_allowed_at", "")).strip()
             if next_allowed:
                 return {"ok": False, "error": f"client_research cooldown active until {next_allowed}"}
             return {"ok": False, "error": str(cooldown.get("error", "client_research cooldown failed"))}
     if task_code == "decision_support":
-        decision_limit = _check_and_mark_decision_support_monthly_limit(tenant_code, deal_id, 10)
+        month_limit = int(tenant_limits.get("decision_support_monthly_per_deal", 10) or 10)
+        decision_limit = _check_and_mark_decision_support_monthly_limit(tenant_code, deal_id, month_limit)
         if not decision_limit.get("ok"):
             return {"ok": False, "error": str(decision_limit.get("error", "decision_support limit failed"))}
     llm_context = _sanitize_for_llm(full_context, "context", data_policy)
@@ -3015,6 +3152,17 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._json(500, {"error": str(e)})
             return
+        if path == "/api/tenant-limits":
+            if not self._require_auth():
+                self._json(401, {"error": "unauthorized"})
+                return
+            try:
+                qs = parse_qs(parsed.query)
+                tenant_code = str((qs.get("tenant_code", [""])[0] or "")).strip()
+                self._json(200, _get_tenant_limit_override(tenant_code))
+            except Exception as e:
+                self._json(500, {"error": str(e)})
+            return
         if path == "/api/public/health":
             self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8", headers=self._public_headers())
             return
@@ -3125,6 +3273,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/ai-data-policy":
                 policy = payload.get("policy", payload if isinstance(payload, dict) else {})
                 self._json(200, _save_ai_data_policy(policy if isinstance(policy, dict) else {}))
+                return
+            if path == "/api/tenant-limits":
+                self._json(200, _save_tenant_limit_override(payload if isinstance(payload, dict) else {}))
                 return
             self._send(404, "not found")
         except Exception as e:

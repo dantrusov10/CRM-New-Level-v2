@@ -1268,31 +1268,92 @@ export function DealDetailPage() {
         taskCode: scenario,
         context: requestContext,
       });
+      async function attachClientResearchReport(insight: { id?: string; summary?: string; suggestions?: string; explainability?: unknown }) {
+        if (!id) return;
+        const createdAt = dayjs().format("YYYY-MM-DD HH:mm");
+        const productName = effectiveProduct?.name || "Продукт";
+        const title = `AI client research ${deal.title || deal.id} ${dayjs().format("YYYY-MM-DD HH-mm")}.md`;
+        const explainabilityText =
+          insight?.explainability && typeof insight.explainability === "object"
+            ? JSON.stringify(insight.explainability, null, 2)
+            : String(insight?.explainability || "");
+        const md = [
+          `# Исследование клиента`,
+          ``,
+          `- Сделка: ${deal.title || deal.id}`,
+          `- Компания: ${deal?.expand?.company_id?.name || "-"}`,
+          `- Продукт: ${productName}`,
+          `- Время: ${createdAt}`,
+          ``,
+          `## Executive summary`,
+          `${String(insight?.summary || "").trim() || "-"}`,
+          ``,
+          `## Recommendations`,
+          `${String(insight?.suggestions || "").trim() || "-"}`,
+          ``,
+          `## Raw explainability JSON`,
+          "```json",
+          explainabilityText || "{}",
+          "```",
+          ``,
+        ].join("\n");
+        const bytes = new TextEncoder().encode(md);
+        let binary = "";
+        bytes.forEach((b) => {
+          binary += String.fromCharCode(b);
+        });
+        const dataUrl = `data:text/markdown;base64,${btoa(binary)}`;
+        await addWorkspaceFileM
+          .mutateAsync({
+            entityType: "deal",
+            entityId: id,
+            url: dataUrl,
+            title,
+            tag: effectivePrimaryProductId ? `product_id:${effectivePrimaryProductId}` : "ai_client_research",
+          })
+          .catch(() => null);
+      }
       if (scenario === "client_research") {
         const companyKey = String(deal.company_id || deal.expand?.company_id?.id || "");
         const cooldownKey = `client_research:${companyKey}:${effectivePrimaryProductId}`;
         const nextAllowedTs = Date.now() + 180 * 24 * 60 * 60 * 1000;
         localStorage.setItem(cooldownKey, String(nextAllowedTs));
       }
+      const isAsyncClientResearch = Boolean(scenario === "client_research" && aiResponse && (aiResponse as Record<string, unknown>).accepted === true);
+      const maxAttempts = isAsyncClientResearch ? 90 : 6;
+      const waitMs = isAsyncClientResearch ? 10000 : 1200;
       let appeared = false;
-      for (let attempt = 0; attempt < 6; attempt += 1) {
+      let latestInsight: { id?: string; summary?: string; suggestions?: string; explainability?: unknown } | null = null;
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
         const check = await pb
           .collection("ai_insights")
           .getList(1, 1, { filter: `deal_id="${deal.id}"`, sort: "-created" })
           .catch(() => null);
-        const latest = ((check as { items?: Array<{ id?: string }> } | null)?.items || [])[0];
+        const latest = ((check as { items?: Array<{ id?: string; summary?: string; suggestions?: string; explainability?: unknown }> } | null)?.items || [])[0];
         const latestId = String(latest?.id || "");
         if (latestId && latestId !== previousInsightId) {
           appeared = true;
+          latestInsight = latest || null;
           break;
         }
-        await sleep(1200);
+        if (isAsyncClientResearch && attempt % 9 === 0) {
+          await Promise.all([tlQ.refetch(), dealQ.refetch()]);
+        }
+        await sleep(waitMs);
       }
       await Promise.all([aiQ.refetch(), tlQ.refetch(), dealQ.refetch()]);
+      if (appeared && scenario === "client_research" && latestInsight) {
+        await attachClientResearchReport(latestInsight);
+        entityFilesQ.refetch();
+      }
       if (!appeared) {
-        setAiRunError(
-          `AI ответ получен (${String(aiResponse?.provider || "")}:${String(aiResponse?.engine || "")}, score ${String(aiResponse?.score ?? "—")}), но новая запись не появилась в CRM. Проверь gateway логи и запись в коллекции ai_insights.`,
-        );
+        if (isAsyncClientResearch) {
+          setAiRunError("Глубокое исследование запущено и выполняется в фоне (может занять 5-15+ минут). Обнови вкладку AI/Файлы чуть позже.");
+        } else {
+          setAiRunError(
+            `AI ответ получен (${String(aiResponse?.provider || "")}:${String(aiResponse?.engine || "")}, score ${String(aiResponse?.score ?? "—")}), но новая запись не появилась в CRM. Проверь gateway логи и запись в коллекции ai_insights.`,
+          );
+        }
       }
     } catch (e) {
       setAiRunError(e instanceof Error ? e.message : "Ошибка AI-анализа");

@@ -8,6 +8,7 @@ import sqlite3
 import ssl
 import uuid
 import re
+import threading
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.error import HTTPError, URLError
@@ -2818,6 +2819,29 @@ def run_ai_deal_analysis(payload):
     }
 
 
+def _run_ai_deal_analysis_background(payload):
+    try:
+        result = run_ai_deal_analysis(payload)
+        _audit_log(
+            "analyze_async_done",
+            {
+                "deal_id": str(payload.get("deal_id", "")),
+                "task_code": str(payload.get("task_code", "")),
+                "ok": bool(result.get("ok")),
+                "error": str(result.get("error", "")) if isinstance(result, dict) else "",
+            },
+        )
+    except Exception as e:
+        _audit_log(
+            "analyze_async_exception",
+            {
+                "deal_id": str(payload.get("deal_id", "")),
+                "task_code": str(payload.get("task_code", "")),
+                "error": str(e),
+            },
+        )
+
+
 def default_routing_matrix():
     return {
         "routes": {
@@ -3380,6 +3404,30 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(403, json.dumps({"ok": False, "error": "forbidden origin"}), "application/json; charset=utf-8")
                     return
                 payload["tenant_user_token"] = self.headers.get("Authorization", "")
+                task_code = str(payload.get("task_code", "deal_analysis")).strip() or "deal_analysis"
+                if task_code == "client_research":
+                    # Client research can run 5-15+ minutes with deep-research models.
+                    # Run asynchronously to avoid browser/proxy timeouts ("Failed to fetch").
+                    job_id = "job_" + secrets.token_hex(8)
+                    payload["job_id"] = job_id
+                    t = threading.Thread(target=_run_ai_deal_analysis_background, args=(dict(payload),), daemon=True)
+                    t.start()
+                    self._send(
+                        200,
+                        json.dumps(
+                            {
+                                "ok": True,
+                                "accepted": True,
+                                "job_id": job_id,
+                                "task_code": task_code,
+                                "message": "client_research started in background",
+                            },
+                            ensure_ascii=False,
+                        ),
+                        "application/json; charset=utf-8",
+                        headers=self._public_headers(origin),
+                    )
+                    return
                 try:
                     result = run_ai_deal_analysis(payload)
                 except Exception as e:

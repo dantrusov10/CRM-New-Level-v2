@@ -11,8 +11,13 @@ import { usePermissions } from "../data/hooks";
 import { can } from "../../lib/rbac";
 
 const SIDEBAR_W = 228;
+const SIDEBAR_COLLAPSED_W = 76;
 
 export function AppLayout() {
+  const [sidebarCollapsed, setSidebarCollapsed] = React.useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("crm_sidebar_collapsed") === "1";
+  });
   const [openCompany, setOpenCompany] = React.useState(false);
   const [openDeal, setOpenDeal] = React.useState(false);
   const [openImport, setOpenImport] = React.useState(false);
@@ -53,14 +58,19 @@ export function AppLayout() {
     }
   }, [location.pathname, navigate, perms]);
 
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("crm_sidebar_collapsed", sidebarCollapsed ? "1" : "0");
+  }, [sidebarCollapsed]);
+
   return (
     <div className="min-h-screen w-full theme-cockpit">
       {/* Sidebar is fixed, content scrolls independently */}
-      <div className="fixed left-0 top-0 h-screen" style={{ width: SIDEBAR_W }}>
-        <Sidebar perms={perms} />
+      <div className="fixed left-0 top-0 h-screen" style={{ width: sidebarCollapsed ? SIDEBAR_COLLAPSED_W : SIDEBAR_W }}>
+        <Sidebar perms={perms} collapsed={sidebarCollapsed} />
       </div>
 
-      <div className="min-h-screen relative" style={{ marginLeft: SIDEBAR_W }}>
+      <div className="min-h-screen relative" style={{ marginLeft: sidebarCollapsed ? SIDEBAR_COLLAPSED_W : SIDEBAR_W }}>
         <Header
           pathname={location.pathname}
           onCreateCompany={() => setOpenCompany(true)}
@@ -68,6 +78,8 @@ export function AppLayout() {
           onImport={() => setOpenImport(true)}
           onExport={() => setOpenExport(true)}
           perms={perms}
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleSidebar={() => setSidebarCollapsed((v) => !v)}
         />
 
         {/* Page content scrolls; header stays sticky */}

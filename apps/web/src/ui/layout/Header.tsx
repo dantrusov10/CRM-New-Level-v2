@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Filter, Search, Plus, Upload, Download, LogOut } from "lucide-react";
+import { Filter, Search, Plus, Upload, Download, LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Input } from "../components/Input";
 import { Button } from "../components/Button";
 import { useAuth } from "../../app/AuthProvider";
@@ -25,6 +25,8 @@ export function Header({
   onImport,
   onExport,
   perms,
+  sidebarCollapsed,
+  onToggleSidebar,
 }: {
   pathname: string;
   onCreateCompany: () => void;
@@ -32,6 +34,8 @@ export function Header({
   onImport: () => void;
   onExport: () => void;
   perms: PermissionMatrix;
+  sidebarCollapsed: boolean;
+  onToggleSidebar: () => void;
 }) {
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -45,6 +49,14 @@ export function Header({
           <span className="brand-dot" />
           {titleByPath(pathname)}
         </div>
+        <button
+          className="ui-btn ui-icon-btn border-[rgba(51,215,255,0.3)] bg-[rgba(51,215,255,0.12)]"
+          onClick={onToggleSidebar}
+          title={sidebarCollapsed ? "Развернуть меню" : "Свернуть меню"}
+          aria-label={sidebarCollapsed ? "Развернуть меню" : "Свернуть меню"}
+        >
+          {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+        </button>
 
         <div className="flex-1 flex items-center gap-2">
           <div className="relative w-full max-w-[520px]">

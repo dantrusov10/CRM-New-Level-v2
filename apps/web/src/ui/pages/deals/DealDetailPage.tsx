@@ -1,7 +1,7 @@
 import React from "react";
 import { useParams } from "react-router-dom";
 import dayjs from "dayjs";
-import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Lightbulb, Sparkles } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Lightbulb, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
@@ -538,7 +538,6 @@ export function DealDetailPage() {
   const [comment, setComment] = React.useState<string>("");
   const [taskDueAt, setTaskDueAt] = React.useState<string>("");
   const [timelineFilter, setTimelineFilter] = React.useState<string>("all");
-  const [overviewRailCollapsed, setOverviewRailCollapsed] = React.useState(false);
   const [aiRunLoading, setAiRunLoading] = React.useState(false);
   const [aiRunError, setAiRunError] = React.useState<string>("");
   const formRef = React.useRef<DynamicEntityFormHandle | null>(null);
@@ -658,6 +657,20 @@ export function DealDetailPage() {
     if (!id) return;
     // New: dynamic, PB-driven form. The whole card is configured in settings_fields/settings_field_sections.
     await formRef.current?.save();
+    await dealQ.refetch();
+    tlQ.refetch();
+  }
+
+  async function saveDealHeader() {
+    if (!id) return;
+    await pb
+      .collection("deals")
+      .update(id, {
+        title: title.trim(),
+        stage_id: deal?.stage_id || null,
+      })
+      .catch(() => null);
+    await createTimelineEvent("deal_header_updated", "Обновлены название/этап сделки");
     await dealQ.refetch();
     tlQ.refetch();
   }
@@ -849,31 +862,38 @@ export function DealDetailPage() {
     <div className="grid gap-4">
       <Card className="neon-accent">
         <CardHeader>
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="text-sm font-semibold">Сделка</div>
-                <span className="neon-pill">Deal card</span>
-                <Badge>{deal?.expand?.stage_id?.stage_name || "Без этапа"}</Badge>
-                <Badge>{deal?.expand?.company_id?.name ? "Компания: " + deal.expand.company_id.name : "Компания: —"}</Badge>
-              </div>
-              <div className="mt-3">
-                <div className="text-lg font-semibold truncate">{deal?.title || "—"}</div>
-              </div>
+          <div className="grid gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="text-sm font-semibold">Сделка</div>
+              <span className="neon-pill">Deal card</span>
+              <Badge>{deal?.expand?.company_id?.name ? "Компания: " + deal.expand.company_id.name : "Компания: —"}</Badge>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Select value={deal?.stage_id || ""} onChange={changeStage}>
-                <option value="">Этап</option>
-                {stages.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.stage_name}
-                  </option>
-                ))}
-              </Select>
-              <Button onClick={save} disabled={upd.isPending}>
-                Сохранить
-              </Button>
+            <div className="grid grid-cols-12 gap-2 items-end">
+              <div className="col-span-12 xl:col-span-6">
+                <div className="text-xs text-text2 mb-1">Название сделки</div>
+                <Input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Название сделки"
+                />
+              </div>
+              <div className="col-span-12 xl:col-span-4">
+                <div className="text-xs text-text2 mb-1">Этап сделки</div>
+                <Select value={deal?.stage_id || ""} onChange={changeStage}>
+                  <option value="">Этап</option>
+                  {stages.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.stage_name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="col-span-12 xl:col-span-2">
+                <Button className="w-full" onClick={saveDealHeader} disabled={upd.isPending || !title.trim()}>
+                  Сохранить
+                </Button>
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -892,6 +912,9 @@ export function DealDetailPage() {
             <div className="flex items-center gap-2">
               <Badge>{sb.label}</Badge>
               <Badge>Score: {typeof score === "number" ? `${score}/100` : "—"}</Badge>
+              <Button small variant="secondary" onClick={() => setTab("workspace")}>
+                Файлы
+              </Button>
             </div>
           </div>
 
@@ -926,63 +949,41 @@ export function DealDetailPage() {
                 <div className="mt-2 neon-divider" />
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-12 gap-3">
-                  <div className={overviewRailCollapsed ? "col-span-12 xl:col-span-1" : "col-span-12 xl:col-span-4"}>
-                    <div className="board-panel p-3 h-full">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-sm font-semibold">Инфо по сделке</div>
-                        <Button
-                          small
-                          variant="secondary"
-                          onClick={() => setOverviewRailCollapsed((v) => !v)}
-                          title={overviewRailCollapsed ? "Развернуть панель" : "Свернуть панель"}
-                        >
-                          {overviewRailCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-                        </Button>
+                <div className="grid gap-3">
+                  <div className="grid grid-cols-12 gap-2 text-sm">
+                    <div className="col-span-12 md:col-span-6 xl:col-span-3 rounded-card border border-border bg-white p-2">
+                      <div className="text-xs text-text2">Компания</div>
+                      <div className="mt-1 font-semibold">{deal?.expand?.company_id?.name || "—"}</div>
+                    </div>
+                    <div className="col-span-12 md:col-span-6 xl:col-span-3 rounded-card border border-border bg-white p-2">
+                      <div className="text-xs text-text2">Ответственный</div>
+                      <div className="mt-1 font-semibold">{deal?.expand?.responsible_id?.full_name || deal?.expand?.responsible_id?.email || "—"}</div>
+                    </div>
+                    <div className="col-span-12 md:col-span-6 xl:col-span-3 rounded-card border border-border bg-white p-2">
+                      <div className="text-xs text-text2">Бюджет / Оборот</div>
+                      <div className="mt-1 font-semibold">
+                        {budget ? `${formatMoney(Number(budget))} ₽` : "—"} / {turnover ? `${formatMoney(Number(turnover))} ₽` : "—"}
                       </div>
-
-                      {!overviewRailCollapsed ? (
-                        <div className="mt-3 grid gap-2 text-sm">
-                          <div className="rounded-card border border-border bg-white p-2">
-                            <div className="text-xs text-text2">Компания</div>
-                            <div className="mt-1 font-semibold">{deal?.expand?.company_id?.name || "—"}</div>
-                          </div>
-                          <div className="rounded-card border border-border bg-white p-2">
-                            <div className="text-xs text-text2">Ответственный</div>
-                            <div className="mt-1 font-semibold">{deal?.expand?.responsible_id?.full_name || deal?.expand?.responsible_id?.email || "—"}</div>
-                          </div>
-                          <div className="rounded-card border border-border bg-white p-2">
-                            <div className="text-xs text-text2">Бюджет / Оборот</div>
-                            <div className="mt-1 font-semibold">
-                              {budget ? `${formatMoney(Number(budget))} ₽` : "—"} / {turnover ? `${formatMoney(Number(turnover))} ₽` : "—"}
-                            </div>
-                          </div>
-                          <div className="rounded-card border border-border bg-white p-2">
-                            <div className="text-xs text-text2">Ключевые даты</div>
-                            <div className="mt-1 text-xs text-text2">
-                              Рег.: {registrationDeadline || "—"}<br />
-                              Тест: {testStart || "—"} → {testEnd || "—"}<br />
-                              Оплата: {expectedPaymentDate || "—"}
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="mt-3 text-xs text-text2">Панель свернута. Нажми для разворота.</div>
-                      )}
+                    </div>
+                    <div className="col-span-12 md:col-span-6 xl:col-span-3 rounded-card border border-border bg-white p-2">
+                      <div className="text-xs text-text2">Ключевые даты</div>
+                      <div className="mt-1 text-xs text-text2">
+                        Рег.: {registrationDeadline || "—"}<br />
+                        Тест: {testStart || "—"} → {testEnd || "—"}<br />
+                        Оплата: {expectedPaymentDate || "—"}
+                      </div>
                     </div>
                   </div>
 
-                  <div className={overviewRailCollapsed ? "col-span-12 xl:col-span-11" : "col-span-12 xl:col-span-8"}>
-                    <DynamicEntityFormWithRef
-                      ref={formRef}
-                      entity="deal"
-                      record={deal}
-                      onSaved={async () => {
-                        await dealQ.refetch();
-                        tlQ.refetch();
-                      }}
-                    />
-                  </div>
+                  <DynamicEntityFormWithRef
+                    ref={formRef}
+                    entity="deal"
+                    record={deal}
+                    onSaved={async () => {
+                      await dealQ.refetch();
+                      tlQ.refetch();
+                    }}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -1262,11 +1263,15 @@ export function DealDetailPage() {
                     <div className="text-sm text-text2">Запусти AI, чтобы получить action list.</div>
                   )}
                 </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  <Button small variant="secondary" onClick={() => setTab("overview")}>Обзор</Button>
-                  <Button small variant="secondary" onClick={() => setTab("timeline")}>Timeline</Button>
-                  <Button small variant="secondary" onClick={() => setTab("workspace")}>Файлы</Button>
+                <div className="rounded-card border border-border bg-white p-3">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-text2 mb-2">Быстро прикрепить файл</div>
+                  <div className="grid gap-2">
+                    <Input value={wsTitle} onChange={(e) => setWsTitle(e.target.value)} placeholder="Название файла" />
+                    <Input value={wsUrl} onChange={(e) => setWsUrl(e.target.value)} placeholder="https://... ссылка на файл" />
+                    <Button small onClick={addWorkspaceFile} disabled={!wsUrl.trim()}>
+                      Прикрепить
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -1366,17 +1371,17 @@ export function DealDetailPage() {
               {aiQ.isLoading ? (
                 <div className="text-sm text-text2">Загрузка...</div>
               ) : latestAi ? (
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <div className="lg:col-span-2 grid gap-3 rounded-xl border border-infoBorder bg-card/90 p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge>{sb.label}</Badge>
-                        <Badge>AI-ready snapshot</Badge>
+                <div className="grid gap-4">
+                  <div className="grid gap-3 rounded-xl border border-infoBorder bg-card/90 p-4">
+                    <div className="grid grid-cols-12 gap-3 items-stretch">
+                      <div className="col-span-12 lg:col-span-3 rounded-lg border border-[rgba(51,215,255,0.35)] bg-[rgba(45,123,255,0.16)] p-3">
+                        <div className="text-xs text-text2">Вероятность закрытия</div>
+                        <div className="mt-2 text-[28px] font-extrabold leading-none">{typeof score === "number" ? `${score}%` : "—"}</div>
+                        <div className="mt-2"><Badge>{sb.label}</Badge></div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-xs text-text2">Score</div>
-                        <div className="text-[26px] font-semibold leading-none text-text">{typeof score === "number" ? `${score}/100` : "—"}</div>
-                        <div className="text-xs text-text2 mt-1">Версия: {latestAi.created ? dayjs(latestAi.created).format("DD.MM.YYYY") : "—"}</div>
+                      <div className="col-span-12 lg:col-span-9 rounded-lg border border-border bg-rowHover/60 p-3">
+                        <div className="text-xs text-text2">Последнее обновление AI</div>
+                        <div className="mt-1 text-sm">{latestAi.created ? dayjs(latestAi.created).format("DD.MM.YYYY HH:mm") : "—"}</div>
                       </div>
                     </div>
 
@@ -1394,7 +1399,7 @@ export function DealDetailPage() {
                       <div className="rounded-lg border border-border bg-rowHover/60 p-3">
                         <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text2">
                           <CheckCircle2 size={14} />
-                          Next actions
+                          Что делать дальше
                         </div>
                         <ul className="grid gap-1.5 text-sm">
                           {nextActions.map((item, idx) => (
@@ -1427,25 +1432,32 @@ export function DealDetailPage() {
                   </div>
 
                   {latestAi.suggestions || latestAi.recommendations ? (
-                    <div className="rounded-xl border border-infoBorder bg-card/90 p-4 lg:col-span-2">
+                    <div className="rounded-xl border border-infoBorder bg-card/90 p-4">
                       <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text2">
                         <Lightbulb size={14} />
-                        Расширенные рекомендации
+                        Рекомендации AI (кратко)
                       </div>
                       <SmartStringContent text={String(latestAi.suggestions || latestAi.recommendations || "")} />
                     </div>
                   ) : null}
-                  {dynamicSections.map((section, idx) => (
-                    <div
-                      key={`${section.title}-${idx}`}
-                      className={`rounded-xl border border-border bg-card/90 p-4 ${dynamicSections.length === 1 ? "lg:col-span-2" : ""}`}
-                    >
-                      <div className="text-xs font-semibold uppercase tracking-wide text-text2">{section.title}</div>
-                      <div className="mt-3 min-w-0">
-                        <AiInsightSectionBody value={section.raw} />
+
+                  {dynamicSections.length ? (
+                    <details className="rounded-xl border border-border bg-card/90 p-4">
+                      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-text2">
+                        Детальный разбор AI ({dynamicSections.length} секций)
+                      </summary>
+                      <div className="mt-3 grid gap-3">
+                        {dynamicSections.map((section, idx) => (
+                          <div key={`${section.title}-${idx}`} className="rounded-lg border border-border bg-rowHover/60 p-3">
+                            <div className="text-xs font-semibold uppercase tracking-wide text-text2">{section.title}</div>
+                            <div className="mt-2 min-w-0">
+                              <AiInsightSectionBody value={section.raw} />
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    </div>
-                  ))}
+                    </details>
+                  ) : null}
                 </div>
               ) : (
                 <div className="text-sm text-text2">

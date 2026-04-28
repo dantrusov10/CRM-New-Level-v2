@@ -33,6 +33,13 @@ import { analyzeDealWithAi } from "../../../lib/aiGateway";
 type AnyObj = Record<string, unknown>;
 type TimelinePayload = Record<string, unknown>;
 type AiSection = { key: string; title: string; raw: unknown };
+type ResearchSection = { title: string; items: string[] };
+
+function normalizeAiText(input: string): string {
+  return String(input || "")
+    .replace(/данные\s*гапы/gi, "Пробелы в данных")
+    .replace(/data\s*gaps?/gi, "Пробелы в данных");
+}
 
 function extractScoreFromExplainability(ex: unknown): number | null {
   if (!ex || typeof ex !== "object" || Array.isArray(ex)) return null;
@@ -127,7 +134,7 @@ function AiStructuredValue({ value, depth = 0 }: { value: unknown; depth?: numbe
 }
 
 function SmartStringContent({ text }: { text: string }) {
-  const trimmed = text.trim();
+  const trimmed = normalizeAiText(text).trim();
   if (!trimmed) return null;
   const whole = parseJsonLoose(trimmed);
   if (whole !== null && typeof whole !== "string") {
@@ -349,7 +356,7 @@ function sectionPriority(key: string): number {
 
 function valueToText(value: unknown): string {
   if (value == null) return "";
-  if (typeof value === "string") return value.trim();
+  if (typeof value === "string") return normalizeAiText(value).trim();
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   try {
     return JSON.stringify(value, null, 2);
@@ -476,6 +483,58 @@ function buildDynamicSections(insight: AiInsight | null): AiSection[] {
     return a.title.localeCompare(b.title, "ru");
   });
   return sections;
+}
+
+function collectItemsByKeywords(sections: AiSection[], keywords: RegExp): string[] {
+  const out: string[] = [];
+  for (const section of sections) {
+    const source = `${section.key} ${section.title}`.toLowerCase();
+    if (!keywords.test(source)) continue;
+    const text = valueToText(section.raw);
+    if (!text) continue;
+    out.push(
+      ...text
+        .split(/\n|;|•|-/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 6),
+    );
+  }
+  return Array.from(new Set(out)).slice(0, 6);
+}
+
+function buildResearchTemplate(latestAi: AiInsight | null, sections: AiSection[], nextActions: string[], score: number | null): ResearchSection[] {
+  const improvements = collectItemsByKeywords(sections, /(рост|улучш|upside|потенциал|сильн)/i);
+  const deteriorations = collectItemsByKeywords(sections, /(риск|ухудш|проблем|gap|нехват|блокер)/i);
+  const causes = collectItemsByKeywords(sections, /(причин|контекст|коммер|потреб|конкур|данн)/i);
+  const summaryText = valueToText(latestAi?.summary || "");
+
+  return [
+    {
+      title: "Что улучшилось",
+      items: improvements.length ? improvements : ["Явных улучшений в последнем срезе не зафиксировано."],
+    },
+    {
+      title: "Что ухудшилось / риски",
+      items: deteriorations.length ? deteriorations : ["Критических ухудшений не выявлено, требуется регулярный контроль рисков."],
+    },
+    {
+      title: "Дельта вероятности",
+      items: [
+        typeof score === "number"
+          ? `Текущая вероятность закрытия: ${score}%.`
+          : "Вероятность закрытия пока не рассчитана.",
+        summaryText ? `Контекст модели: ${summaryText.slice(0, 180)}${summaryText.length > 180 ? "..." : ""}` : "Недостаточно контекста для сравнения с предыдущим срезом.",
+      ],
+    },
+    {
+      title: "Ключевые причины",
+      items: causes.length ? causes : ["Ключевые причины не структурированы в исходном AI-ответе."],
+    },
+    {
+      title: "План действий 24-72ч",
+      items: nextActions.length ? nextActions.slice(0, 5) : ["Запустить AI-анализ после обновления данных сделки и зафиксировать следующие шаги."],
+    },
+  ];
 }
 
 function FieldRow({
@@ -991,6 +1050,10 @@ export function DealDetailPage() {
     () => extractActionItems(latestAi?.suggestions || latestAi?.recommendations || ""),
     [latestAi],
   );
+  const researchSections = React.useMemo(
+    () => buildResearchTemplate(latestAi, dynamicSections, nextActions, score),
+    [latestAi, dynamicSections, nextActions, score],
+  );
   const hasRiskSignals =
     Boolean(latestAi?.risks) ||
     dynamicSections.some((section) => /риск|risk/i.test(section.key) || /риск|risk/i.test(section.title));
@@ -1150,6 +1213,90 @@ export function DealDetailPage() {
                     </div>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {tab === "ai" ? (
+            <Card className="border-infoBorder bg-infoBg neon-accent">
+              <CardHeader className="border-infoBorder">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm font-semibold">AI-отчёт по сделке</div>
+                      <span className="neon-pill">AI режим</span>
+                    </div>
+                    <div className="text-xs text-text2 mt-1">Формат управленческого исследования: изменения, риски, причины, план</div>
+                  </div>
+                  <Button onClick={runAiAnalysis} disabled={aiRunLoading || !deal?.id}>
+                    {aiRunLoading ? "AI анализ..." : "Запустить AI-анализ"}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {aiRunError ? <div className="text-sm text-danger mb-3">{aiRunError}</div> : null}
+                {aiQ.isLoading ? (
+                  <div className="text-sm text-text2">Загрузка...</div>
+                ) : latestAi ? (
+                  <div className="grid gap-4">
+                    <div className="grid grid-cols-12 gap-3">
+                      <div className="col-span-12 lg:col-span-3 rounded-lg border border-[rgba(51,215,255,0.35)] bg-[rgba(45,123,255,0.16)] p-3">
+                        <div className="text-xs text-text2">Вероятность</div>
+                        <div className="mt-2 text-[28px] font-extrabold leading-none">{typeof score === "number" ? `${score}%` : "—"}</div>
+                        <div className="mt-2"><Badge>{sb.label}</Badge></div>
+                      </div>
+                      <div className="col-span-12 lg:col-span-9 rounded-lg border border-border bg-rowHover/60 p-3">
+                        <div className="text-xs text-text2">Последнее обновление AI</div>
+                        <div className="mt-1 text-sm">{latestAi.created ? dayjs(latestAi.created).format("DD.MM.YYYY HH:mm") : "—"}</div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-infoBorder bg-card/90 p-4">
+                      <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-text2">Исследование (фиксированный шаблон)</div>
+                      <div className="grid gap-4">
+                        {researchSections.map((section, idx) => (
+                          <section key={`${section.title}-${idx}`} className="rounded-lg border border-border bg-rowHover/60 p-3">
+                            <h4 className="text-sm font-semibold">{idx + 1}. {section.title}</h4>
+                            <ul className="mt-2 grid gap-1.5 text-sm">
+                              {section.items.map((item, i) => (
+                                <li key={`${item}-${i}`} className="flex items-start gap-2">
+                                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary/80" />
+                                  <span>{item}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
+                        ))}
+                      </div>
+                    </div>
+
+                    {dynamicSections.length ? (
+                      <details className="rounded-xl border border-border bg-card/90 p-4">
+                        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-text2">
+                          Детализация источника AI ({dynamicSections.length} секций)
+                        </summary>
+                        <div className="mt-3 rounded-lg border border-border bg-[rgba(255,255,255,0.02)] p-4">
+                          <div className="grid gap-4">
+                            {dynamicSections.map((section, idx) => (
+                              <section key={`${section.title}-${idx}`} className="border-b border-border/60 pb-3 last:border-b-0 last:pb-0">
+                                <h4 className="text-sm font-semibold tracking-wide text-text">
+                                  {idx + 1}. {section.title}
+                                </h4>
+                                <div className="mt-2 min-w-0 text-sm leading-relaxed">
+                                  <AiInsightSectionBody value={section.raw} />
+                                </div>
+                              </section>
+                            ))}
+                          </div>
+                        </div>
+                      </details>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="text-sm text-text2">
+                    AI ещё не запускался. Интеграция агента делается через записи <code>ai_insights</code> и события в <code>timeline</code>.
+                  </div>
+                )}
               </CardContent>
             </Card>
           ) : null}
@@ -1558,130 +1705,6 @@ export function DealDetailPage() {
           </Card>
         </div>
 
-        {tab === "ai" ? (
-        <div className="col-span-12 min-w-0">
-          <Card className="border-infoBorder bg-infoBg neon-accent">
-            <CardHeader className="border-infoBorder">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <div className="text-sm font-semibold">AI-отчёт по сделке</div>
-                    <span className="neon-pill">AI режим</span>
-                  </div>
-                  <div className="text-xs text-text2 mt-1">Сначала вывод и действия, ниже — детальная декомпозиция сигналов и рисков</div>
-                </div>
-                <Button onClick={runAiAnalysis} disabled={aiRunLoading || !deal?.id}>
-                  {aiRunLoading ? "AI анализ..." : "Запустить AI-анализ"}
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {aiRunError ? <div className="text-sm text-danger mb-3">{aiRunError}</div> : null}
-              {aiQ.isLoading ? (
-                <div className="text-sm text-text2">Загрузка...</div>
-              ) : latestAi ? (
-                <div className="grid gap-4">
-                  <div className="grid gap-3 rounded-xl border border-infoBorder bg-card/90 p-4">
-                    <div className="grid grid-cols-12 gap-3 items-stretch">
-                      <div className="col-span-12 lg:col-span-3 rounded-lg border border-[rgba(51,215,255,0.35)] bg-[rgba(45,123,255,0.16)] p-3">
-                        <div className="text-xs text-text2">Вероятность закрытия</div>
-                        <div className="mt-2 text-[28px] font-extrabold leading-none">{typeof score === "number" ? `${score}%` : "—"}</div>
-                        <div className="mt-2"><Badge>{sb.label}</Badge></div>
-                      </div>
-                      <div className="col-span-12 lg:col-span-9 rounded-lg border border-border bg-rowHover/60 p-3">
-                        <div className="text-xs text-text2">Последнее обновление AI</div>
-                        <div className="mt-1 text-sm">{latestAi.created ? dayjs(latestAi.created).format("DD.MM.YYYY HH:mm") : "—"}</div>
-                      </div>
-                    </div>
-
-                    {latestAi.summary ? (
-                      <div className="rounded-lg border border-border bg-rowHover/60 p-3">
-                        <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text2">
-                          <Sparkles size={14} />
-                          Краткий вывод
-                        </div>
-                        <SmartStringContent text={latestAi.summary} />
-                      </div>
-                    ) : null}
-
-                    {nextActions.length ? (
-                      <div className="rounded-lg border border-border bg-rowHover/60 p-3">
-                        <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text2">
-                          <CheckCircle2 size={14} />
-                          Что делать дальше
-                        </div>
-                        <ul className="grid gap-1.5 text-sm">
-                          {nextActions.map((item, idx) => (
-                            <li key={`${item}-${idx}`} className="flex items-start gap-2">
-                              <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary/80" />
-                              <span className="leading-relaxed">{item}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : (
-                      <div className="rounded-lg border border-border bg-rowHover/60 p-3 text-sm text-text2">
-                        Добавьте или обновите AI-анализ, чтобы получить список следующих шагов.
-                      </div>
-                    )}
-
-                    {hasRiskSignals ? (
-                      <div className="rounded-lg border border-amber-500/35 bg-[rgba(251,191,36,0.07)] p-3">
-                        <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text2">
-                          <AlertTriangle size={14} />
-                          Ключевые риски
-                        </div>
-                        <AiRisksVisual raw={latestAi.risks || dynamicSections.find((section) => /риск|risk/i.test(section.key))?.raw} />
-                      </div>
-                    ) : (
-                      <div className="rounded-lg border border-border bg-rowHover/60 p-3 text-sm text-text2">
-                        Риски не зафиксированы в последнем AI-ответе.
-                      </div>
-                    )}
-                  </div>
-
-                  {latestAi.suggestions || latestAi.recommendations ? (
-                    <div className="rounded-xl border border-infoBorder bg-card/90 p-4">
-                      <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text2">
-                        <Lightbulb size={14} />
-                        Рекомендации AI (кратко)
-                      </div>
-                      <SmartStringContent text={String(latestAi.suggestions || latestAi.recommendations || "")} />
-                    </div>
-                  ) : null}
-
-                  {dynamicSections.length ? (
-                    <details className="rounded-xl border border-border bg-card/90 p-4">
-                      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-text2">
-                        Детальный разбор AI ({dynamicSections.length} секций)
-                      </summary>
-                      <div className="mt-3 rounded-lg border border-border bg-[rgba(255,255,255,0.02)] p-4">
-                        <div className="text-sm text-text2 mb-3">Структурированное исследование по текущему срезу сделки</div>
-                        <div className="grid gap-4">
-                          {dynamicSections.map((section, idx) => (
-                            <section key={`${section.title}-${idx}`} className="border-b border-border/60 pb-3 last:border-b-0 last:pb-0">
-                              <h4 className="text-sm font-semibold tracking-wide text-text">
-                                {idx + 1}. {section.title}
-                              </h4>
-                              <div className="mt-2 min-w-0 text-sm leading-relaxed">
-                                <AiInsightSectionBody value={section.raw} />
-                              </div>
-                            </section>
-                          ))}
-                        </div>
-                      </div>
-                    </details>
-                  ) : null}
-                </div>
-              ) : (
-                <div className="text-sm text-text2">
-                  AI ещё не запускался. Интеграция агента делается через создание записей <code>ai_insights</code> и событий в <code>timeline</code>.
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-        ) : null}
       </div>
 
       <Modal

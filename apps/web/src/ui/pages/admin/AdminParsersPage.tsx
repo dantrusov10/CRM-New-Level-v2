@@ -43,16 +43,34 @@ const DEFAULT_DEAL_SCORING_MODEL: DealScoringModel = {
 
 export function AdminParsersPage() {
   const [tab, setTab] = React.useState<Tab>("contacts");
+  const [guidedMode, setGuidedMode] = React.useState(true);
 
   return (
     <div className="grid gap-4">
       <Card>
         <CardHeader>
-          <div className="text-sm font-semibold">Парсеры и AI-настройки</div>
-          <div className="text-xs text-text2 mt-1">Контакты (карта ролей), медиа (источники + ключевые слова), тендеры (площадки + токены) + каркас КП</div>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <div className="text-base font-extrabold tracking-wide">Парсеры и AI-настройки</div>
+              <div className="text-xs text-text2 mt-1">Контакты, медиа, тендеры, AI-промпт и КП-конфигурация</div>
+            </div>
+            <Button small variant="secondary" onClick={() => setGuidedMode((v) => !v)}>
+              {guidedMode ? "Скрыть подсказки" : "Пошаговый режим"}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-2">
+          {guidedMode ? (
+            <div className="board-panel p-3 mb-3 neon-accent">
+              <div className="text-sm font-semibold">Рекомендуемый порядок</div>
+              <div className="mt-2 grid gap-1.5 text-xs text-text2">
+                <div><b>1.</b> Настрой карту контактов и влияние ролей.</div>
+                <div><b>2.</b> Подключи источники медиа/тендеров и проверь ключевые слова.</div>
+                <div><b>3.</b> Скорректируй AI-промпт и факторы скоринга, затем сделай smoke-run на тестовой сделке.</div>
+              </div>
+            </div>
+          ) : null}
+          <div className="flex gap-2 flex-wrap">
             <TabButton active={tab==="contacts"} onClick={() => setTab("contacts")}>Контакты</TabButton>
             <TabButton active={tab==="media"} onClick={() => setTab("media")}>Медиа</TabButton>
             <TabButton active={tab==="tenders"} onClick={() => setTab("tenders")}>Тендеры</TabButton>
@@ -75,8 +93,10 @@ function TabButton({ active, children, onClick }: TabButtonProps) {
   return (
     <button
       className={
-        "h-10 rounded-card px-4 text-sm border " +
-        (active ? "bg-rowSelected border-border" : "bg-white border-border hover:bg-rowHover")
+        "h-9 rounded-md px-3 text-sm border transition-colors " +
+        (active
+          ? "bg-[rgba(51,215,255,0.24)] border-[rgba(51,215,255,0.55)] shadow-[0_0_14px_rgba(51,215,255,0.18)]"
+          : "bg-white border-border hover:bg-[rgba(51,215,255,0.14)]")
       }
       onClick={onClick}
     >

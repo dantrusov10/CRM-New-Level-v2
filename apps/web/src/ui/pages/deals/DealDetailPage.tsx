@@ -1,7 +1,7 @@
 import React from "react";
 import { useParams } from "react-router-dom";
 import dayjs from "dayjs";
-import { AlertTriangle, CheckCircle2, Lightbulb, Sparkles } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Lightbulb, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
@@ -538,6 +538,7 @@ export function DealDetailPage() {
   const [comment, setComment] = React.useState<string>("");
   const [taskDueAt, setTaskDueAt] = React.useState<string>("");
   const [timelineFilter, setTimelineFilter] = React.useState<string>("all");
+  const [overviewRailCollapsed, setOverviewRailCollapsed] = React.useState(false);
   const [aiRunLoading, setAiRunLoading] = React.useState(false);
   const [aiRunError, setAiRunError] = React.useState<string>("");
   const formRef = React.useRef<DynamicEntityFormHandle | null>(null);
@@ -925,15 +926,64 @@ export function DealDetailPage() {
                 <div className="mt-2 neon-divider" />
               </CardHeader>
               <CardContent>
-                <DynamicEntityFormWithRef
-                  ref={formRef}
-                  entity="deal"
-                  record={deal}
-                  onSaved={async () => {
-                    await dealQ.refetch();
-                    tlQ.refetch();
-                  }}
-                />
+                <div className="grid grid-cols-12 gap-3">
+                  <div className={overviewRailCollapsed ? "col-span-12 xl:col-span-1" : "col-span-12 xl:col-span-4"}>
+                    <div className="board-panel p-3 h-full">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-sm font-semibold">Инфо по сделке</div>
+                        <Button
+                          small
+                          variant="secondary"
+                          onClick={() => setOverviewRailCollapsed((v) => !v)}
+                          title={overviewRailCollapsed ? "Развернуть панель" : "Свернуть панель"}
+                        >
+                          {overviewRailCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+                        </Button>
+                      </div>
+
+                      {!overviewRailCollapsed ? (
+                        <div className="mt-3 grid gap-2 text-sm">
+                          <div className="rounded-card border border-border bg-white p-2">
+                            <div className="text-xs text-text2">Компания</div>
+                            <div className="mt-1 font-semibold">{deal?.expand?.company_id?.name || "—"}</div>
+                          </div>
+                          <div className="rounded-card border border-border bg-white p-2">
+                            <div className="text-xs text-text2">Ответственный</div>
+                            <div className="mt-1 font-semibold">{deal?.expand?.responsible_id?.full_name || deal?.expand?.responsible_id?.email || "—"}</div>
+                          </div>
+                          <div className="rounded-card border border-border bg-white p-2">
+                            <div className="text-xs text-text2">Бюджет / Оборот</div>
+                            <div className="mt-1 font-semibold">
+                              {budget ? `${formatMoney(Number(budget))} ₽` : "—"} / {turnover ? `${formatMoney(Number(turnover))} ₽` : "—"}
+                            </div>
+                          </div>
+                          <div className="rounded-card border border-border bg-white p-2">
+                            <div className="text-xs text-text2">Ключевые даты</div>
+                            <div className="mt-1 text-xs text-text2">
+                              Рег.: {registrationDeadline || "—"}<br />
+                              Тест: {testStart || "—"} → {testEnd || "—"}<br />
+                              Оплата: {expectedPaymentDate || "—"}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-3 text-xs text-text2">Панель свернута. Нажми для разворота.</div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className={overviewRailCollapsed ? "col-span-12 xl:col-span-11" : "col-span-12 xl:col-span-8"}>
+                    <DynamicEntityFormWithRef
+                      ref={formRef}
+                      entity="deal"
+                      record={deal}
+                      onSaved={async () => {
+                        await dealQ.refetch();
+                        tlQ.refetch();
+                      }}
+                    />
+                  </div>
+                </div>
               </CardContent>
             </Card>
           ) : null}

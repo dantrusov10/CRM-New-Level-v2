@@ -260,6 +260,7 @@ function FieldOptionsEditor(props: {
 
 export function AdminFieldsPage() {
   const [entity, setEntity] = React.useState<EntityType>("company");
+  const [guidedMode, setGuidedMode] = React.useState(true);
   const [sections, setSections] = React.useState<FieldSection[]>([]);
   const [fields, setFields] = React.useState<DynamicField[]>([]);
   const [relationCollections, setRelationCollections] = React.useState<RelationCollectionOption[]>(DEFAULT_RELATION_COLLECTIONS);
@@ -430,14 +431,32 @@ export function AdminFieldsPage() {
   return (
     <Card>
       <CardHeader>
-        <div className="text-sm font-semibold">Конструктор полей и разделов</div>
-        <div className="text-xs text-text2 mt-1">
-          Управляет карточками сделок/компаний: разделы, порядок, типы и настройки сложных полей.
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <div className="text-base font-extrabold tracking-wide">Конструктор полей и разделов</div>
+            <div className="text-xs text-text2 mt-1">
+              Управляет карточками сделок/компаний: разделы, порядок, типы и настройки сложных полей.
+            </div>
+          </div>
+          <Button small variant="secondary" onClick={() => setGuidedMode((v) => !v)}>
+            {guidedMode ? "Скрыть подсказки" : "Пошаговый режим"}
+          </Button>
         </div>
       </CardHeader>
       <CardContent>
         <div className="grid gap-4">
-          <div className="rounded-card border border-border bg-rowHover p-3">
+          {guidedMode ? (
+            <div className="board-panel p-3 neon-accent">
+              <div className="text-sm font-semibold">Как работать с конструктором</div>
+              <div className="mt-2 grid gap-1.5 text-xs text-text2">
+                <div><b>1.</b> Сначала создай разделы, затем поля внутри них.</div>
+                <div><b>2.</b> Для `select` обязательно укажи варианты, для `relation` — коллекцию.</div>
+                <div><b>3.</b> Не делай редкие поля обязательными — это замедляет менеджеров.</div>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="board-panel p-3 neon-accent">
             <div className="grid grid-cols-12 gap-2 items-end">
               <div className="col-span-3">
                 <div className="text-xs text-text2 mb-1">Сущность</div>
@@ -463,11 +482,11 @@ export function AdminFieldsPage() {
             </div>
           </div>
 
-          <div className="rounded-card border border-border bg-card overflow-auto">
+          <div className="board-shell neon-accent overflow-auto">
             <div className="px-3 py-2 border-b border-border bg-rowHover text-text1 font-semibold text-sm">
               Разделы ({sections.length})
             </div>
-            <table className="w-full text-sm">
+            <table className="board-table text-sm">
               <thead>
                 <tr className="h-10 text-text1 font-semibold">
                   <th className="text-left px-3">Название</th>
@@ -502,7 +521,7 @@ export function AdminFieldsPage() {
             </table>
           </div>
 
-          <div className="rounded-card border border-border bg-rowHover p-3">
+          <div className="board-panel p-3 neon-accent">
             <div className="grid grid-cols-12 gap-2 items-end">
               <div className="col-span-3">
                 <div className="text-xs text-text2 mb-1">Раздел</div>
@@ -574,11 +593,11 @@ export function AdminFieldsPage() {
             </div>
           </div>
 
-          <div className="overflow-auto rounded-card border border-border bg-card">
+          <div className="overflow-auto board-shell neon-accent">
             <div className="px-3 py-2 border-b border-border bg-rowHover text-text1 font-semibold text-sm">
               Поля ({filteredFields.length})
             </div>
-            <table className="min-w-[1500px] w-full text-sm">
+            <table className="min-w-[1500px] board-table text-sm">
               <thead>
                 <tr className="h-10 text-text1 font-semibold">
                   <th className="text-left px-3">Раздел</th>

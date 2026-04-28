@@ -392,6 +392,14 @@ function valueToText(value: unknown): string {
 function normalizeExternalUrl(raw: string): string {
   const s = String(raw || "").trim();
   if (!s) return "";
+  if (s.startsWith("data:")) return s;
+  if (s.startsWith("/")) {
+    try {
+      return new URL(s, window.location.origin).toString();
+    } catch {
+      return "";
+    }
+  }
   try {
     const u = new URL(s);
     if (u.protocol === "https:" || u.protocol === "http:") return u.toString();
@@ -2088,9 +2096,20 @@ export function DealDetailPage() {
                                     </Select>
                                   </div>
                                   {url ? (
-                                    <a className="text-sm text-primary underline break-all" href={url} target="_blank" rel="noreferrer">
-                                      {url}
-                                    </a>
+                                    <div className="mt-2 flex items-center gap-3 flex-wrap">
+                                      <a className="text-sm text-primary underline break-all" href={url} target="_blank" rel="noreferrer">
+                                        {url}
+                                      </a>
+                                      <a
+                                        className="text-sm text-primary underline"
+                                        href={url}
+                                        download={String(f?.filename || "file")}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                      >
+                                        Скачать
+                                      </a>
+                                    </div>
                                   ) : null}
                                 </div>
                                 <Button
@@ -2126,7 +2145,15 @@ export function DealDetailPage() {
                                   <div className="text-sm font-semibold truncate">{pf.filename}</div>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                  <a className="text-sm text-primary underline" href={pf.url} target="_blank" rel="noreferrer">Скачать</a>
+                                  <a
+                                    className="text-sm text-primary underline"
+                                    href={normalizeExternalUrl(pf.url)}
+                                    download={pf.filename}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    Скачать
+                                  </a>
                                   <label className="flex items-center gap-2 text-xs text-text2">
                                     <input
                                       type="radio"

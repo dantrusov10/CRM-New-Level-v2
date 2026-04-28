@@ -21,6 +21,10 @@ function parseQuery(raw: string): { entity: "all" | "deal" | "company" | "contac
   return { entity: m[1].toLowerCase() as "deal" | "company" | "contact", term: m[2].trim() };
 }
 
+function includesCi(value: unknown, term: string): boolean {
+  return String(value || "").toLocaleLowerCase("ru-RU").includes(term.toLocaleLowerCase("ru-RU"));
+}
+
 export function GlobalSearchPage() {
   const nav = useNavigate();
   const [sp, setSp] = useSearchParams();
@@ -43,28 +47,37 @@ export function GlobalSearchPage() {
     setLoading(true);
     setError("");
     try {
-      const term = safe(parsed.term);
+      const term = parsed.term.trim();
       if (parsed.entity === "all" || parsed.entity === "deal") {
-        const d = await pb.collection("deals").getList(1, 15, {
-          filter: `title~"${term}"`,
+        const d = await pb.collection("deals").getList(1, 200, {
           sort: "-updated",
           expand: "company_id",
         });
-        setDeals(d.items as SearchDeal[]);
+        setDeals(
+          (d.items as SearchDeal[])
+            .filter((x) => includesCi(x.title, term) || includesCi(x.expand?.company_id?.name, term))
+            .slice(0, 15),
+        );
       } else setDeals([]);
       if (parsed.entity === "all" || parsed.entity === "company") {
-        const c = await pb.collection("companies").getList(1, 15, {
-          filter: `name~"${term}" || inn~"${term}" || city~"${term}"`,
+        const c = await pb.collection("companies").getList(1, 200, {
           sort: "name",
         });
-        setCompanies(c.items as SearchCompany[]);
+        setCompanies(
+          (c.items as SearchCompany[])
+            .filter((x) => includesCi(x.name, term) || includesCi(x.inn, term) || includesCi(x.city, term))
+            .slice(0, 15),
+        );
       } else setCompanies([]);
       if (parsed.entity === "all" || parsed.entity === "contact") {
-        const ct = await pb.collection("contacts_found").getList(1, 15, {
-          filter: `full_name~"${term}" || position~"${term}"`,
+        const ct = await pb.collection("contacts_found").getList(1, 200, {
           sort: "-updated",
         });
-        setContacts(ct.items as SearchContact[]);
+        setContacts(
+          (ct.items as SearchContact[])
+            .filter((x) => includesCi(x.full_name, term) || includesCi(x.position, term))
+            .slice(0, 15),
+        );
       } else setContacts([]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка глобального поиска");

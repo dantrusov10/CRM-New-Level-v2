@@ -255,6 +255,8 @@ function toSectionTitle(key: string) {
   const aliases: Record<string, string> = {
     data_gaps: "Пробелы в данных",
     "data gaps": "Пробелы в данных",
+    "данные гапы": "Пробелы в данных",
+    "data gap": "Пробелы в данных",
     probability: "Вероятность",
     criticality: "Критичность",
     description: "Описание",
@@ -289,6 +291,8 @@ function toBusinessSectionTitle(key: string) {
     risk_register: "Риски",
     data_gaps: "Чего не хватает",
     "data gaps": "Чего не хватает",
+    "данные гапы": "Чего не хватает",
+    data_gap: "Чего не хватает",
     missing_data: "Чего не хватает",
     upsides: "Точки роста",
     upside: "Точки роста",
@@ -1060,6 +1064,7 @@ export function DealDetailPage() {
             <Tabs
               items={[
                 { key: "overview", label: "Обзор" },
+                { key: "ai", label: "AI-анализ" },
                 { key: "timeline", label: "Лента изменений" },
                 { key: "relationship", label: "Контакты" },
                 { key: "notes", label: "Заметки" },
@@ -1553,6 +1558,7 @@ export function DealDetailPage() {
           </Card>
         </div>
 
+        {tab === "ai" ? (
         <div className="col-span-12 min-w-0">
           <Card className="border-infoBorder bg-infoBg neon-accent">
             <CardHeader className="border-infoBorder">
@@ -1675,6 +1681,7 @@ export function DealDetailPage() {
             </CardContent>
           </Card>
         </div>
+        ) : null}
       </div>
 
       <Modal

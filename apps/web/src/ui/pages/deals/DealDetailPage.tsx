@@ -1036,57 +1036,79 @@ export function DealDetailPage() {
         .filter((t) => t.action === "comment" || t.action === "note")
         .slice(0, 8);
       const prevInsight = ((aiQ.data ?? [])[1] ?? null) as AiInsight | null;
-      await analyzeDealWithAi({
+      const requestContext = {
+        analysis_mode: mode,
+        deal_id: deal.id,
+        title: deal.title || "",
+        stage: deal?.expand?.stage_id?.stage_name || "",
+        company: deal?.expand?.company_id?.name || "",
+        company_inn: deal?.expand?.company_id?.inn || "",
+        company_city: deal?.expand?.company_id?.city || "",
+        responsible_name:
+          deal?.expand?.responsible_id?.name ||
+          deal?.expand?.responsible_id?.full_name ||
+          deal?.expand?.responsible_id?.email ||
+          "",
+        budget: deal.budget ?? null,
+        turnover: deal.turnover ?? null,
+        margin_percent: deal.margin_percent ?? null,
+        discount_percent: deal.discount_percent ?? null,
+        sales_channel: deal.sales_channel || "",
+        partner: deal.partner || "",
+        distributor: deal.distributor || "",
+        purchase_format: deal.purchase_format || "",
+        activity_type: deal.activity_type || "",
+        endpoints: deal.endpoints ?? null,
+        infrastructure_size: deal.infrastructure_size || "",
+        presale: deal.presale || "",
+        attraction_channel: deal.attraction_channel || "",
+        attraction_date: deal.attraction_date || "",
+        registration_deadline: deal.registration_deadline || "",
+        test_start: deal.test_start || "",
+        test_end: deal.test_end || "",
+        delivery_date: deal.delivery_date || "",
+        expected_payment_date: deal.expected_payment_date || "",
+        payment_received_date: deal.payment_received_date || "",
+        project_map_link: deal.project_map_link || "",
+        kaiten_link: deal.kaiten_link || "",
+        current_score: deal.current_score ?? null,
+        current_recommendations: deal.current_recommendations ?? null,
+        recent_timeline_events: recentTimeline,
+        recent_comments_notes: recentNotes,
+        previous_ai_summary: prevInsight?.summary || "",
+        previous_ai_suggestions: String(prevInsight?.suggestions || prevInsight?.recommendations || ""),
+        previous_ai_score: resolveDisplayScore(prevInsight),
+        update_focus: mode === "update"
+          ? "Сфокусируйся только на изменениях после последнего анализа: что улучшилось/ухудшилось, как изменилась вероятность и что делать дальше."
+          : "",
+      };
+      const aiResponse = await analyzeDealWithAi({
         dealId: deal.id,
         userId: auth?.id,
         taskCode: "deal_analysis",
-        context: {
-          analysis_mode: mode,
-          deal_id: deal.id,
-          title: deal.title || "",
-          stage: deal?.expand?.stage_id?.stage_name || "",
-          company: deal?.expand?.company_id?.name || "",
-          company_inn: deal?.expand?.company_id?.inn || "",
-          company_city: deal?.expand?.company_id?.city || "",
-          responsible_name:
-            deal?.expand?.responsible_id?.name ||
-            deal?.expand?.responsible_id?.full_name ||
-            deal?.expand?.responsible_id?.email ||
-            "",
-          budget: deal.budget ?? null,
-          turnover: deal.turnover ?? null,
-          margin_percent: deal.margin_percent ?? null,
-          discount_percent: deal.discount_percent ?? null,
-          sales_channel: deal.sales_channel || "",
-          partner: deal.partner || "",
-          distributor: deal.distributor || "",
-          purchase_format: deal.purchase_format || "",
-          activity_type: deal.activity_type || "",
-          endpoints: deal.endpoints ?? null,
-          infrastructure_size: deal.infrastructure_size || "",
-          presale: deal.presale || "",
-          attraction_channel: deal.attraction_channel || "",
-          attraction_date: deal.attraction_date || "",
-          registration_deadline: deal.registration_deadline || "",
-          test_start: deal.test_start || "",
-          test_end: deal.test_end || "",
-          delivery_date: deal.delivery_date || "",
-          expected_payment_date: deal.expected_payment_date || "",
-          payment_received_date: deal.payment_received_date || "",
-          project_map_link: deal.project_map_link || "",
-          kaiten_link: deal.kaiten_link || "",
-          current_score: deal.current_score ?? null,
-          current_recommendations: deal.current_recommendations ?? null,
-          recent_timeline_events: recentTimeline,
-          recent_comments_notes: recentNotes,
-          previous_ai_summary: prevInsight?.summary || "",
-          previous_ai_suggestions: String(prevInsight?.suggestions || prevInsight?.recommendations || ""),
-          previous_ai_score: resolveDisplayScore(prevInsight),
-          update_focus: mode === "update"
-            ? "Сфокусируйся только на изменениях после последнего анализа: что улучшилось/ухудшилось, как изменилась вероятность и что делать дальше."
-            : "",
-        },
+        context: requestContext,
       });
+      await createTimelineEvent(
+        "ai_debug_trace",
+        `AI trace (${mode}) · score=${String(aiResponse?.score ?? "—")} · summary=${String(aiResponse?.summary ?? "").slice(0, 90)} · suggestions=${String(aiResponse?.suggestions ?? "").slice(0, 90)}`,
+        {
+          analysis_mode: mode,
+          task_code: "deal_analysis",
+          request_context_preview: {
+            stage: requestContext.stage,
+            company: requestContext.company,
+            latest_comment: String((requestContext.recent_comments_notes?.[0] as { comment?: unknown } | undefined)?.comment || "").slice(0, 220),
+            recent_comments_count: Array.isArray(requestContext.recent_comments_notes) ? requestContext.recent_comments_notes.length : 0,
+          },
+          response_preview: {
+            provider: String(aiResponse?.provider || ""),
+            engine: String(aiResponse?.engine || ""),
+            score: aiResponse?.score ?? null,
+            summary: String(aiResponse?.summary || "").slice(0, 300),
+            suggestions: String(aiResponse?.suggestions || "").slice(0, 300),
+          },
+        },
+      );
       await Promise.all([aiQ.refetch(), tlQ.refetch(), dealQ.refetch()]);
     } catch (e) {
       setAiRunError(e instanceof Error ? e.message : "Ошибка AI-анализа");

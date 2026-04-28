@@ -378,6 +378,8 @@ function normalizeExternalUrl(raw: string): string {
   }
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 /** Parse JSON or legacy Python-ish repr (single quotes) from older gateway rows. */
 function parseJsonLoose(text: string): unknown {
   const t = text.trim();
@@ -1074,6 +1076,7 @@ export function DealDetailPage() {
     setAiRunError("");
     setAiRunLoading(true);
     try {
+      const previousInsightId = String(((aiQ.data ?? [])[0] as AiInsight | undefined)?.id || "");
       const recentTimeline = ((tlQ.data ?? []) as TimelineWithAuthor[])
         .slice(0, 20)
         .map((t) => ({
@@ -1151,13 +1154,32 @@ export function DealDetailPage() {
           ? "Сфокусируйся только на изменениях после последнего анализа: что улучшилось/ухудшилось, как изменилась вероятность и что делать дальше."
           : "",
       };
-      await analyzeDealWithAi({
+      const aiResponse = await analyzeDealWithAi({
         dealId: deal.id,
         userId: auth?.id,
         taskCode: "deal_analysis",
         context: requestContext,
       });
+      let appeared = false;
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        const check = await pb
+          .collection("ai_insights")
+          .getList(1, 1, { filter: `deal_id="${deal.id}"`, sort: "-created" })
+          .catch(() => null);
+        const latest = ((check as { items?: Array<{ id?: string }> } | null)?.items || [])[0];
+        const latestId = String(latest?.id || "");
+        if (latestId && latestId !== previousInsightId) {
+          appeared = true;
+          break;
+        }
+        await sleep(1200);
+      }
       await Promise.all([aiQ.refetch(), tlQ.refetch(), dealQ.refetch()]);
+      if (!appeared) {
+        setAiRunError(
+          `AI ответ получен (${String(aiResponse?.provider || "")}:${String(aiResponse?.engine || "")}, score ${String(aiResponse?.score ?? "—")}), но новая запись не появилась в CRM. Проверь gateway логи и запись в коллекции ai_insights.`,
+        );
+      }
     } catch (e) {
       setAiRunError(e instanceof Error ? e.message : "Ошибка AI-анализа");
     } finally {

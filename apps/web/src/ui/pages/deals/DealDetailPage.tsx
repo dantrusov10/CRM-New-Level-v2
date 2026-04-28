@@ -329,6 +329,18 @@ function valueToText(value: unknown): string {
   }
 }
 
+function normalizeExternalUrl(raw: string): string {
+  const s = String(raw || "").trim();
+  if (!s) return "";
+  try {
+    const u = new URL(s);
+    if (u.protocol === "https:" || u.protocol === "http:") return u.toString();
+    return "";
+  } catch {
+    return "";
+  }
+}
+
 /** Parse JSON or legacy Python-ish repr (single quotes) from older gateway rows. */
 function parseJsonLoose(text: string): unknown {
   const t = text.trim();
@@ -728,7 +740,7 @@ export function DealDetailPage() {
 
   async function addWorkspaceFile() {
     if (!id) return;
-    const url = wsUrl.trim();
+    const url = normalizeExternalUrl(wsUrl);
     if (!url) return;
     await addWorkspaceFileM
       .mutateAsync({ entityType: "deal", entityId: id, url, title: wsTitle.trim(), tag: wsTag.trim() })
@@ -741,7 +753,7 @@ export function DealDetailPage() {
 
   async function addWorkspaceLink() {
     if (!id) return;
-    const url = wsLinkUrl.trim();
+    const url = normalizeExternalUrl(wsLinkUrl);
     if (!url) return;
     await createTimelineEvent("workspace_link", wsLinkTitle.trim() || url, { url });
     setWsLinkUrl("");
@@ -974,8 +986,8 @@ export function DealDetailPage() {
                               {c.phone ? <div>📞 {c.phone}</div> : null}
                               {c.email ? <div>✉️ {c.email}</div> : null}
                               {c.telegram ? <div>💬 {c.telegram}</div> : null}
-                              {c.source_url ? (
-                                <a className="text-sm text-primary underline" href={c.source_url} target="_blank" rel="noreferrer">
+                              {normalizeExternalUrl(c.source_url || "") ? (
+                                <a className="text-sm text-primary underline" href={normalizeExternalUrl(c.source_url || "")} target="_blank" rel="noreferrer">
                                   источник
                                 </a>
                               ) : null}
@@ -1061,7 +1073,11 @@ export function DealDetailPage() {
                         {tlAll
                           .filter((t) => String(t.action) === "workspace_link")
                           .map((t) => {
-                            const url = (t.payload && typeof t.payload === "object" && "url" in t.payload ? String((t.payload as Record<string, unknown>).url ?? "") : "");
+                            const url = normalizeExternalUrl(
+                              t.payload && typeof t.payload === "object" && "url" in t.payload
+                                ? String((t.payload as Record<string, unknown>).url ?? "")
+                                : "",
+                            );
                             return (
                               <div key={t.id} className="rounded-card border border-border bg-white p-3">
                                 <div className="text-xs text-text2">{dayjs(t.timestamp || t.created).format("DD.MM.YYYY HH:mm")}</div>
@@ -1092,7 +1108,7 @@ export function DealDetailPage() {
                       <div className="mt-3 grid gap-2">
                         {(entityFilesQ.data || []).map((ef: EntityFileLink) => {
                           const f = ef.expand?.file_id;
-                          const url = f?.path || "";
+                          const url = normalizeExternalUrl(f?.path || "");
                           return (
                             <div key={ef.id} className="rounded-card border border-border bg-white p-3">
                               <div className="flex items-start justify-between gap-3">

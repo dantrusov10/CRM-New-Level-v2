@@ -18,20 +18,21 @@ DB_PATH = os.getenv("CONTROL_DB_PATH", "/opt/pb-control/pb_data/data.db")
 HOST = os.getenv("PLATFORM_CONSOLE_HOST", "127.0.0.1")
 PORT = int(os.getenv("PLATFORM_CONSOLE_PORT", "8181"))
 OWNER_USER = os.getenv("PLATFORM_CONSOLE_USER", "founder")
-OWNER_PASSWORD = os.getenv("PLATFORM_CONSOLE_PASSWORD", "ChangeMe_123!")
+OWNER_PASSWORD = os.getenv("PLATFORM_CONSOLE_PASSWORD", "")
 SESSION_TTL_HOURS = int(os.getenv("PLATFORM_CONSOLE_SESSION_TTL_HOURS", "24"))
 SECRETS_FILE = os.getenv("PLATFORM_AI_SECRETS_FILE", "/opt/pb-control/.ai-provider-secrets.json")
-TENANT_PB_ADMIN_EMAIL = os.getenv("TENANT_PB_ADMIN_EMAIL", "dantrusov10@yandex.ru")
-TENANT_PB_ADMIN_PASSWORD = os.getenv("TENANT_PB_ADMIN_PASSWORD", "Dan@4007Dan@4007")
+TENANT_PB_ADMIN_EMAIL = os.getenv("TENANT_PB_ADMIN_EMAIL", "")
+TENANT_PB_ADMIN_PASSWORD = os.getenv("TENANT_PB_ADMIN_PASSWORD", "")
 PUBLIC_AI_ALLOWED_ORIGINS = os.getenv(
     "PUBLIC_AI_ALLOWED_ORIGINS", "https://app.nwlvl.ru,https://nwlvl.ru,http://localhost:5173"
 )
-GIGACHAT_INSECURE_TLS = os.getenv("GIGACHAT_INSECURE_TLS", "1")
+GIGACHAT_INSECURE_TLS = os.getenv("GIGACHAT_INSECURE_TLS", "0")
 AI_GATEWAY_AUDIT_LOG = os.getenv("AI_GATEWAY_AUDIT_LOG", "/opt/pb-control/ai-gateway-audit.jsonl")
 
 SESSIONS = {}
 PUBLIC_AI_RATE_LIMIT = {}
 AI_QUALITY_GATE_WINDOW = {}
+LOGIN_RATE_LIMIT = {}
 
 MASTER_PROMPT_KEY_DEAL_ANALYSIS = "ai.master_prompt.deal_analysis"
 AI_DATA_POLICY_KEY = "ai.data_policy.v1"
@@ -729,7 +730,31 @@ def _verify_tenant_user(tenant_pb_url, user_token):
     uid = str(rec.get("id", "")).strip()
     if not uid:
         raise RuntimeError("invalid tenant user token")
-    return {"id": uid, "email": rec.get("email", "")}
+    role = str(rec.get("role", "")).strip().lower()
+    return {"id": uid, "email": rec.get("email", ""), "role": role, "is_active": bool(rec.get("is_active", True))}
+
+
+def _is_privileged_tenant_user(tenant_user):
+    role = str((tenant_user or {}).get("role", "")).strip().lower()
+    return role in {"admin", "owner", "founder", "superadmin"}
+
+
+def _assert_user_can_access_deal(tenant_pb_url, deal_id, tenant_user, admin_token):
+    deal = _tenant_api_get(
+        tenant_pb_url,
+        "deals",
+        deal_id,
+        admin_token,
+        {"expand": "responsible_id"},
+    )
+    if not isinstance(deal, dict):
+        raise RuntimeError("deal not found")
+    if _is_privileged_tenant_user(tenant_user):
+        return
+    owner_id = str(deal.get("responsible_id") or ((deal.get("expand") or {}).get("responsible_id") or {}).get("id") or "").strip()
+    uid = str((tenant_user or {}).get("id", "")).strip()
+    if owner_id and uid and owner_id != uid:
+        raise RuntimeError("forbidden: no access to this deal")
 
 
 def _check_rate_limit(user_id):
@@ -738,6 +763,18 @@ def _check_rate_limit(user_id):
     threshold = now - timedelta(minutes=1)
     slot[:] = [x for x in slot if x > threshold]
     if len(slot) >= 20:
+        return False
+    slot.append(now)
+    return True
+
+
+def _check_login_rate(identity):
+    now = datetime.utcnow()
+    key = str(identity or "").strip().lower() or "unknown"
+    slot = LOGIN_RATE_LIMIT.setdefault(key, [])
+    threshold = now - timedelta(minutes=5)
+    slot[:] = [x for x in slot if x > threshold]
+    if len(slot) >= 10:
         return False
     slot.append(now)
     return True
@@ -1940,6 +1977,8 @@ def run_ai_deal_analysis(payload):
         tenant_user = _verify_tenant_user(tenant_pb_url, tenant_user_token)
     except Exception as e:
         return {"ok": False, "error": f"unauthorized tenant user: {e}"}
+    if not bool(tenant_user.get("is_active", True)):
+        return {"ok": False, "error": "tenant user is inactive"}
     if not _check_rate_limit(str(tenant_user.get("id", ""))):
         return {"ok": False, "error": "rate limit exceeded: max 20 requests/min per user"}
     if not user_id:
@@ -1958,6 +1997,10 @@ def run_ai_deal_analysis(payload):
         admin_token = _auth_tenant_admin(tenant_pb_url)
     except Exception as e:
         return {"ok": False, "error": f"tenant admin auth failed: {e}"}
+    try:
+        _assert_user_can_access_deal(tenant_pb_url, deal_id, tenant_user, admin_token)
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
     full_context = _build_ai_context(tenant_pb_url, deal_id, admin_token, context)
     llm_context = _sanitize_for_llm(full_context, "context", data_policy)
@@ -2656,6 +2699,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/login":
                 username = str(payload.get("username", "")).strip()
                 password = str(payload.get("password", ""))
+                if not _check_login_rate(username):
+                    self._json(429, {"error": "too many login attempts, try later"})
+                    return
                 if username != OWNER_USER or password != OWNER_PASSWORD:
                     self._json(401, {"error": "invalid credentials"})
                     return
@@ -2668,7 +2714,7 @@ class Handler(BaseHTTPRequestHandler):
                     body,
                     "application/json; charset=utf-8",
                     headers={
-                        "Set-Cookie": f"fc_session={token}; Path=/owner/; HttpOnly; SameSite=Lax; Max-Age={SESSION_TTL_HOURS*3600}",
+                        "Set-Cookie": f"fc_session={token}; Path=/owner/; HttpOnly; Secure; SameSite=Lax; Max-Age={SESSION_TTL_HOURS*3600}",
                         "Cache-Control": "no-store",
                     },
                 )
@@ -2682,7 +2728,7 @@ class Handler(BaseHTTPRequestHandler):
                     200,
                     json.dumps({"ok": True}, ensure_ascii=False),
                     "application/json; charset=utf-8",
-                    headers={"Set-Cookie": "fc_session=; Path=/owner/; HttpOnly; SameSite=Lax; Max-Age=0"},
+                    headers={"Set-Cookie": "fc_session=; Path=/owner/; HttpOnly; Secure; SameSite=Lax; Max-Age=0"},
                 )
                 return
             if path == "/api/public/ai/analyze-deal":
@@ -2751,6 +2797,15 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    missing = []
+    if not OWNER_PASSWORD:
+        missing.append("PLATFORM_CONSOLE_PASSWORD")
+    if not TENANT_PB_ADMIN_EMAIL:
+        missing.append("TENANT_PB_ADMIN_EMAIL")
+    if not TENANT_PB_ADMIN_PASSWORD:
+        missing.append("TENANT_PB_ADMIN_PASSWORD")
+    if missing:
+        raise RuntimeError("Missing required env vars: " + ", ".join(missing))
     httpd = HTTPServer((HOST, PORT), Handler)
     print(f"Founder console running on http://{HOST}:{PORT}")
     httpd.serve_forever()

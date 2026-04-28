@@ -10,11 +10,13 @@ Environment=CONTROL_DB_PATH=/opt/pb-control/pb_data/data.db
 Environment=PLATFORM_CONSOLE_HOST=127.0.0.1
 Environment=PLATFORM_CONSOLE_PORT=8181
 Environment=PLATFORM_CONSOLE_USER=founder
-Environment=PLATFORM_CONSOLE_PASSWORD=ChangeMe_123!
+Environment=PLATFORM_CONSOLE_PASSWORD=__SET_SECURE_PASSWORD__
 Environment=PLATFORM_CONSOLE_SESSION_TTL_HOURS=24
 Environment=PLATFORM_AI_SECRETS_FILE=/opt/pb-control/.ai-provider-secrets.json
+Environment=TENANT_PB_ADMIN_EMAIL=__SET_TENANT_ADMIN_EMAIL__
+Environment=TENANT_PB_ADMIN_PASSWORD=__SET_TENANT_ADMIN_PASSWORD__
 Environment=PUBLIC_AI_ALLOWED_ORIGINS=https://app.nwlvl.ru,https://nwlvl.ru,http://localhost:5173
-Environment=GIGACHAT_INSECURE_TLS=1
+Environment=GIGACHAT_INSECURE_TLS=0
 Environment=AI_GATEWAY_AUDIT_LOG=/opt/pb-control/ai-gateway-audit.jsonl
 ExecStart=/usr/bin/python3 /opt/pb-control/platform-console/server.py
 Restart=always

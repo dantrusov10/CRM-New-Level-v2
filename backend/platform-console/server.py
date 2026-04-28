@@ -1155,12 +1155,16 @@ def _build_ai_context(tenant_pb_url, deal_id, admin_token, ui_context):
         {"perPage": 20, "sort": "-created", "filter": f'deal_id="{_safe_filter_value(deal_id)}"'},
         admin_token,
     )
-    funnel_stages = _tenant_api_list(
-        tenant_pb_url,
-        "funnel_stages",
-        {"perPage": 200, "sort": "position"},
-        admin_token,
-    )
+    funnel_stages = {"items": []}
+    try:
+        funnel_stages = _tenant_api_list(
+            tenant_pb_url,
+            "funnel_stages",
+            {"perPage": 200, "sort": "position"},
+            admin_token,
+        )
+    except Exception:
+        funnel_stages = {"items": []}
     events = timeline.get("items", []) if isinstance(timeline, dict) else []
     notes = []
     comments = []

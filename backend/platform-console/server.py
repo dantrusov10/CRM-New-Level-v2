@@ -37,6 +37,7 @@ LOGIN_RATE_LIMIT = {}
 MASTER_PROMPT_KEY_DEAL_ANALYSIS = "ai.master_prompt.deal_analysis"
 AI_DATA_POLICY_KEY = "ai.data_policy.v1"
 AI_CLIENT_RESEARCH_COOLDOWN_KEY = "ai.cooldown.client_research.v1"
+AI_DECISION_SUPPORT_LIMIT_KEY = "ai.limit.decision_support.v1"
 
 
 INDEX_HTML = """<!doctype html>
@@ -206,6 +207,21 @@ INDEX_HTML = """<!doctype html>
             <div><label>Источник токена (опц.)</label><input id="rtStrategyTokenProvider" type="text" placeholder="оставь пустым или укажи код"/></div>
             <div><label>Лимит запросов/день</label><input id="rtStrategyMaxReq" type="number" placeholder="5"/></div>
             <div><label>Лимит выходных токенов</label><input id="rtStrategyMaxOut" type="number" placeholder="2500"/></div>
+          </div>
+        </div>
+
+        <div class="task">
+          <h3>Анализ ТЗ</h3>
+          <div class="row">
+            <div><label>Основной провайдер</label><input id="rtTzPrimaryProvider" type="text" placeholder="deepseek"/></div>
+            <div><label>Основной движок</label><input id="rtTzPrimaryEngine" type="text" placeholder="v3"/></div>
+            <div><label>Резервный провайдер</label><input id="rtTzFallbackProvider" type="text" placeholder="qwen"/></div>
+            <div><label>Резервный движок</label><input id="rtTzFallbackEngine" type="text" placeholder="qwen3.6-plus"/></div>
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <div><label>Источник токена (опц.)</label><input id="rtTzTokenProvider" type="text" placeholder="оставь пустым или укажи код"/></div>
+            <div><label>Лимит запросов/день</label><input id="rtTzMaxReq" type="number" placeholder="20"/></div>
+            <div><label>Лимит выходных токенов</label><input id="rtTzMaxOut" type="number" placeholder="2800"/></div>
           </div>
         </div>
 
@@ -390,6 +406,7 @@ INDEX_HTML = """<!doctype html>
       const dec = routes.decision_support || {};
       const enr = routes.client_enrichment || {};
       const strat = routes.competitor_strategy || {};
+      const tz = routes.tender_tz_analysis || {};
 
       document.getElementById("rtDealPrimaryProvider").value = deal.primary_provider || "";
       document.getElementById("rtDealPrimaryEngine").value = deal.primary_engine || "";
@@ -423,6 +440,14 @@ INDEX_HTML = """<!doctype html>
       document.getElementById("rtStrategyMaxReq").value = strat.max_requests_per_day || "";
       document.getElementById("rtStrategyMaxOut").value = strat.max_output_tokens || "";
 
+      document.getElementById("rtTzPrimaryProvider").value = tz.primary_provider || "";
+      document.getElementById("rtTzPrimaryEngine").value = tz.primary_engine || "";
+      document.getElementById("rtTzFallbackProvider").value = tz.fallback_provider || "";
+      document.getElementById("rtTzFallbackEngine").value = tz.fallback_engine || "";
+      document.getElementById("rtTzTokenProvider").value = tz.token_provider || "";
+      document.getElementById("rtTzMaxReq").value = tz.max_requests_per_day || "";
+      document.getElementById("rtTzMaxOut").value = tz.max_output_tokens || "";
+
       document.getElementById("rtPricePer1k").value = budget.default_price_rub_per_1k_tokens || "";
       document.getElementById("rtPromptDeal").value = prompts.deal_analysis || "";
       const mp = await getJson(api("master-prompt"));
@@ -448,6 +473,7 @@ INDEX_HTML = """<!doctype html>
           decision_support: buildRoute("rtDecisionPrimaryProvider", "rtDecisionPrimaryEngine", "rtDecisionFallbackProvider", "rtDecisionFallbackEngine", "rtDecisionTokenProvider", "rtDecisionMaxReq", "rtDecisionMaxOut"),
           client_enrichment: buildRoute("rtEnrichPrimaryProvider", "rtEnrichPrimaryEngine", "rtEnrichFallbackProvider", "rtEnrichFallbackEngine", "rtEnrichTokenProvider", "rtEnrichMaxReq", "rtEnrichMaxOut"),
           competitor_strategy: buildRoute("rtStrategyPrimaryProvider", "rtStrategyPrimaryEngine", "rtStrategyFallbackProvider", "rtStrategyFallbackEngine", "rtStrategyTokenProvider", "rtStrategyMaxReq", "rtStrategyMaxOut"),
+          tender_tz_analysis: buildRoute("rtTzPrimaryProvider", "rtTzPrimaryEngine", "rtTzFallbackProvider", "rtTzFallbackEngine", "rtTzTokenProvider", "rtTzMaxReq", "rtTzMaxOut"),
         },
         budget: {
           default_price_rub_per_1k_tokens: Number(val("rtPricePer1k") || 0),
@@ -2094,6 +2120,41 @@ def _check_and_mark_client_research_cooldown(tenant_code, company_id, product_id
     return {"ok": True, "next_allowed_at": next_allowed.isoformat() + "Z"}
 
 
+def _check_and_mark_decision_support_monthly_limit(tenant_code, deal_id, limit_per_month=10):
+    if not tenant_code or not deal_id:
+        return {"ok": False, "error": "tenant_code and deal_id are required for decision_support"}
+    data = _read_json_system_setting(AI_DECISION_SUPPORT_LIMIT_KEY)
+    records = data.get("records", []) if isinstance(data.get("records"), list) else []
+    month_key = datetime.utcnow().strftime("%Y-%m")
+    key = f"{tenant_code}:{deal_id}:{month_key}:decision_support"
+    active = []
+    current_count = 0
+    for rec in records:
+        if not isinstance(rec, dict):
+            continue
+        rec_key = str(rec.get("key", "")).strip()
+        if not rec_key or not rec_key.endswith(":decision_support"):
+            continue
+        if f":{month_key}:" not in rec_key:
+            continue
+        cnt = int(rec.get("count", 0) or 0)
+        if rec_key == key:
+            current_count = cnt
+            active.append({"key": rec_key, "count": cnt + 1})
+        else:
+            active.append({"key": rec_key, "count": cnt})
+    if current_count == 0:
+        active.append({"key": key, "count": 1})
+    if current_count >= int(limit_per_month):
+        return {"ok": False, "error": f"decision_support limit exceeded ({limit_per_month}/month per deal)"}
+    _write_json_system_setting(
+        AI_DECISION_SUPPORT_LIMIT_KEY,
+        {"records": active},
+        "Monthly per-deal limits for decision support calls",
+    )
+    return {"ok": True, "used": current_count + 1, "limit": int(limit_per_month)}
+
+
 def _resolve_product_prompt(full_context, task_code):
     src = _get_source(full_context)
     frontend_ctx = src.get("frontend_context", {}) if isinstance(src.get("frontend_context"), dict) else {}
@@ -2182,6 +2243,10 @@ def run_ai_deal_analysis(payload):
             if next_allowed:
                 return {"ok": False, "error": f"client_research cooldown active until {next_allowed}"}
             return {"ok": False, "error": str(cooldown.get("error", "client_research cooldown failed"))}
+    if task_code == "decision_support":
+        decision_limit = _check_and_mark_decision_support_monthly_limit(tenant_code, deal_id, 10)
+        if not decision_limit.get("ok"):
+            return {"ok": False, "error": str(decision_limit.get("error", "decision_support limit failed"))}
     llm_context = _sanitize_for_llm(full_context, "context", data_policy)
     prompts_map = (routing.get("prompts", {}) if isinstance(routing.get("prompts"), dict) else {})
     owner_prompt = str((prompts_map.get("deal_update_analysis") if is_update_mode else prompts_map.get(task_code)) or "").strip()
@@ -2478,13 +2543,13 @@ def default_routing_matrix():
                 "max_output_tokens": 2800,
             },
             "decision_support": {
-                "primary_provider": "deepseek",
-                "primary_engine": "v3",
-                "fallback_provider": "gigachat",
-                "fallback_engine": "pro",
+                "primary_provider": "qwen",
+                "primary_engine": "qwen3-coder",
+                "fallback_provider": "deepseek",
+                "fallback_engine": "v3",
                 "token_provider": "",
                 "max_requests_per_day": 10,
-                "max_output_tokens": 1800,
+                "max_output_tokens": 900,
             },
             "client_enrichment": {
                 "primary_provider": "gigachat",

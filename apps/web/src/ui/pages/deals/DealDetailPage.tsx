@@ -796,6 +796,10 @@ export function DealDetailPage() {
   const [analysisMode, setAnalysisMode] = React.useState<"full" | "update">("full");
   const [clientResearchPickerOpen, setClientResearchPickerOpen] = React.useState(false);
   const [clientResearchProductId, setClientResearchProductId] = React.useState("");
+  const [decisionSupportOpen, setDecisionSupportOpen] = React.useState(false);
+  const [decisionSupportProductId, setDecisionSupportProductId] = React.useState("");
+  const [decisionSupportIntent, setDecisionSupportIntent] = React.useState("next_step");
+  const [decisionSupportQuestion, setDecisionSupportQuestion] = React.useState("");
   const [productFiles, setProductFiles] = React.useState<Array<{ id: string; profileId: string; profileName: string; filename: string; url: string; tag?: string }>>([]);
   const formRef = React.useRef<DynamicEntityFormHandle | null>(null);
 
@@ -1194,6 +1198,8 @@ export function DealDetailPage() {
         product_ids: effectiveProductIds,
         product_names: effectiveProductNames,
         latest_tz_file_by_product: latestTzByProduct,
+        decision_support_intent: scenario === "decision_support" ? decisionSupportIntent : "",
+        decision_support_question: scenario === "decision_support" ? decisionSupportQuestion.slice(0, 500) : "",
         product_profile: effectiveProduct?.variants || {},
         product_name: effectiveProduct?.name || "",
         title: deal.title || "",
@@ -2129,6 +2135,16 @@ export function DealDetailPage() {
                 >
                   Обновить AI-анализ
                 </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setDecisionSupportProductId(selectedProductIds[0] || "");
+                    setDecisionSupportOpen(true);
+                  }}
+                  disabled={aiRunLoading || !deal?.id}
+                >
+                  Поддержка решения
+                </Button>
 
                 <div className="rounded-card border border-border bg-white p-3">
                   <div className="text-xs font-semibold uppercase tracking-wide text-text2 mb-2">Следующие действия</div>
@@ -2383,6 +2399,44 @@ export function DealDetailPage() {
               }}
             >
               Запустить исследование
+            </Button>
+          </div>
+        </div>
+      </Modal>
+      <Modal
+        open={decisionSupportOpen}
+        title="Поддержка решения"
+        onClose={() => setDecisionSupportOpen(false)}
+      >
+        <div className="grid gap-3">
+          <div className="text-sm text-text2">Быстрый ассистент следующего шага. Лимит: не более 10 запусков в месяц на одну сделку.</div>
+          <Select value={decisionSupportProductId} onChange={setDecisionSupportProductId}>
+            <option value="">Выберите продукт</option>
+            {productProfiles.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </Select>
+          <Select value={decisionSupportIntent} onChange={setDecisionSupportIntent}>
+            <option value="next_step">Следующий шаг</option>
+            <option value="objection_reply">Ответ на возражение</option>
+            <option value="message_draft">Черновик сообщения/письма</option>
+            <option value="call_plan">План звонка</option>
+          </Select>
+          <Input
+            value={decisionSupportQuestion}
+            onChange={(e) => setDecisionSupportQuestion(e.target.value)}
+            placeholder="Контекст запроса (опционально)"
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setDecisionSupportOpen(false)}>Отмена</Button>
+            <Button
+              disabled={!decisionSupportProductId}
+              onClick={async () => {
+                setDecisionSupportOpen(false);
+                await runAiAnalysis("full", "decision_support", [decisionSupportProductId]);
+              }}
+            >
+              Запустить
             </Button>
           </div>
         </div>

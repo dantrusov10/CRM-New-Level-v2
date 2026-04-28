@@ -813,7 +813,7 @@ def _has_meaningful_explainability(value):
 
 def _normalize_ai_result(raw_content, parsed):
     parsed_from_content = _extract_json_value(raw_content)
-    normalized_payload = parsed if isinstance(parsed, dict) else None
+    normalized_payload = parsed if isinstance(parsed, dict) and bool(parsed) else None
     if isinstance(parsed_from_content, dict):
         normalized_payload = parsed_from_content
 
@@ -1200,9 +1200,18 @@ def _build_ai_context(tenant_pb_url, deal_id, admin_token, ui_context):
     except Exception:
         entity_file_items = []
 
+    frontend_ctx = ui_context if isinstance(ui_context, dict) else {}
+    if isinstance(frontend_ctx, dict):
+        # Prevent recursive prompt bloat from previous long AI recommendations.
+        frontend_ctx = {k: v for k, v in frontend_ctx.items() if str(k) not in ("current_recommendations",)}
+    if isinstance(deal, dict):
+        deal = dict(deal)
+        if "current_recommendations" in deal:
+            deal["current_recommendations"] = ""
+
     context = {
         "source": {
-            "frontend_context": ui_context if isinstance(ui_context, dict) else {},
+            "frontend_context": frontend_ctx,
             "deal_record": deal if isinstance(deal, dict) else {},
             "timeline_recent": events,
             "notes_recent": notes,
@@ -1649,6 +1658,10 @@ def run_ai_deal_analysis(payload):
     fallback_error = ""
     if not llm_result.get("ok"):
         primary_error = str(llm_result.get("error", "primary provider failed"))
+    parsed_payload = llm_result.get("parsed", {})
+    content_preview = ""
+    if isinstance(parsed_payload, dict) and not parsed_payload:
+        content_preview = str(llm_result.get("content", "") or "")[:1500]
     _audit_log(
         "provider_attempt",
         {
@@ -1658,7 +1671,8 @@ def run_ai_deal_analysis(payload):
             "ok": bool(llm_result.get("ok")),
             "error": llm_result.get("error", ""),
             "usage": llm_result.get("usage", {}),
-            "parsed": llm_result.get("parsed", {}),
+            "parsed": parsed_payload,
+            "content_preview": content_preview,
         },
     )
     if not llm_result.get("ok") and fallback_provider and fallback_engine:
@@ -1670,6 +1684,10 @@ def run_ai_deal_analysis(payload):
             used_engine = fallback_engine
             if not llm_result.get("ok"):
                 fallback_error = str(llm_result.get("error", "fallback provider failed"))
+            fb_parsed_payload = llm_result.get("parsed", {})
+            fb_content_preview = ""
+            if isinstance(fb_parsed_payload, dict) and not fb_parsed_payload:
+                fb_content_preview = str(llm_result.get("content", "") or "")[:1500]
             _audit_log(
                 "provider_attempt",
                 {
@@ -1679,7 +1697,8 @@ def run_ai_deal_analysis(payload):
                     "ok": bool(llm_result.get("ok")),
                     "error": llm_result.get("error", ""),
                     "usage": llm_result.get("usage", {}),
-                    "parsed": llm_result.get("parsed", {}),
+                    "parsed": fb_parsed_payload,
+                    "content_preview": fb_content_preview,
                 },
             )
         else:

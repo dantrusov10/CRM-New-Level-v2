@@ -2405,9 +2405,23 @@ def run_ai_deal_analysis(payload):
 
     routing = get_routing_matrix()
     routes_map = (routing.get("routes", {}) or {})
-    route = routes_map.get(task_code, {})
-    if not route and task_code == "deal_update_analysis":
-        route = routes_map.get("deal_analysis", {})
+    default_routes_map = (default_routing_matrix().get("routes", {}) or {})
+    route_aliases = {
+        "deal_update_analysis": "deal_analysis",
+        "client_enrichment": "client_research",
+    }
+    resolved_task_code = route_aliases.get(task_code, task_code)
+    route = routes_map.get(resolved_task_code, {})
+    if not isinstance(route, dict):
+        route = {}
+    # Safety fallback: if route is missing or partially broken in persisted routing,
+    # recover from built-in defaults so scenario does not fail in runtime.
+    if not route or not str(route.get("primary_provider", "")).strip() or not str(route.get("primary_engine", "")).strip():
+        fallback_default = default_routes_map.get(resolved_task_code, {})
+        if isinstance(fallback_default, dict):
+            merged = dict(fallback_default)
+            merged.update(route)
+            route = merged
     primary_provider = str(route.get("primary_provider", "")).strip().lower()
     primary_engine = str(route.get("primary_engine", "")).strip()
     fallback_provider = str(route.get("fallback_provider", "")).strip().lower()
@@ -2470,10 +2484,19 @@ def run_ai_deal_analysis(payload):
             "Сфокусируйся на изменениях после прошлого AI-среза: "
             "что улучшилось, что ухудшилось, как изменилась вероятность закрытия и какие 3-5 действий приоритетны в ближайшие 24-72 часа.\n"
         )
+    deep_research_instruction = ""
+    if task_code == "client_research":
+        deep_research_instruction = (
+            "Режим DEEP_RESEARCH: выполни глубокое исследование клиента под продукт. "
+            "Сначала собери и проверь сигналы, затем выдай структурированный итог с разделением на факты/гипотезы, "
+            "карту ЛПР/ЛВР/блокеров, подтвержденные боли, зрелость, риски, окна входа и план действий на 7/14/30 дней. "
+            "Отдельно перечисли data-gaps и какие вопросы задать клиенту для валидации гипотез.\n"
+        )
     prompt = (
         f"{deal_prompt}\n"
         + (f"{master_prompt}\n" if master_prompt else "")
         + update_instruction
+        + deep_research_instruction
         + f"Контекст сделки (JSON): {json.dumps(llm_context, ensure_ascii=False)}\n"
         "Формат ответа: один валидный JSON-объект без markdown и без текста вне JSON.\n"
         + AI_DEAL_OUTPUT_RULES
@@ -2769,13 +2792,13 @@ def default_routing_matrix():
                 "max_output_tokens": 2500,
             },
             "client_research": {
-                "primary_provider": "deepseek",
-                "primary_engine": "reasoner",
-                "fallback_provider": "qwen",
-                "fallback_engine": "qwen3.6-plus",
+                "primary_provider": "or_deepseek",
+                "primary_engine": "deepseek/deepseek-r1",
+                "fallback_provider": "or_qwen",
+                "fallback_engine": "qwen/qwen3-235b-a22b",
                 "token_provider": "",
                 "max_requests_per_day": 3,
-                "max_output_tokens": 3200,
+                "max_output_tokens": 5200,
             },
             "semantic_enrichment": {
                 "primary_provider": "qwen",

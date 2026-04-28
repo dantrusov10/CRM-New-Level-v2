@@ -34,6 +34,7 @@ type AnyObj = Record<string, unknown>;
 type TimelinePayload = Record<string, unknown>;
 type AiSection = { key: string; title: string; raw: unknown };
 type ResearchSection = { title: string; items: string[] };
+type TimelineWithAuthor = TimelineItem & { expand?: { user_id?: { name?: string; email?: string } } };
 
 function normalizeAiText(input: string): string {
   return String(input || "")
@@ -502,11 +503,30 @@ function collectItemsByKeywords(sections: AiSection[], keywords: RegExp): string
   return Array.from(new Set(out)).slice(0, 6);
 }
 
-function buildResearchTemplate(latestAi: AiInsight | null, sections: AiSection[], nextActions: string[], score: number | null): ResearchSection[] {
+function buildResearchTemplate(
+  latestAi: AiInsight | null,
+  aiHistory: AiInsight[],
+  timeline: TimelineWithAuthor[],
+  sections: AiSection[],
+  nextActions: string[],
+  score: number | null,
+): ResearchSection[] {
   const improvements = collectItemsByKeywords(sections, /(рост|улучш|upside|потенциал|сильн)/i);
   const deteriorations = collectItemsByKeywords(sections, /(риск|ухудш|проблем|gap|нехват|блокер)/i);
   const causes = collectItemsByKeywords(sections, /(причин|контекст|коммер|потреб|конкур|данн)/i);
   const summaryText = valueToText(latestAi?.summary || "");
+  const prevAi = aiHistory.length > 1 ? aiHistory[1] : null;
+  const prevScore = prevAi ? resolveDisplayScore(prevAi) : null;
+  const delta = typeof score === "number" && typeof prevScore === "number" ? score - prevScore : null;
+  const latestTimelineNote =
+    timeline
+      .filter((t) => String(t.action || "") === "comment" || String(t.action || "") === "note")
+      .map((t) => String(t.comment || "").trim())
+      .find(Boolean) || "";
+  const latestTimelineAuthor =
+    timeline
+      .find((t) => (String(t.action || "") === "comment" || String(t.action || "") === "note") && String(t.comment || "").trim())
+      ?.expand?.user_id?.name || "";
 
   return [
     {
@@ -523,8 +543,20 @@ function buildResearchTemplate(latestAi: AiInsight | null, sections: AiSection[]
         typeof score === "number"
           ? `Текущая вероятность закрытия: ${score}%.`
           : "Вероятность закрытия пока не рассчитана.",
+        delta != null
+          ? `Изменение к прошлому AI-срезу: ${delta > 0 ? "+" : ""}${delta} п.п.`
+          : "Недостаточно данных для сравнения с предыдущим AI-срезом.",
         summaryText ? `Контекст модели: ${summaryText.slice(0, 180)}${summaryText.length > 180 ? "..." : ""}` : "Недостаточно контекста для сравнения с предыдущим срезом.",
       ],
+    },
+    {
+      title: "Последний апдейт в сделке (комментарии/заметки)",
+      items: latestTimelineNote
+        ? [
+            latestTimelineAuthor ? `Автор: ${latestTimelineAuthor}.` : "Автор: не определен.",
+            latestTimelineNote.slice(0, 220) + (latestTimelineNote.length > 220 ? "..." : ""),
+          ]
+        : ["После последнего AI-запуска нет новых зафиксированных комментариев/заметок."],
     },
     {
       title: "Ключевые причины",
@@ -992,6 +1024,18 @@ export function DealDetailPage() {
     setAiRunError("");
     setAiRunLoading(true);
     try {
+      const recentTimeline = ((tlQ.data ?? []) as TimelineWithAuthor[])
+        .slice(0, 20)
+        .map((t) => ({
+          action: t.action,
+          comment: String(t.comment || "").slice(0, 500),
+          timestamp: t.timestamp || t.created || "",
+          author: t.expand?.user_id?.name || t.expand?.user_id?.email || "",
+        }));
+      const recentNotes = recentTimeline
+        .filter((t) => t.action === "comment" || t.action === "note")
+        .slice(0, 8);
+      const prevInsight = ((aiQ.data ?? [])[1] ?? null) as AiInsight | null;
       await analyzeDealWithAi({
         dealId: deal.id,
         userId: auth?.id,
@@ -1032,6 +1076,11 @@ export function DealDetailPage() {
           kaiten_link: deal.kaiten_link || "",
           current_score: deal.current_score ?? null,
           current_recommendations: deal.current_recommendations ?? null,
+          recent_timeline_events: recentTimeline,
+          recent_comments_notes: recentNotes,
+          previous_ai_summary: prevInsight?.summary || "",
+          previous_ai_suggestions: String(prevInsight?.suggestions || prevInsight?.recommendations || ""),
+          previous_ai_score: resolveDisplayScore(prevInsight),
         },
       });
       await Promise.all([aiQ.refetch(), tlQ.refetch(), dealQ.refetch()]);
@@ -1043,6 +1092,8 @@ export function DealDetailPage() {
   }
 
   const latestAi = ((aiQ.data ?? [])[0] ?? null) as AiInsight | null;
+  const aiHistory = (aiQ.data ?? []) as AiInsight[];
+  const tlAll = (tlQ.data ?? []) as Array<TimelineWithAuthor>;
   const score = resolveDisplayScore(latestAi);
   const sb = scoreBadge(score);
   const dynamicSections = React.useMemo(() => buildDynamicSections(latestAi), [latestAi]);
@@ -1051,14 +1102,13 @@ export function DealDetailPage() {
     [latestAi],
   );
   const researchSections = React.useMemo(
-    () => buildResearchTemplate(latestAi, dynamicSections, nextActions, score),
-    [latestAi, dynamicSections, nextActions, score],
+    () => buildResearchTemplate(latestAi, aiHistory, tlAll, dynamicSections, nextActions, score),
+    [latestAi, aiHistory, tlAll, dynamicSections, nextActions, score],
   );
   const hasRiskSignals =
     Boolean(latestAi?.risks) ||
     dynamicSections.some((section) => /риск|risk/i.test(section.key) || /риск|risk/i.test(section.title));
 
-  const tlAll = (tlQ.data ?? []) as Array<TimelineItem & { expand?: { user_id?: { name?: string; email?: string } } }>;
   const tlFiltered = tlAll.filter((t) => {
     if (timelineFilter === "comments") return String(t.action) === "comment";
     if (timelineFilter === "ai") return String(t.action).startsWith("ai") || String(t.action) === "ai";

@@ -814,10 +814,9 @@ export function DealDetailPage() {
   const [editingContactId, setEditingContactId] = React.useState<string | null>(null);
 
   // Workspace add file/link
-  const [wsUrl, setWsUrl] = React.useState("");
   const [wsTitle, setWsTitle] = React.useState("");
-  const [wsTag, setWsTag] = React.useState("");
   const [wsUploadFile, setWsUploadFile] = React.useState<File | null>(null);
+  const [wsUploadProductId, setWsUploadProductId] = React.useState<string>("");
   const [wsUploadError, setWsUploadError] = React.useState("");
   const [wsLinkUrl, setWsLinkUrl] = React.useState("");
   const [wsLinkTitle, setWsLinkTitle] = React.useState("");
@@ -1094,19 +1093,6 @@ export function DealDetailPage() {
     contactsQ.refetch();
   }
 
-  async function addWorkspaceFile() {
-    if (!id) return;
-    const url = normalizeExternalUrl(wsUrl);
-    if (!url) return;
-    await addWorkspaceFileM
-      .mutateAsync({ entityType: "deal", entityId: id, url, title: wsTitle.trim(), tag: wsTag.trim() })
-      .catch(() => null);
-    setWsUrl("");
-    setWsTitle("");
-    setWsTag("");
-    entityFilesQ.refetch();
-  }
-
   async function addWorkspaceUploadedFile() {
     if (!id || !wsUploadFile) return;
     setWsUploadError("");
@@ -1119,18 +1105,19 @@ export function DealDetailPage() {
       });
     try {
       const dataUrl = await readAsDataUrl(wsUploadFile);
+      const effectiveProduct = wsUploadProductId || selectedProductIds[0] || "";
       await addWorkspaceFileM
         .mutateAsync({
           entityType: "deal",
           entityId: id,
           url: dataUrl,
           title: wsTitle.trim() || wsUploadFile.name,
-          tag: wsTag.trim(),
+          tag: effectiveProduct ? `product_id:${effectiveProduct}` : "",
         })
         .catch(() => null);
       setWsUploadFile(null);
       setWsTitle("");
-      setWsTag("");
+      setWsUploadProductId("");
       entityFilesQ.refetch();
     } catch {
       setWsUploadError("Не удалось загрузить файл. Попробуйте другой файл меньшего размера.");
@@ -1391,6 +1378,23 @@ export function DealDetailPage() {
   React.useEffect(() => {
     void loadProductFilesForDeal();
   }, [selectedProductIds.join(","), productProfiles.length]);
+
+  async function setFileAsPrimaryTz(fileLinkId: string) {
+    setLatestTzFileId(fileLinkId);
+    if (id) localStorage.setItem(`deal:${id}:latest_tz_file_id`, fileLinkId);
+    await createTimelineEvent("tz_primary_selected", "Выбран основной файл ТЗ", { entity_file_id: fileLinkId }).catch(() => null);
+  }
+
+  function parseProductIdFromTag(tag: string): string {
+    const s = String(tag || "");
+    const m = s.match(/^product_id:(.+)$/);
+    return m ? String(m[1] || "").trim() : "";
+  }
+
+  async function changeFileProduct(fileLinkId: string, productId: string) {
+    await pb.collection("entity_files").update(fileLinkId, { tag: productId ? `product_id:${productId}` : "" }).catch(() => null);
+    entityFilesQ.refetch();
+  }
 
   return (
     <div className="grid gap-4">
@@ -1957,14 +1961,15 @@ export function DealDetailPage() {
                       <div className="grid gap-2">
                         <div className="text-xs text-text2 truncate">{wsUploadFile ? `Выбран файл: ${wsUploadFile.name}` : "Файл не выбран"}</div>
                         <Input value={wsTitle} onChange={(e) => setWsTitle(e.target.value)} placeholder="Название" />
+                        <Select value={wsUploadProductId} onChange={setWsUploadProductId}>
+                          <option value="">Продукт (опц.)</option>
+                          {productProfiles.map((p) => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </Select>
                         <div className="flex gap-2">
-                          <Input value={wsUrl} onChange={(e) => setWsUrl(e.target.value)} placeholder="URL на файл (S3/Selectel/диск)" />
-                          <Input value={wsTag} onChange={(e) => setWsTag(e.target.value)} placeholder="Тэг (опционально)" />
-                          <Button onClick={addWorkspaceFile} disabled={!wsUrl.trim()}>
-                            Добавить
-                          </Button>
-                          <Button variant="secondary" onClick={addWorkspaceUploadedFile} disabled={!wsUploadFile}>
-                            Сохранить файл
+                          <Button onClick={addWorkspaceUploadedFile} disabled={!wsUploadFile}>
+                            Добавить файл
                           </Button>
                         </div>
                         {wsUploadError ? <div className="text-xs text-danger">{wsUploadError}</div> : null}
@@ -1978,7 +1983,26 @@ export function DealDetailPage() {
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
                                   <div className="text-sm font-semibold truncate">{f?.filename || "Файл"}</div>
-                                  {ef.tag ? <div className="text-xs text-text2 mt-1">{ef.tag}</div> : null}
+                                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                    <label className="flex items-center gap-1 text-xs text-text2">
+                                      <input
+                                        type="radio"
+                                        name="deal_primary_tz_file"
+                                        checked={latestTzFileId === ef.id}
+                                        onChange={() => { void setFileAsPrimaryTz(ef.id); }}
+                                      />
+                                      Осн. ТЗ
+                                    </label>
+                                    <Select
+                                      value={parseProductIdFromTag(String(ef.tag || ""))}
+                                      onChange={(v) => { void changeFileProduct(ef.id, v); }}
+                                    >
+                                      <option value="">Без продукта</option>
+                                      {productProfiles.map((p) => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                      ))}
+                                    </Select>
+                                  </div>
                                   {url ? (
                                     <a className="text-sm text-primary underline break-all" href={url} target="_blank" rel="noreferrer">
                                       {url}

@@ -2,6 +2,7 @@ import React from "react";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
+import { Modal } from "../../components/Modal";
 import { pb } from "../../../lib/pb";
 import type { ProductProfile } from "../../data/hooks";
 
@@ -42,10 +43,10 @@ export function AdminProductsPage() {
   const [promptTz, setPromptTz] = React.useState("");
   const [fileTag, setFileTag] = React.useState("docs");
   const [fileTitle, setFileTitle] = React.useState("");
-  const [fileUrl, setFileUrl] = React.useState("");
   const [uploadFile, setUploadFile] = React.useState<File | null>(null);
   const [uploadError, setUploadError] = React.useState("");
   const [productFiles, setProductFiles] = React.useState<Array<{ id: string; filename: string; path: string; tag?: string }>>([]);
+  const [fileModalOpen, setFileModalOpen] = React.useState(false);
 
   async function load() {
     setLoading(true);
@@ -174,40 +175,6 @@ export function AdminProductsPage() {
     }
   }
 
-  async function addProductFileByUrl() {
-    if (!activeId || !fileUrl.trim()) return;
-    setUploadError("");
-    const title = fileTitle.trim() || fileUrl.split("/").pop() || "file";
-    const file = await pb.collection("files").create({
-      path: fileUrl.trim(),
-      filename: title,
-      mime: "text/uri-list",
-      size_bytes: 0,
-    }).catch(() => null);
-    if (!file?.id) {
-      setUploadError("Не удалось сохранить файл по URL.");
-      return;
-    }
-    await pb.collection("entity_files").create({
-      entity_type: "product_profile",
-      entity_id: activeId,
-      file_id: file.id,
-      tag: fileTag,
-      created_at: new Date().toISOString(),
-    }).catch(() => null);
-    setFileUrl("");
-    setFileTitle("");
-    const links = await pb.collection("entity_files").getList(1, 200, {
-      filter: `entity_type="product_profile" && entity_id="${activeId}"`,
-      sort: "-created",
-      expand: "file_id",
-    }).catch(() => ({ items: [] as Array<Record<string, unknown>> }));
-    setProductFiles(((links.items || []) as Array<Record<string, unknown>>).map((x) => {
-      const f = x.expand && typeof x.expand === "object" ? (x.expand as Record<string, unknown>).file_id as Record<string, unknown> : null;
-      return { id: String(x.id || ""), filename: String(f?.filename || "Файл"), path: String(f?.path || ""), tag: String(x.tag || "") };
-    }));
-  }
-
   async function addProductUploadedFile() {
     if (!activeId || !uploadFile) return;
     setUploadError("");
@@ -246,10 +213,24 @@ export function AdminProductsPage() {
         const f = x.expand && typeof x.expand === "object" ? (x.expand as Record<string, unknown>).file_id as Record<string, unknown> : null;
         return { id: String(x.id || ""), filename: String(f?.filename || "Файл"), path: String(f?.path || ""), tag: String(x.tag || "") };
       }));
+      setFileModalOpen(false);
     } catch {
       setUploadError("Не удалось загрузить файл. Попробуйте файл меньшего размера.");
     }
   }
+
+  const fileBlocks = React.useMemo(
+    () => [
+      { key: "docs", label: "Документация / материалы" },
+      { key: "tz_passport", label: "Паспорт / ТЗ продукта" },
+      { key: "lpr_map", label: "Карта ЛПР / роли и веса" },
+      { key: "parsers_config", label: "Конфигурация парсеров" },
+      { key: "ai_prompt_deal", label: "AI промпт: анализ сделки" },
+      { key: "ai_prompt_client_research", label: "AI промпт: исследование клиента" },
+      { key: "ai_prompt_tz_analysis", label: "AI промпт: анализ ТЗ" },
+    ],
+    [],
+  );
 
   return (
     <div className="grid gap-4">
@@ -308,62 +289,62 @@ export function AdminProductsPage() {
                     </div>
                   </div>
 
-                  <TextArea label="Документация / материалы" value={docs} onChange={setDocs} />
-                  <TextArea label="Паспорт / ТЗ продукта" value={tzPassport} onChange={setTzPassport} />
-                  <TextArea label="Карта ЛПР / роли и веса" value={lprMap} onChange={setLprMap} />
-                  <TextArea label="Конфигурация парсеров (медиа/контакты/тендеры)" value={parsersConfig} onChange={setParsersConfig} />
-                  <TextArea label="AI промпт: анализ сделки" value={promptDeal} onChange={setPromptDeal} />
-                  <TextArea label="AI промпт: исследование клиента" value={promptClientResearch} onChange={setPromptClientResearch} />
-                  <TextArea label="AI промпт: анализ ТЗ" value={promptTz} onChange={setPromptTz} />
-
-                  <div className="rounded-card border border-border bg-rowHover p-3">
-                    <div className="text-sm font-semibold">Файлы продукта по блокам</div>
-                    <div className="text-xs text-text2 mt-1">Можно прикладывать файлы к каждому блоку: документация, паспорт/ТЗ, карта ЛПР, парсеры, AI.</div>
-                    <div className="mt-3 grid grid-cols-12 gap-2">
-                      <div className="col-span-12 md:col-span-3">
-                        <div className="text-xs text-text2 mb-1">Блок</div>
-                        <select className="h-10 w-full rounded-card border border-[#9CA3AF] bg-white px-3 text-sm" value={fileTag} onChange={(e) => setFileTag(e.target.value)}>
-                          <option value="docs">Документация</option>
-                          <option value="tz_passport">Паспорт / ТЗ</option>
-                          <option value="lpr_map">Карта ЛПР</option>
-                          <option value="parsers_config">Парсеры</option>
-                          <option value="ai_prompt">AI</option>
-                        </select>
-                      </div>
-                      <div className="col-span-12 md:col-span-4">
-                        <div className="text-xs text-text2 mb-1">Название файла</div>
-                        <Input value={fileTitle} onChange={(e) => setFileTitle(e.target.value)} placeholder="Например: Паспорт v2" />
-                      </div>
-                      <div className="col-span-12 md:col-span-5">
-                        <div className="text-xs text-text2 mb-1">URL файла</div>
-                        <div className="flex gap-2">
-                          <Input value={fileUrl} onChange={(e) => setFileUrl(e.target.value)} placeholder="https://..." />
-                          <Button variant="secondary" onClick={addProductFileByUrl} disabled={!activeId || !fileUrl.trim()}>Добавить URL</Button>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-3 flex items-center gap-2">
-                      <label className="ui-btn ui-btn-secondary h-9 px-3 cursor-pointer">
-                        Загрузить файл
-                        <input type="file" className="hidden" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} />
-                      </label>
-                      <div className="text-xs text-text2">{uploadFile ? `Выбран: ${uploadFile.name}` : "Файл не выбран"}</div>
-                      <Button onClick={addProductUploadedFile} disabled={!activeId || !uploadFile}>Сохранить файл</Button>
-                    </div>
-                    {uploadError ? <div className="text-xs text-danger mt-2">{uploadError}</div> : null}
-                    <div className="mt-3 grid gap-2">
-                      {productFiles.map((f) => (
-                        <div key={f.id} className="rounded-md border border-border bg-white p-2 flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium truncate">{f.filename}</div>
-                            <div className="text-xs text-text2">{f.tag || "без тега"}</div>
-                          </div>
-                          <a className="text-sm text-primary underline" href={f.path} target="_blank" rel="noreferrer">Скачать</a>
-                        </div>
-                      ))}
-                      {!productFiles.length ? <div className="text-xs text-text2">Файлы пока не добавлены.</div> : null}
-                    </div>
-                  </div>
+                  <TextAreaWithFiles
+                    label="Документация / материалы"
+                    blockKey="docs"
+                    value={docs}
+                    onChange={setDocs}
+                    files={productFiles}
+                    onAddFile={() => { setFileTag("docs"); setFileModalOpen(true); }}
+                  />
+                  <TextAreaWithFiles
+                    label="Паспорт / ТЗ продукта"
+                    blockKey="tz_passport"
+                    value={tzPassport}
+                    onChange={setTzPassport}
+                    files={productFiles}
+                    onAddFile={() => { setFileTag("tz_passport"); setFileModalOpen(true); }}
+                  />
+                  <TextAreaWithFiles
+                    label="Карта ЛПР / роли и веса"
+                    blockKey="lpr_map"
+                    value={lprMap}
+                    onChange={setLprMap}
+                    files={productFiles}
+                    onAddFile={() => { setFileTag("lpr_map"); setFileModalOpen(true); }}
+                  />
+                  <TextAreaWithFiles
+                    label="Конфигурация парсеров (медиа/контакты/тендеры)"
+                    blockKey="parsers_config"
+                    value={parsersConfig}
+                    onChange={setParsersConfig}
+                    files={productFiles}
+                    onAddFile={() => { setFileTag("parsers_config"); setFileModalOpen(true); }}
+                  />
+                  <TextAreaWithFiles
+                    label="AI промпт: анализ сделки"
+                    blockKey="ai_prompt_deal"
+                    value={promptDeal}
+                    onChange={setPromptDeal}
+                    files={productFiles}
+                    onAddFile={() => { setFileTag("ai_prompt_deal"); setFileModalOpen(true); }}
+                  />
+                  <TextAreaWithFiles
+                    label="AI промпт: исследование клиента"
+                    blockKey="ai_prompt_client_research"
+                    value={promptClientResearch}
+                    onChange={setPromptClientResearch}
+                    files={productFiles}
+                    onAddFile={() => { setFileTag("ai_prompt_client_research"); setFileModalOpen(true); }}
+                  />
+                  <TextAreaWithFiles
+                    label="AI промпт: анализ ТЗ"
+                    blockKey="ai_prompt_tz_analysis"
+                    value={promptTz}
+                    onChange={setPromptTz}
+                    files={productFiles}
+                    onAddFile={() => { setFileTag("ai_prompt_tz_analysis"); setFileModalOpen(true); }}
+                  />
 
                   <div className="flex items-center gap-2">
                     <Button onClick={save} disabled={!activeId || saving || !name.trim()}>Сохранить продукт</Button>
@@ -375,20 +356,83 @@ export function AdminProductsPage() {
           )}
         </CardContent>
       </Card>
+      <Modal
+        open={fileModalOpen}
+        title="Добавить файл в блок продукта"
+        onClose={() => {
+          setFileModalOpen(false);
+          setUploadFile(null);
+          setUploadError("");
+        }}
+      >
+        <div className="grid gap-3">
+          <div>
+            <div className="text-xs text-text2 mb-1">Блок</div>
+            <select className="h-10 w-full rounded-card border border-[#9CA3AF] bg-white px-3 text-sm" value={fileTag} onChange={(e) => setFileTag(e.target.value)}>
+              {fileBlocks.map((b) => (
+                <option key={b.key} value={b.key}>{b.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <div className="text-xs text-text2 mb-1">Название файла</div>
+            <Input value={fileTitle} onChange={(e) => setFileTitle(e.target.value)} placeholder="Например: Паспорт v2" />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="ui-btn ui-btn-secondary h-9 px-3 cursor-pointer">
+              Выбрать файл
+              <input type="file" className="hidden" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} />
+            </label>
+            <div className="text-xs text-text2">{uploadFile ? uploadFile.name : "Файл не выбран"}</div>
+          </div>
+          {uploadError ? <div className="text-xs text-danger">{uploadError}</div> : null}
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setFileModalOpen(false)}>Отмена</Button>
+            <Button onClick={addProductUploadedFile} disabled={!uploadFile || !activeId}>Добавить файл</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
 
-function TextArea({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function TextAreaWithFiles({
+  label,
+  blockKey,
+  value,
+  onChange,
+  files,
+  onAddFile,
+}: {
+  label: string;
+  blockKey: string;
+  value: string;
+  onChange: (v: string) => void;
+  files: Array<{ id: string; filename: string; path: string; tag?: string }>;
+  onAddFile: () => void;
+}) {
+  const blockFiles = files.filter((f) => String(f.tag || "") === blockKey);
   return (
-    <div>
-      <div className="text-xs text-text2 mb-1">{label}</div>
+    <div className="rounded-card border border-border bg-rowHover p-3">
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <div className="text-xs text-text2">{label}</div>
+        <Button small variant="secondary" onClick={onAddFile}>Добавить файл</Button>
+      </div>
       <textarea
         className="w-full rounded-card border border-[#9CA3AF] bg-white px-3 py-2 text-sm"
         rows={4}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
+      <div className="mt-2 grid gap-1.5">
+        {blockFiles.map((f) => (
+          <div key={f.id} className="rounded-md border border-border bg-white p-2 flex items-center justify-between gap-3">
+            <div className="text-sm truncate">{f.filename}</div>
+            <a className="text-sm text-primary underline" href={f.path} target="_blank" rel="noreferrer">Скачать</a>
+          </div>
+        ))}
+        {!blockFiles.length ? <div className="text-xs text-text2">Файлов пока нет.</div> : null}
+      </div>
     </div>
   );
 }

@@ -33,6 +33,7 @@ export type Deal = {
   id: Id;
   title: string;
   company_id?: Id;
+  product_id?: Id;
   responsible_id?: Id;
   stage_id?: Id;
 
@@ -74,6 +75,7 @@ export type Deal = {
   updated?: string;
   expand?: {
     company_id?: Company;
+    product_id?: { id: Id; name?: string; manufacturer?: string };
     stage_id?: FunnelStage;
     responsible_id?: UserSummary;
   };

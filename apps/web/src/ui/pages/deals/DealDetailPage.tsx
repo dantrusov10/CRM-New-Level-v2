@@ -23,6 +23,7 @@ import {
   useTimeline,
   useUpdateDeal,
   useCreateTask,
+  useProductProfiles,
 } from "../../data/hooks";
 import { DealKpModule } from "../../modules/kp/DealKpModule";
 import { DynamicEntityFormWithRef, DynamicEntityFormHandle } from "../../components/DynamicEntityForm";
@@ -35,6 +36,7 @@ type TimelinePayload = Record<string, unknown>;
 type AiSection = { key: string; title: string; raw: unknown };
 type ResearchSection = { title: string; items: string[] };
 type TimelineWithAuthor = TimelineItem & { expand?: { user_id?: { name?: string; email?: string } } };
+type AiScenario = "deal_analysis" | "decision_support" | "client_research" | "semantic_enrichment" | "tender_tz_analysis";
 
 function normalizeAiText(input: string): string {
   return String(input || "")
@@ -774,6 +776,7 @@ export function DealDetailPage() {
   const addWorkspaceFileM = useAddWorkspaceFile();
   const deleteEntityFileM = useDeleteEntityFileLink();
   const upd = useUpdateDeal();
+  const productProfilesQ = useProductProfiles();
 
   const deal = (dealQ.data ?? null) as Deal | null;
   const stages = stagesQ.data ?? [];
@@ -785,6 +788,8 @@ export function DealDetailPage() {
   const [timelineFilter, setTimelineFilter] = React.useState<string>("all");
   const [aiRunLoading, setAiRunLoading] = React.useState(false);
   const [aiRunError, setAiRunError] = React.useState<string>("");
+  const [selectedProductId, setSelectedProductId] = React.useState<string>("");
+  const [aiScenario, setAiScenario] = React.useState<AiScenario>("deal_analysis");
   const formRef = React.useRef<DynamicEntityFormHandle | null>(null);
 
   const auth = getAuthUser();
@@ -883,7 +888,27 @@ export function DealDetailPage() {
       project_map_link: deal.project_map_link ?? "",
       kaiten_link: deal.kaiten_link ?? "",
     };
+    const dealProduct = String((deal as Record<string, unknown>)?.product_id || "");
+    const cached = localStorage.getItem(`deal:${deal.id}:product_id`) || "";
+    setSelectedProductId(dealProduct || cached);
   }, [deal?.id]);
+
+  const productProfiles = React.useMemo(() => {
+    return (productProfilesQ.data || []).map((p) => {
+      const variants = p.variants && typeof p.variants === "object" && !Array.isArray(p.variants) ? p.variants as Record<string, unknown> : {};
+      return {
+        id: p.id,
+        name: String(variants.name || "Без названия"),
+        manufacturer: String(variants.manufacturer || ""),
+        variants,
+      };
+    });
+  }, [productProfilesQ.data]);
+
+  const selectedProduct = React.useMemo(
+    () => productProfiles.find((p) => p.id === selectedProductId) || null,
+    [productProfiles, selectedProductId],
+  );
 
   async function createTimelineEvent(action: string, commentText?: string, payload?: TimelinePayload) {
     if (!id) return;
@@ -929,6 +954,17 @@ export function DealDetailPage() {
     const nextName = stages.find((s) => s.id === stageId)?.stage_name ?? "";
     await pb.collection("deals").update(id, { stage_id: stageId }).catch(() => {});
     await createTimelineEvent("stage_change", `Этап изменён: ${prevName} → ${nextName}`, { from: prevName, to: nextName });
+    await dealQ.refetch();
+    tlQ.refetch();
+  }
+
+  async function changeProduct(productId: string) {
+    if (!id) return;
+    setSelectedProductId(productId);
+    localStorage.setItem(`deal:${id}:product_id`, productId);
+    await pb.collection("deals").update(id, { product_id: productId || null }).catch(() => null);
+    const productName = productProfiles.find((p) => p.id === productId)?.name || "Не выбран";
+    await createTimelineEvent("product_selected", `Продукт сделки: ${productName}`, { product_id: productId || null });
     await dealQ.refetch();
     tlQ.refetch();
   }
@@ -1095,8 +1131,25 @@ export function DealDetailPage() {
     tlQ.refetch();
   }
 
-  async function runAiAnalysis(mode: "full" | "update" = "full") {
+  async function runAiAnalysis(mode: "full" | "update" = "full", scenario: AiScenario = "deal_analysis") {
     if (!deal?.id) return;
+    if (!selectedProductId && scenario !== "semantic_enrichment") {
+      setAiRunError("Выберите продукт для сделки перед запуском AI-сценария.");
+      return;
+    }
+    if (scenario === "client_research") {
+      const companyKey = String(deal.company_id || deal.expand?.company_id?.id || "");
+      const cooldownKey = `client_research:${companyKey}:${selectedProductId}`;
+      const raw = localStorage.getItem(cooldownKey);
+      if (raw) {
+        const nextAllowedTs = Number(raw);
+        if (Number.isFinite(nextAllowedTs) && Date.now() < nextAllowedTs) {
+          const d = dayjs(nextAllowedTs).format("DD.MM.YYYY");
+          setAiRunError(`Исследование клиента уже запускалось для этой связки продукт+клиент. Следующий запуск после ${d}.`);
+          return;
+        }
+      }
+    }
     setAiRunError("");
     setAiRunLoading(true);
     try {
@@ -1117,7 +1170,11 @@ export function DealDetailPage() {
       const lastCommentText = String(lastCommentEntry?.comment || "").trim();
       const requestContext = {
         analysis_mode: mode,
+        ai_scenario: scenario,
         deal_id: deal.id,
+        product_id: selectedProductId,
+        product_profile: selectedProduct?.variants || {},
+        product_name: selectedProduct?.name || "",
         title: deal.title || "",
         stage: deal?.expand?.stage_id?.stage_name || "",
         company: deal?.expand?.company_id?.name || "",
@@ -1181,9 +1238,15 @@ export function DealDetailPage() {
       const aiResponse = await analyzeDealWithAi({
         dealId: deal.id,
         userId: auth?.id,
-        taskCode: "deal_analysis",
+        taskCode: scenario,
         context: requestContext,
       });
+      if (scenario === "client_research") {
+        const companyKey = String(deal.company_id || deal.expand?.company_id?.id || "");
+        const cooldownKey = `client_research:${companyKey}:${selectedProductId}`;
+        const nextAllowedTs = Date.now() + 180 * 24 * 60 * 60 * 1000;
+        localStorage.setItem(cooldownKey, String(nextAllowedTs));
+      }
       let appeared = false;
       for (let attempt = 0; attempt < 6; attempt += 1) {
         const check = await pb
@@ -1290,7 +1353,7 @@ export function DealDetailPage() {
             </div>
 
             <div className="grid grid-cols-12 gap-2 items-end">
-              <div className="col-span-12 xl:col-span-6">
+              <div className="col-span-12 xl:col-span-4">
                 <div className="text-xs text-text2 mb-1">Название сделки</div>
                 <Input
                   value={title}
@@ -1298,13 +1361,24 @@ export function DealDetailPage() {
                   placeholder="Название сделки"
                 />
               </div>
-              <div className="col-span-12 xl:col-span-4">
+              <div className="col-span-12 xl:col-span-3">
                 <div className="text-xs text-text2 mb-1">Этап сделки</div>
                 <Select value={deal?.stage_id || ""} onChange={changeStage}>
                   <option value="">Этап</option>
                   {stages.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.stage_name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="col-span-12 xl:col-span-3">
+                <div className="text-xs text-text2 mb-1">Продукт</div>
+                <Select value={selectedProductId} onChange={changeProduct}>
+                  <option value="">Не выбран</option>
+                  {productProfiles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
                     </option>
                   ))}
                 </Select>
@@ -1440,11 +1514,22 @@ export function DealDetailPage() {
                     </div>
                     <div className="text-xs text-text2 mt-1">Формат управленческого исследования: изменения, риски, причины, план</div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button onClick={() => void runAiAnalysis("full")} disabled={aiRunLoading || !deal?.id}>
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
+                    <Select value={aiScenario} onChange={(v) => setAiScenario(v as AiScenario)}>
+                      <option value="deal_analysis">Анализ сделки</option>
+                      <option value="decision_support">Поддержка решения</option>
+                      <option value="client_research">Исследование клиента</option>
+                      <option value="semantic_enrichment">Обогащение семантики</option>
+                      <option value="tender_tz_analysis">Анализ ТЗ</option>
+                    </Select>
+                    <Button onClick={() => void runAiAnalysis("full", aiScenario)} disabled={aiRunLoading || !deal?.id}>
                       {aiRunLoading ? "AI анализ..." : "Запустить AI-анализ"}
                     </Button>
-                    <Button variant="secondary" onClick={() => void runAiAnalysis("update")} disabled={aiRunLoading || !deal?.id}>
+                    <Button
+                      variant="secondary"
+                      onClick={() => void runAiAnalysis("update", aiScenario)}
+                      disabled={aiRunLoading || !deal?.id || aiScenario !== "deal_analysis"}
+                    >
                       Обновить AI-анализ
                     </Button>
                   </div>
@@ -1864,10 +1949,10 @@ export function DealDetailPage() {
                   <div className="mt-2 text-2xl font-extrabold">{typeof score === "number" ? `${score}/100` : "—"}</div>
                 </div>
 
-                <Button onClick={() => void runAiAnalysis("full")} disabled={aiRunLoading || !deal?.id} className="neon-accent">
+                <Button onClick={() => void runAiAnalysis("full", aiScenario)} disabled={aiRunLoading || !deal?.id} className="neon-accent">
                   {aiRunLoading ? "AI анализ..." : "Запустить AI-анализ"}
                 </Button>
-                <Button variant="secondary" onClick={() => void runAiAnalysis("update")} disabled={aiRunLoading || !deal?.id}>
+                <Button variant="secondary" onClick={() => void runAiAnalysis("update", aiScenario)} disabled={aiRunLoading || !deal?.id || aiScenario !== "deal_analysis"}>
                   Обновить AI-анализ
                 </Button>
 

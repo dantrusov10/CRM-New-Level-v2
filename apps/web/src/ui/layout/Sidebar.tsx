@@ -72,6 +72,7 @@ export function Sidebar({
             <Item to="/admin/funnel" icon={Settings} label="Воронка" collapsed={collapsed} />
             <Item to="/admin/fields" icon={Settings} label="Поля" collapsed={collapsed} />
             <Item to="/admin/parsers" icon={Settings} label="Парсеры/AI" collapsed={collapsed} />
+            <Item to="/admin/products" icon={Settings} label="Продукты" collapsed={collapsed} />
           </div>
         </div>
       ) : null}

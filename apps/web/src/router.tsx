@@ -13,6 +13,7 @@ import { AdminUsersPage } from "./ui/pages/admin/AdminUsersPage";
 import { AdminFunnelPage } from "./ui/pages/admin/AdminFunnelPage";
 import { AdminFieldsPage } from "./ui/pages/admin/AdminFieldsPage";
 import { AdminParsersPage } from "./ui/pages/admin/AdminParsersPage";
+import { AdminProductsPage } from "./ui/pages/admin/AdminProductsPage";
 import { ImportExportPage } from "./ui/pages/ImportExportPage";
 import { CalendarPage } from "./ui/pages/CalendarPage";
 import { GlobalSearchPage } from "./ui/pages/GlobalSearchPage";
@@ -44,6 +45,7 @@ export const router = createBrowserRouter([
       { path: "admin/funnel", element: <AdminOnly><AdminFunnelPage /></AdminOnly> },
       { path: "admin/fields", element: <AdminOnly><AdminFieldsPage /></AdminOnly> },
       { path: "admin/parsers", element: <AdminOnly><AdminParsersPage /></AdminOnly> },
+      { path: "admin/products", element: <AdminOnly><AdminProductsPage /></AdminOnly> },
     ],
   },
   { path: "*", element: <Navigate to="/" replace /> },

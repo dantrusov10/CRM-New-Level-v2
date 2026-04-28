@@ -33,6 +33,17 @@ export type EntityFileLink = {
   expand?: { file_id?: Record<string, unknown> | null };
 };
 
+export type ProductProfile = {
+  id: string;
+  type?: string;
+  model?: string;
+  language?: string;
+  base_text?: string;
+  variants?: Record<string, unknown> | null;
+  created?: string;
+  updated?: string;
+};
+
 type ListResultLike<T> = T[] | { items?: T[] } | null | undefined;
 
 function normalizeListResult<T>(res: ListResultLike<T>): T[] {
@@ -143,10 +154,27 @@ export function useDeal(id: string) {
   return useQuery({
     queryKey: ["deal", id],
     queryFn: async (): Promise<Deal> => {
-      const rec = await pb.collection("deals").getOne<Deal>(id, { expand: "company_id,stage_id,responsible_id" });
+      const rec = await pb.collection("deals").getOne<Deal>(id, { expand: "company_id,stage_id,responsible_id,product_id" });
       return rec;
     },
     enabled: !!id,
+  });
+}
+
+export function useProductProfiles() {
+  return useQuery({
+    queryKey: ["product_profiles"],
+    queryFn: async (): Promise<ProductProfile[]> => {
+      const res = await pb
+        .collection("semantic_packs")
+        .getList(1, 200, {
+          filter: 'type="product_profile" && model="product_profile_v1"',
+          sort: "-updated",
+        })
+        .catch(() => ({ items: [] as ProductProfile[] }));
+      return normalizeListResult<ProductProfile>(res);
+    },
+    staleTime: 60_000,
   });
 }
 

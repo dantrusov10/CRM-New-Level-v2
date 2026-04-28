@@ -2076,7 +2076,7 @@ def run_ai_deal_analysis(payload):
     full_context = _build_ai_context(tenant_pb_url, deal_id, admin_token, context)
     llm_context = _sanitize_for_llm(full_context, "context", data_policy)
     prompts_map = (routing.get("prompts", {}) if isinstance(routing.get("prompts"), dict) else {})
-    owner_prompt = str((prompts_map.get("deal_update_analysis") if is_update_mode else prompts_map.get("deal_analysis")) or "").strip()
+    owner_prompt = str((prompts_map.get("deal_update_analysis") if is_update_mode else prompts_map.get(task_code)) or "").strip()
     if not owner_prompt:
         owner_prompt = str((prompts_map.get("deal_analysis") or "")).strip()
     tenant_prompt = _get_tenant_prompt(tenant_pb_url, admin_token)
@@ -2267,6 +2267,15 @@ def run_ai_deal_analysis(payload):
     )
 
     mode_label = "обновление контекста" if is_update_mode else "полный срез"
+    action_by_task = {
+        "deal_analysis": "ai_update_analysis" if is_update_mode else "ai_analysis",
+        "decision_support": "ai_decision_support",
+        "client_enrichment": "ai_client_enrichment",
+        "competitor_strategy": "ai_competitor_strategy",
+        "client_research": "ai_client_research",
+        "semantic_enrichment": "ai_semantic_enrichment",
+        "tender_tz_analysis": "ai_tz_analysis",
+    }
     timeline_text = f"AI-анализ обновлен ({mode_label}). Score: {score}/100.\nРезюме: {summary}\nРекомендации: {suggestions}"
     _tenant_api_create(
         tenant_pb_url,
@@ -2274,7 +2283,7 @@ def run_ai_deal_analysis(payload):
         {
             "deal_id": deal_id,
             "user_id": user_id or None,
-            "action": "ai_update_analysis" if is_update_mode else "ai_analysis",
+            "action": action_by_task.get(task_code, "ai_analysis"),
             "comment": timeline_text,
             "payload": {
                 "provider": used_provider,
@@ -2383,6 +2392,33 @@ def default_routing_matrix():
                 "max_requests_per_day": 5,
                 "max_output_tokens": 2500,
             },
+            "client_research": {
+                "primary_provider": "deepseek",
+                "primary_engine": "reasoner",
+                "fallback_provider": "qwen",
+                "fallback_engine": "qwen3.6-plus",
+                "token_provider": "",
+                "max_requests_per_day": 3,
+                "max_output_tokens": 3200,
+            },
+            "semantic_enrichment": {
+                "primary_provider": "qwen",
+                "primary_engine": "qwen3-coder",
+                "fallback_provider": "deepseek",
+                "fallback_engine": "v3",
+                "token_provider": "",
+                "max_requests_per_day": 120,
+                "max_output_tokens": 1200,
+            },
+            "tender_tz_analysis": {
+                "primary_provider": "deepseek",
+                "primary_engine": "v3",
+                "fallback_provider": "qwen",
+                "fallback_engine": "qwen3.6-plus",
+                "token_provider": "",
+                "max_requests_per_day": 20,
+                "max_output_tokens": 2800,
+            },
         },
         "budget": {
             "default_price_rub_per_1k_tokens": 0.1,
@@ -2395,7 +2431,31 @@ def default_routing_matrix():
                 "Учитывай историю коммуникации, динамику событий и обязательства клиента. "
                 "Summary и рекомендации — только конкретика из данных CRM: имена, суммы, даты, конкуренты, этап; "
                 "без воды и без шаблонов вроде «следует улучшить взаимодействие»."
-            )
+            ),
+            "decision_support": (
+                "Ты AI-помощник менеджера продаж. Сформируй практический совет перед следующим действием: "
+                "кому писать/звонить, каким тоном, какие аргументы и какой следующий шаг выбрать."
+            ),
+            "client_enrichment": (
+                "Ты AI для обогащения контекста клиента из открытых источников и CRM данных. "
+                "Верни факты, гипотезы, риски, ЛПР/ЛВР, подтвержденные боли."
+            ),
+            "competitor_strategy": (
+                "Ты AI по конкурентной стратегии. Сформируй план, как выиграть против конкурентов "
+                "в текущей сделке и какие контраргументы использовать."
+            ),
+            "client_research": (
+                "Ты AI-исследователь клиента по выбранному продукту. Верни структурированное досье: "
+                "бизнес-контекст, боли, зрелость, ключевые лица, ограничения и тактику входа."
+            ),
+            "semantic_enrichment": (
+                "Ты AI для дешевого семантического расширения. На входе ключевые слова, конкуренты и сущности CRM. "
+                "Верни только список вариаций, синонимов и производных без воды."
+            ),
+            "tender_tz_analysis": (
+                "Ты AI-аналитик ТЗ. Сравни ТЗ клиента и паспорт продукта, выдели fit/gap, критичные блокеры, "
+                "вероятность проходимости и рекомендации по доработке КП."
+            ),
         },
     }
 
@@ -2459,9 +2519,8 @@ def _normalize_routing_matrix(data):
         budget.get("default_price_rub_per_1k_tokens", default["budget"]["default_price_rub_per_1k_tokens"]) or 0
     )
     prompts = data.get("prompts", {}) if isinstance(data.get("prompts"), dict) else {}
-    out["prompts"]["deal_analysis"] = str(
-        prompts.get("deal_analysis", default.get("prompts", {}).get("deal_analysis", ""))
-    )
+    for prompt_key, prompt_default in default.get("prompts", {}).items():
+        out["prompts"][prompt_key] = str(prompts.get(prompt_key, prompt_default))
     return out
 
 

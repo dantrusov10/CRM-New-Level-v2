@@ -1187,16 +1187,27 @@ def _run_provider(provider, engine, prompt):
 
 def _auth_tenant_admin(pb_url):
     base = pb_url.rstrip("/")
-    res = _http_json(
-        "POST",
+    variants = [
         f"{base}/admins/auth-with-password",
-        {"identity": TENANT_PB_ADMIN_EMAIL, "password": TENANT_PB_ADMIN_PASSWORD},
-        timeout=30,
-    )
-    token = str(res.get("token", "")).strip() if isinstance(res, dict) else ""
-    if not token:
-        raise RuntimeError("tenant admin auth failed")
-    return token
+        f"{base}/collections/_superusers/auth-with-password",
+    ]
+    last_error = None
+    for url in variants:
+        try:
+            res = _http_json(
+                "POST",
+                url,
+                {"identity": TENANT_PB_ADMIN_EMAIL, "password": TENANT_PB_ADMIN_PASSWORD},
+                timeout=30,
+            )
+            token = str(res.get("token", "")).strip() if isinstance(res, dict) else ""
+            if token:
+                return token
+        except Exception as e:
+            last_error = e
+    if last_error:
+        raise RuntimeError(f"tenant admin auth failed: {last_error}")
+    raise RuntimeError("tenant admin auth failed")
 
 
 def _tenant_api_create(pb_url, collection, data, admin_token):
@@ -1339,7 +1350,15 @@ def _build_ai_context(tenant_pb_url, deal_id, admin_token, ui_context):
             admin_token,
         )
     except Exception:
-        funnel_stages = {"items": []}
+        try:
+            funnel_stages = _tenant_api_list(
+                tenant_pb_url,
+                "settings_funnel_stages",
+                {"perPage": 200, "sort": "position"},
+                admin_token,
+            )
+        except Exception:
+            funnel_stages = {"items": []}
     events = timeline.get("items", []) if isinstance(timeline, dict) else []
     notes = []
     comments = []

@@ -789,7 +789,7 @@ export function DealDetailPage() {
   const [aiRunLoading, setAiRunLoading] = React.useState(false);
   const [aiRunError, setAiRunError] = React.useState<string>("");
   const [selectedProductIds, setSelectedProductIds] = React.useState<string[]>([]);
-  const [latestTzFileId, setLatestTzFileId] = React.useState<string>("");
+  const [latestTzByProduct, setLatestTzByProduct] = React.useState<Record<string, string>>({});
   const [productPickerOpen, setProductPickerOpen] = React.useState(false);
   const [analysisPickerOpen, setAnalysisPickerOpen] = React.useState(false);
   const [analysisSelection, setAnalysisSelection] = React.useState<string[]>([]);
@@ -902,8 +902,17 @@ export function DealDetailPage() {
         ? [dealProduct]
         : [];
     setSelectedProductIds(ids);
-    const cachedTz = localStorage.getItem(`deal:${deal.id}:latest_tz_file_id`) || "";
-    setLatestTzFileId(cachedTz);
+    const cachedTz = localStorage.getItem(`deal:${deal.id}:latest_tz_by_product`) || "";
+    if (cachedTz) {
+      try {
+        const parsed = JSON.parse(cachedTz) as Record<string, string>;
+        setLatestTzByProduct(parsed && typeof parsed === "object" ? parsed : {});
+      } catch {
+        setLatestTzByProduct({});
+      }
+    } else {
+      setLatestTzByProduct({});
+    }
   }, [deal?.id]);
 
   const productProfiles = React.useMemo(() => {
@@ -1184,6 +1193,7 @@ export function DealDetailPage() {
         product_id: effectivePrimaryProductId,
         product_ids: effectiveProductIds,
         product_names: effectiveProductNames,
+        latest_tz_file_by_product: latestTzByProduct,
         product_profile: effectiveProduct?.variants || {},
         product_name: effectiveProduct?.name || "",
         title: deal.title || "",
@@ -1379,10 +1389,14 @@ export function DealDetailPage() {
     void loadProductFilesForDeal();
   }, [selectedProductIds.join(","), productProfiles.length]);
 
-  async function setFileAsPrimaryTz(fileLinkId: string) {
-    setLatestTzFileId(fileLinkId);
-    if (id) localStorage.setItem(`deal:${id}:latest_tz_file_id`, fileLinkId);
-    await createTimelineEvent("tz_primary_selected", "Выбран основной файл ТЗ", { entity_file_id: fileLinkId }).catch(() => null);
+  async function setFileAsPrimaryTz(fileLinkId: string, productId: string) {
+    if (!productId) return;
+    setLatestTzByProduct((prev) => {
+      const next = { ...prev, [productId]: fileLinkId };
+      if (id) localStorage.setItem(`deal:${id}:latest_tz_by_product`, JSON.stringify(next));
+      return next;
+    });
+    await createTimelineEvent("tz_primary_selected", "Выбран основной файл ТЗ", { entity_file_id: fileLinkId, product_id: productId }).catch(() => null);
   }
 
   function parseProductIdFromTag(tag: string): string {
@@ -1978,18 +1992,21 @@ export function DealDetailPage() {
                         {(entityFilesQ.data || []).map((ef: EntityFileLink) => {
                           const f = ef.expand?.file_id;
                           const url = normalizeExternalUrl(f?.path || "");
+                          const fileProductId = parseProductIdFromTag(String(ef.tag || ""));
                           return (
                             <div key={ef.id} className="rounded-card border border-border bg-white p-3">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
                                   <div className="text-sm font-semibold truncate">{f?.filename || "Файл"}</div>
                                   <div className="mt-2 flex items-center gap-2 flex-wrap">
-                                    <label className="flex items-center gap-1 text-xs text-text2">
+                                    <label className="flex items-center gap-2 text-xs text-text2">
                                       <input
                                         type="radio"
-                                        name="deal_primary_tz_file"
-                                        checked={latestTzFileId === ef.id}
-                                        onChange={() => { void setFileAsPrimaryTz(ef.id); }}
+                                        className="h-5 w-5"
+                                        name={`deal_primary_tz_file_${fileProductId || "none"}`}
+                                        checked={Boolean(fileProductId) && latestTzByProduct[fileProductId] === ef.id}
+                                        disabled={!fileProductId}
+                                        onChange={() => { void setFileAsPrimaryTz(ef.id, fileProductId); }}
                                       />
                                       Осн. ТЗ
                                     </label>
@@ -2043,15 +2060,13 @@ export function DealDetailPage() {
                                 </div>
                                 <div className="flex items-center gap-3">
                                   <a className="text-sm text-primary underline" href={pf.url} target="_blank" rel="noreferrer">Скачать</a>
-                                  <label className="flex items-center gap-1 text-xs text-text2">
+                                  <label className="flex items-center gap-2 text-xs text-text2">
                                     <input
                                       type="radio"
-                                      name="latest_tz_file"
-                                      checked={latestTzFileId === pf.id}
-                                      onChange={() => {
-                                        setLatestTzFileId(pf.id);
-                                        if (id) localStorage.setItem(`deal:${id}:latest_tz_file_id`, pf.id);
-                                      }}
+                                      className="h-5 w-5"
+                                      name={`latest_tz_file_${pf.profileId}`}
+                                      checked={latestTzByProduct[pf.profileId] === pf.id}
+                                      onChange={() => { void setFileAsPrimaryTz(pf.id, pf.profileId); }}
                                     />
                                     Последнее ТЗ
                                   </label>

@@ -165,7 +165,7 @@ INDEX_HTML = """<!doctype html>
         </div>
 
         <div class="task">
-          <h3>Поддержка решения (point action)</h3>
+          <h3>Поддержка решения (оперативные рекомендации, НЕ анализ ТЗ)</h3>
           <div class="row">
             <div><label>Основной провайдер</label><input id="rtDecisionPrimaryProvider" type="text" placeholder="deepseek"/></div>
             <div><label>Основной движок</label><input id="rtDecisionPrimaryEngine" type="text" placeholder="v3"/></div>

@@ -121,16 +121,17 @@ export function DealsTablePage() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <div className="text-sm font-semibold">Сделки</div>
-            <div className="text-xs text-text2 mt-1">Табличный вид (колонки по ТЗ, упрощённая настраиваемость в MVP)</div>
+            <div className="text-sm font-semibold">Сделки и pipeline</div>
+            <div className="text-xs text-text2 mt-1">Быстрый список для ежедневной работы менеджера: фильтр → выбор → массовое действие</div>
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end">
             {search ? <Badge>поиск: {search}</Badge> : null}
             {stage ? <Badge>этап</Badge> : null}
             {owner ? <Badge>ответственный</Badge> : null}
             {channel ? <Badge>канал: {channel}</Badge> : null}
+            {fromIso ? <Badge>период</Badge> : null}
           </div>
         </div>
       </CardHeader>
@@ -141,12 +142,26 @@ export function DealsTablePage() {
           <div className="text-sm text-danger">Ошибка загрузки</div>
         ) : (
           <div className="overflow-auto">
+            <div className="mb-3 grid grid-cols-1 gap-2 lg:grid-cols-3">
+              <div className="rounded-card border border-border bg-white p-3">
+                <div className="text-xs text-text2">Сделок на странице</div>
+                <div className="mt-1 text-lg font-semibold">{items.length}</div>
+              </div>
+              <div className="rounded-card border border-border bg-white p-3">
+                <div className="text-xs text-text2">Выбрано для массовых действий</div>
+                <div className="mt-1 text-lg font-semibold">
+                  {selectedCount}
+                  {selectedCount > 0 && selectedCount === items.length ? <span className="text-sm text-text2"> (вся страница)</span> : null}
+                </div>
+              </div>
+              <div className="rounded-card border border-border bg-white p-3">
+                <div className="text-xs text-text2">Текущий режим</div>
+                <div className="mt-1 text-sm font-semibold">{search || stage || owner || channel ? "Фильтрованный список" : "Все сделки"}</div>
+              </div>
+            </div>
+
             {/* Bulk actions bar (always visible so it’s obvious) */}
             <div className="mb-3 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 rounded-card border border-border bg-white p-3">
-              <div className="text-sm">
-                Выбрано: <span className="font-semibold">{selectedCount}</span>
-                {selectedCount > 0 && selectedCount === items.length ? <span className="text-text2"> (страница)</span> : null}
-              </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Button variant="secondary" onClick={() => togglePage(true)} disabled={!items.length}>Выбрать страницу</Button>
                 <Button variant="secondary" onClick={selectAllMatching} disabled={dealsQ.isLoading}>Выбрать все по фильтру</Button>
@@ -200,13 +215,15 @@ export function DealsTablePage() {
                 {items.map((d: Deal) => (
                   <tr
                     key={d.id}
-                    className="h-11 border-b border-border hover:bg-rowHover cursor-pointer"
+                    className="h-11 border-b border-border hover:bg-rowHover cursor-pointer transition-colors"
                     onClick={() => nav(`/deals/${d.id}`)}
                   >
                     <td className="px-3" onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={selected.has(String(d.id))} onChange={(e) => toggleOne(String(d.id), e.target.checked)} aria-label="Выбрать сделку" />
                     </td>
-                    <td className="px-3 font-medium">{d.title}</td>
+                    <td className="px-3 font-medium">
+                      <div className="max-w-[280px] truncate">{d.title}</div>
+                    </td>
                     <td className="px-3 text-text2">{d.expand?.company_id?.name ?? "—"}</td>
                     <td className="px-3 text-text2">{d.expand?.responsible_id?.full_name ?? d.expand?.responsible_id?.email ?? "—"}</td>
                     <td className="px-3">

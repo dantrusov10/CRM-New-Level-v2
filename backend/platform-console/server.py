@@ -1309,7 +1309,7 @@ AI_CLIENT_RESEARCH_OUTPUT_RULES = (
 )
 
 
-def _run_openai_compatible(provider, engine, prompt):
+def _run_openai_compatible(provider, engine, prompt, task_code="", max_output_tokens=0):
     creds = _provider_creds(provider)
     api_key = creds.get("api_key", "")
     base_url = creds.get("base_url", "").rstrip("/")
@@ -1334,6 +1334,14 @@ def _run_openai_compatible(provider, engine, prompt):
             {"role": "user", "content": prompt},
         ],
     }
+    max_out = int(max_output_tokens or 0)
+    if max_out > 0:
+        payload["max_tokens"] = max_out
+    provider_low = str(provider or "").strip().lower()
+    engine_low = str(engine or "").strip().lower()
+    if str(task_code or "").strip() == "client_research" and ("kimi" in provider_low or "kimi" in engine_low):
+        # Explicit deep-research hint for Kimi/OpenRouter-compatible backends.
+        payload["reasoning"] = {"effort": "high"}
     try:
         res = _http_json("POST", url, payload, headers={"Authorization": f"Bearer {api_key}"}, timeout=60)
         choices = res.get("choices", []) if isinstance(res, dict) else []
@@ -1426,11 +1434,11 @@ def _run_gigachat(engine, prompt):
         return {"ok": False, "error": str(e)}
 
 
-def _run_provider(provider, engine, prompt):
+def _run_provider(provider, engine, prompt, task_code="", max_output_tokens=0):
     p = str(provider).strip().lower()
     if p == "gigachat":
         return _run_gigachat(engine, prompt)
-    return _run_openai_compatible(p, engine, prompt)
+    return _run_openai_compatible(p, engine, prompt, task_code, max_output_tokens)
 
 
 def _auth_tenant_admin(pb_url):
@@ -2463,6 +2471,7 @@ def run_ai_deal_analysis(payload):
     primary_engine = str(route.get("primary_engine", "")).strip()
     fallback_provider = str(route.get("fallback_provider", "")).strip().lower()
     fallback_engine = str(route.get("fallback_engine", "")).strip()
+    max_output_tokens = int(route.get("max_output_tokens", 0) or 0)
     if task_code == "client_research":
         # Respect founder routing choice for provider/engine.
         # Use OpenRouter-oriented defaults only when fields are missing.
@@ -2474,6 +2483,8 @@ def run_ai_deal_analysis(payload):
             fallback_provider = "or_qwen"
         if not fallback_engine:
             fallback_engine = "qwen/qwen3-235b-a22b"
+        if max_output_tokens < 3200:
+            max_output_tokens = 3200
 
     if not primary_provider or not primary_engine:
         return {"ok": False, "error": f"routing for '{task_code}' is not configured"}
@@ -2553,7 +2564,7 @@ def run_ai_deal_analysis(payload):
         + output_rules
     )
 
-    llm_result = _run_provider(primary_provider, primary_engine, prompt)
+    llm_result = _run_provider(primary_provider, primary_engine, prompt, task_code, max_output_tokens)
     used_provider = primary_provider
     used_engine = primary_engine
     primary_error = ""
@@ -2586,7 +2597,7 @@ def run_ai_deal_analysis(payload):
         # Only fallback if token for fallback provider is configured.
         fb_creds = _provider_creds(fallback_provider)
         if fb_creds.get("api_key"):
-            llm_result = _run_provider(fallback_provider, fallback_engine, prompt)
+            llm_result = _run_provider(fallback_provider, fallback_engine, prompt, task_code, max_output_tokens)
             used_provider = fallback_provider
             used_engine = fallback_engine
             if not llm_result.get("ok"):

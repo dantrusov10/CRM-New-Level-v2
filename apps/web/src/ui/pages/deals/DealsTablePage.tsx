@@ -23,6 +23,8 @@ export function DealsTablePage() {
   const scoreMin = sp.get("scoreMin") ?? "";
   const scoreMax = sp.get("scoreMax") ?? "";
   const fromIso = sp.get("from") ?? "";
+  const view = sp.get("view") ?? "";
+  const [overdueDealIds, setOverdueDealIds] = React.useState<Set<string>>(new Set());
 
   // PocketBase filter uses datetime strings; keep it simple with ISO.
   const createdFrom = fromIso ? new Date(fromIso) : null;
@@ -43,7 +45,31 @@ export function DealsTablePage() {
   const stagesQ = useFunnelStages();
   const usersQ = useUsers();
 
-  const items = dealsQ.data?.items ?? [];
+  const itemsRaw = dealsQ.data?.items ?? [];
+  const items = React.useMemo(() => {
+    if (view !== "overdue") return itemsRaw;
+    return itemsRaw.filter((d: Deal) => overdueDealIds.has(String(d.id)));
+  }, [itemsRaw, view, overdueDealIds]);
+
+  React.useEffect(() => {
+    if (view !== "overdue") return;
+    const userId = String(pb.authStore.model?.id || "");
+    const nowIso = new Date().toISOString();
+    const f = userId
+      ? `is_done=false && due_at<="${nowIso}" && created_by="${userId}" && deal_id!=""`
+      : `is_done=false && due_at<="${nowIso}" && deal_id!=""`;
+    pb.collection("tasks")
+      .getList(1, 200, { filter: f, sort: "due_at" })
+      .then((r) => {
+        const ids = new Set(
+          (r.items as Array<{ deal_id?: string }>)
+            .map((x) => String(x.deal_id || ""))
+            .filter(Boolean),
+        );
+        setOverdueDealIds(ids);
+      })
+      .catch(() => setOverdueDealIds(new Set()));
+  }, [view]);
 
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const selectedCount = selected.size;
@@ -127,6 +153,59 @@ export function DealsTablePage() {
             <div className="text-xs text-text2 mt-1">Быстрый список для ежедневной работы менеджера: фильтр → выбор → массовое действие</div>
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end">
+            <Button
+              small
+              variant={view === "risk" ? "primary" : "secondary"}
+              onClick={() => {
+                const n = new URLSearchParams(sp);
+                n.set("view", "risk");
+                n.set("scoreMax", "49");
+                n.delete("from");
+                setSp(n, { replace: true });
+              }}
+            >
+              Мои сделки в риске
+            </Button>
+            <Button
+              small
+              variant={view === "overdue" ? "primary" : "secondary"}
+              onClick={() => {
+                const n = new URLSearchParams(sp);
+                n.set("view", "overdue");
+                n.delete("scoreMax");
+                n.delete("from");
+                setSp(n, { replace: true });
+              }}
+            >
+              Просроченные шаги
+            </Button>
+            <Button
+              small
+              variant={view === "talks_week" ? "primary" : "secondary"}
+              onClick={() => {
+                const n = new URLSearchParams(sp);
+                const start = dayjs().startOf("week").toISOString();
+                n.set("view", "talks_week");
+                n.set("from", start);
+                n.delete("scoreMax");
+                setSp(n, { replace: true });
+              }}
+            >
+              Переговоры этой недели
+            </Button>
+            <Button
+              small
+              variant="secondary"
+              onClick={() => {
+                const n = new URLSearchParams(sp);
+                n.delete("view");
+                n.delete("scoreMax");
+                n.delete("from");
+                setSp(n, { replace: true });
+              }}
+            >
+              Сброс вида
+            </Button>
             {search ? <Badge>поиск: {search}</Badge> : null}
             {stage ? <Badge>этап</Badge> : null}
             {owner ? <Badge>ответственный</Badge> : null}

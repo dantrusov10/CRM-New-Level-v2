@@ -1204,6 +1204,12 @@ export function DealDetailPage() {
   const hasRiskSignals =
     Boolean(latestAi?.risks) ||
     dynamicSections.some((section) => /риск|risk/i.test(section.key) || /риск|risk/i.test(section.title));
+  const aiScoring = React.useMemo(() => {
+    const ex = latestAi?.explainability;
+    if (!ex || typeof ex !== "object" || Array.isArray(ex)) return null;
+    const s = (ex as Record<string, unknown>)._scoring;
+    return s && typeof s === "object" ? (s as Record<string, unknown>) : null;
+  }, [latestAi?.explainability]);
   const latestAiTimelineEvent = React.useMemo(
     () =>
       tlAll.find((t) => {
@@ -1231,6 +1237,34 @@ export function DealDetailPage() {
     if (timelineFilter === "system") return String(t.action) !== "comment";
     return true;
   });
+  const commsTimeline = React.useMemo(
+    () =>
+      tlAll.filter((t) => {
+        const action = String(t.action || "").toLowerCase();
+        if (["comment", "note", "workspace_link"].includes(action)) return true;
+        if (action.includes("email") || action.includes("telegram") || action.includes("whatsapp") || action.includes("call")) return true;
+        const payload = t.payload && typeof t.payload === "object" ? (t.payload as Record<string, unknown>) : null;
+        const channelValue = String(payload?.channel || payload?.source || "").toLowerCase();
+        return Boolean(channelValue && ["email", "telegram", "whatsapp", "call"].some((x) => channelValue.includes(x)));
+      }),
+    [tlAll],
+  );
+
+  async function createTaskFromAction(actionText: string) {
+    if (!deal?.id || !auth?.id) return;
+    const due = dayjs().add(2, "day").hour(12).minute(0).second(0).millisecond(0).toISOString();
+    await createTaskM
+      .mutateAsync({
+        title: actionText.slice(0, 180),
+        due_at: due,
+        deal_id: deal.id,
+        company_id: deal?.company_id || deal?.expand?.company_id?.id,
+        created_by: auth.id,
+      })
+      .catch(() => null);
+    await createTimelineEvent("task_created", `Задача из AI: ${actionText.slice(0, 180)}`, { due_at: due, source: "ai_next_best_action" });
+    tlQ.refetch();
+  }
 
   return (
     <div className="grid gap-4">
@@ -1295,6 +1329,7 @@ export function DealDetailPage() {
                 { key: "overview", label: "Обзор" },
                 { key: "ai", label: "AI-анализ" },
                 { key: "timeline", label: "Лента изменений" },
+                { key: "comms", label: "Коммуникации" },
                 { key: "relationship", label: "Контакты" },
                 { key: "notes", label: "Заметки" },
                 { key: "kp", label: "КП" },
@@ -1367,6 +1402,28 @@ export function DealDetailPage() {
                       <div className="board-panel p-3">
                         <div className="text-xs text-text2">Канал / Партнер</div>
                         <div className="mt-1 text-sm">{salesChannel || "—"} / {partner || "—"}</div>
+                      </div>
+                      <div className="board-panel p-3">
+                        <div className="text-xs text-text2 mb-2">Быстрое редактирование</div>
+                        <div className="grid gap-2">
+                          <Input value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="Бюджет" />
+                          <Input value={turnover} onChange={(e) => setTurnover(e.target.value)} placeholder="Оборот" />
+                          <Button
+                            small
+                            onClick={async () => {
+                              if (!deal?.id) return;
+                              await pb.collection("deals").update(deal.id, {
+                                budget: budget ? Number(budget) : null,
+                                turnover: turnover ? Number(turnover) : null,
+                              }).catch(() => null);
+                              await createTimelineEvent("deal_quick_edit", "Обновлены бюджет/оборот в быстром режиме");
+                              dealQ.refetch();
+                              tlQ.refetch();
+                            }}
+                          >
+                            Сохранить поля
+                          </Button>
+                        </div>
                       </div>
                       <div className="board-panel p-3">
                         <div className="text-xs text-text2">Контрольный чек-лист</div>
@@ -1443,6 +1500,30 @@ export function DealDetailPage() {
                         ))}
                       </div>
                     </div>
+                    {aiScoring ? (
+                      <div className="rounded-xl border border-border bg-card/90 p-4">
+                        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-text2">Почему изменился score</div>
+                        <div className="grid gap-2">
+                          <div className="text-sm">
+                            Метод: <span className="font-semibold">{String(aiScoring.method || "—")}</span> ·
+                            Финальная вероятность: <span className="font-semibold">{String(aiScoring.final_probability ?? "—")}</span> ·
+                            Сырой LLM: <span className="font-semibold">{String(aiScoring.llm_probability_raw ?? "—")}</span>
+                          </div>
+                          {Array.isArray(aiScoring.breakdown) ? (
+                            <div className="grid gap-2">
+                              {(aiScoring.breakdown as Array<Record<string, unknown>>).slice(0, 8).map((f, idx) => (
+                                <div key={`${String(f.code || idx)}`} className="rounded-md border border-border bg-rowHover/60 px-3 py-2 text-sm">
+                                  <div className="font-medium">{String(f.name || f.code || "Фактор")}</div>
+                                  <div className="text-xs text-text2">
+                                    value {String(f.value ?? "—")} · вес {String(f.weight ?? "—")} · вклад {String(f.weighted_contribution ?? "—")}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
 
                     {dynamicSections.length ? (
                       <details className="rounded-xl border border-border bg-card/90 p-4">
@@ -1507,6 +1588,35 @@ export function DealDetailPage() {
                     {!tlFiltered.length ? <div className="text-sm text-text2">Событий пока нет.</div> : null}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {tab === "comms" ? (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <div className="text-sm font-semibold">Единый inbox коммуникаций</div>
+                  <span className="neon-pill">v1</span>
+                </div>
+                <div className="text-xs text-text2 mt-1">Комментарии, заметки, ссылки и внешние каналы в одной ленте сделки</div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3">
+                  {commsTimeline.map((t) => (
+                    <div key={t.id} className="rounded-lg border border-border bg-rowHover/60 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-xs text-text2">
+                          {dayjs(t.timestamp || t.created).format("DD.MM.YYYY HH:mm")}
+                          {t.expand?.user_id?.name ? ` · ${t.expand.user_id.name}` : ""}
+                        </div>
+                        <Badge>{String(t.action || "event")}</Badge>
+                      </div>
+                      <div className="mt-2 text-sm whitespace-pre-wrap">{String(t.comment || "—")}</div>
+                    </div>
+                  ))}
+                  {!commsTimeline.length ? <div className="text-sm text-text2">Пока нет событий коммуникации.</div> : null}
+                </div>
               </CardContent>
             </Card>
           ) : null}
@@ -1797,7 +1907,12 @@ export function DealDetailPage() {
                       {nextActions.slice(0, 3).map((item, idx) => (
                         <li key={`${item}-${idx}`} className="flex items-start gap-2">
                           <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary/80" />
-                          <span className="leading-relaxed">{item}</span>
+                          <div className="flex-1 flex items-start justify-between gap-2">
+                            <span className="leading-relaxed">{item}</span>
+                            <Button small variant="secondary" onClick={() => void createTaskFromAction(item)}>
+                              В задачу
+                            </Button>
+                          </div>
                         </li>
                       ))}
                     </ul>

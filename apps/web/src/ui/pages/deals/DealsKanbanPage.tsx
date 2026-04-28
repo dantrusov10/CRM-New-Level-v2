@@ -117,10 +117,13 @@ export function DealsKanbanPage() {
       window.removeEventListener("mouseup", onMouseUp);
     };
   }, []);
-  const [sp] = useSearchParams();
+  const [sp, setSp] = useSearchParams();
   const stageOnly = sp.get("stage") ?? "";
   const owner = sp.get("owner") ?? "";
   const channel = sp.get("channel") ?? "";
+  const view = sp.get("view") ?? "";
+  const scoreMax = sp.get("scoreMax") ?? "";
+  const fromIso = sp.get("from") ?? "";
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -140,6 +143,8 @@ export function DealsKanbanPage() {
     owner ? `responsible_id="${owner}"` : "",
     channel ? `sales_channel="${channel.replace(/"/g, "\\\"")}"` : "",
     stageOnly ? `stage_id="${stageOnly}"` : "",
+    scoreMax ? `current_score <= ${Number(scoreMax)}` : "",
+    fromIso ? `created >= "${new Date(fromIso).toISOString().slice(0, 19).replace("T", " ")}"` : "",
   ]
     .filter(Boolean)
     .join(" && ");
@@ -353,8 +358,44 @@ export function DealsKanbanPage() {
             <div className="text-base font-extrabold tracking-wide">Pipeline board</div>
             <div className="text-xs text-text2 mt-1">Deep-focus канбан: быстрый обзор этапов, суммы и приоритетов</div>
           </div>
-          <div className="rounded-md border border-[rgba(87,183,255,0.35)] bg-[rgba(45,123,255,0.18)] px-3 py-1 text-xs font-semibold text-text">
-            Live board
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              className={`ui-btn ${view === "risk" ? "ui-btn-primary" : "ui-btn-secondary"} h-9 text-sm`}
+              onClick={() => {
+                const n = new URLSearchParams(sp);
+                n.set("view", "risk");
+                n.set("scoreMax", "49");
+                setSp(n, { replace: true });
+              }}
+            >
+              Мои сделки в риске
+            </button>
+            <button
+              className={`ui-btn ${view === "talks_week" ? "ui-btn-primary" : "ui-btn-secondary"} h-9 text-sm`}
+              onClick={() => {
+                const n = new URLSearchParams(sp);
+                n.set("view", "talks_week");
+                n.set("from", new Date(new Date().setDate(new Date().getDate() - 7)).toISOString());
+                setSp(n, { replace: true });
+              }}
+            >
+              Переговоры этой недели
+            </button>
+            <button
+              className="ui-btn ui-btn-secondary h-9 text-sm"
+              onClick={() => {
+                const n = new URLSearchParams(sp);
+                n.delete("view");
+                n.delete("scoreMax");
+                n.delete("from");
+                setSp(n, { replace: true });
+              }}
+            >
+              Сброс вида
+            </button>
+            <div className="rounded-md border border-[rgba(87,183,255,0.35)] bg-[rgba(45,123,255,0.18)] px-3 py-1 text-xs font-semibold text-text">
+              Live board
+            </div>
           </div>
         </div>
       </CardHeader>

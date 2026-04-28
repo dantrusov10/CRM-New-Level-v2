@@ -15,6 +15,7 @@ import { AdminFieldsPage } from "./ui/pages/admin/AdminFieldsPage";
 import { AdminParsersPage } from "./ui/pages/admin/AdminParsersPage";
 import { ImportExportPage } from "./ui/pages/ImportExportPage";
 import { CalendarPage } from "./ui/pages/CalendarPage";
+import { GlobalSearchPage } from "./ui/pages/GlobalSearchPage";
 import { Protected } from "./ui/layout/Protected";
 import { AdminOnly } from "./ui/layout/AdminOnly";
 
@@ -38,6 +39,7 @@ export const router = createBrowserRouter([
       { path: "companies/:id", element: <CompanyDetailPage /> },
       { path: "import-export", element: <ImportExportPage /> },
       { path: "calendar", element: <CalendarPage /> },
+      { path: "search", element: <GlobalSearchPage /> },
       { path: "admin/users", element: <AdminOnly><AdminUsersPage /></AdminOnly> },
       { path: "admin/funnel", element: <AdminOnly><AdminFunnelPage /></AdminOnly> },
       { path: "admin/fields", element: <AdminOnly><AdminFieldsPage /></AdminOnly> },

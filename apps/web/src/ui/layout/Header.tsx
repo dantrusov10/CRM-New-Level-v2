@@ -12,6 +12,7 @@ import { NotificationsBell } from "../components/NotificationsBell";
 function titleByPath(pathname: string) {
   if (pathname.startsWith("/dashboard")) return "Dashboard";
   if (pathname.startsWith("/calendar")) return "Календарь";
+  if (pathname.startsWith("/search")) return "Поиск";
   if (pathname.startsWith("/kanban")) return "Канбан";
   if (pathname.startsWith("/companies")) return "Компании";
   if (pathname.startsWith("/admin")) return "Админ";
@@ -56,7 +57,7 @@ export function Header({
               placeholder="Поиск (глобальный)"
               className="pl-9 h-10"
               onKeyDown={(e) => {
-                if (e.key === "Enter") nav(`/deals?search=${encodeURIComponent(query)}`);
+                if (e.key === "Enter") nav(`/search?q=${encodeURIComponent(query)}`);
               }}
             />
           </div>

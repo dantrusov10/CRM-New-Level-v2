@@ -151,7 +151,7 @@ function SmartStringContent({ text }: { text: string }) {
     return <div className="text-sm whitespace-pre-wrap leading-relaxed text-text">{text}</div>;
   }
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-3 2xl:text-[13px]">
       {blocks.map((block, i) => {
         const headed = tryParseHeadingPlusJson(block);
         if (headed) {
@@ -498,6 +498,30 @@ function Select({
   );
 }
 
+function TimelineText({ text }: { text: string }) {
+  const raw = String(text || "").trim();
+  if (!raw) return <span>—</span>;
+  const lines = raw
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !/^(engine|provider|insight id)\s*:/i.test(line));
+  const listLike = lines.length >= 2 && lines.some((line) => /^(\d+[\).]|[-•])\s*/.test(line));
+  if (listLike) {
+    return (
+      <ul className="grid gap-1.5 text-sm">
+        {lines.map((line, idx) => (
+          <li key={`${line}-${idx}`} className="flex items-start gap-2">
+            <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary/80" />
+            <span>{line.replace(/^(\d+[\).]|[-•])\s*/, "")}</span>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  return <div className="text-sm whitespace-pre-wrap">{raw}</div>;
+}
+
 function TimelineItemRow({ item }: { item: TimelineItem & { expand?: { user_id?: { name?: string; email?: string } } } }) {
   const ts = item.timestamp || item.created;
   const when = ts ? dayjs(ts).format("DD.MM.YYYY HH:mm") : "";
@@ -516,26 +540,36 @@ function TimelineItemRow({ item }: { item: TimelineItem & { expand?: { user_id?:
         ? "border-infoBorder bg-infoBg"
         : "border-border bg-rowHover/60";
   const title = isComment ? "Комментарий" : isStage ? "Изменение этапа" : isAI ? "AI событие" : "Системное событие";
-  const payload = item.payload && typeof item.payload === "object" ? (item.payload as Record<string, unknown>) : null;
+  const payloadRaw = item.payload && typeof item.payload === "object" ? (item.payload as Record<string, unknown>) : null;
+  const payload = payloadRaw
+    ? Object.entries(payloadRaw).filter(([k]) => !["engine", "provider", "insight_id", "model"].includes(k.toLowerCase()))
+    : [];
 
   return (
-    <div className={`rounded-lg border p-3 ${tone}`}>
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-xs text-text2">{when}{by ? ` · ${by}` : ""}</div>
-        <Badge>{title}</Badge>
+    <details className={`rounded-lg border p-3 ${tone}`} open={isStage || isAI}>
+      <summary className="cursor-pointer list-none">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-xs text-text2">{when}{by ? ` · ${by}` : ""}</div>
+          <Badge>{title}</Badge>
+        </div>
+        <div className="mt-2 text-sm font-medium">
+          {String(item.comment || item.action || "").slice(0, 160) || "Событие"}
+        </div>
+      </summary>
+      <div className="mt-2">
+        <TimelineText text={String(item.comment || item.action || "")} />
       </div>
-      <div className="mt-2 text-sm whitespace-pre-wrap">{item.comment || item.action}</div>
-      {payload ? (
+      {payload.length ? (
         <div className="mt-2 grid gap-1.5">
-          {Object.entries(payload).map(([k, v]) => (
-            <div key={k} className="rounded-md border border-border bg-white/70 px-2 py-1.5 text-xs">
+          {payload.map(([k, v]) => (
+            <div key={k} className="rounded-md border border-border bg-[rgba(255,255,255,0.04)] px-2 py-1.5 text-xs">
               <span className="font-semibold">{toSectionTitle(k)}:</span>{" "}
               <span className="text-text2">{valueToText(v) || "—"}</span>
             </div>
           ))}
         </div>
       ) : null}
-    </div>
+    </details>
   );
 }
 
@@ -583,6 +617,8 @@ export function DealDetailPage() {
   const [wsUrl, setWsUrl] = React.useState("");
   const [wsTitle, setWsTitle] = React.useState("");
   const [wsTag, setWsTag] = React.useState("");
+  const [wsUploadFile, setWsUploadFile] = React.useState<File | null>(null);
+  const [wsUploadError, setWsUploadError] = React.useState("");
   const [wsLinkUrl, setWsLinkUrl] = React.useState("");
   const [wsLinkTitle, setWsLinkTitle] = React.useState("");
 
@@ -831,6 +867,36 @@ export function DealDetailPage() {
     entityFilesQ.refetch();
   }
 
+  async function addWorkspaceUploadedFile() {
+    if (!id || !wsUploadFile) return;
+    setWsUploadError("");
+    const readAsDataUrl = (file: File) =>
+      new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("Не удалось прочитать файл"));
+        reader.readAsDataURL(file);
+      });
+    try {
+      const dataUrl = await readAsDataUrl(wsUploadFile);
+      await addWorkspaceFileM
+        .mutateAsync({
+          entityType: "deal",
+          entityId: id,
+          url: dataUrl,
+          title: wsTitle.trim() || wsUploadFile.name,
+          tag: wsTag.trim(),
+        })
+        .catch(() => null);
+      setWsUploadFile(null);
+      setWsTitle("");
+      setWsTag("");
+      entityFilesQ.refetch();
+    } catch {
+      setWsUploadError("Не удалось загрузить файл. Попробуйте другой файл меньшего размера.");
+    }
+  }
+
   async function addWorkspaceLink() {
     if (!id) return;
     const url = normalizeExternalUrl(wsLinkUrl);
@@ -967,9 +1033,6 @@ export function DealDetailPage() {
             <div className="flex items-center gap-2">
               <Badge>{sb.label}</Badge>
               <Badge>Score: {typeof score === "number" ? `${score}/100` : "—"}</Badge>
-              <Button small variant="secondary" onClick={() => setTab("workspace")}>
-                Файлы
-              </Button>
             </div>
           </div>
 
@@ -1030,16 +1093,36 @@ export function DealDetailPage() {
                     </div>
                   </div>
 
-                  <div className="max-w-[980px]">
-                    <DynamicEntityFormWithRef
-                      ref={formRef}
-                      entity="deal"
-                      record={deal}
-                      onSaved={async () => {
-                        await dealQ.refetch();
-                        tlQ.refetch();
-                      }}
-                    />
+                  <div className="grid grid-cols-12 gap-3">
+                    <div className="col-span-12 xl:col-span-7 max-w-[640px]">
+                      <DynamicEntityFormWithRef
+                        ref={formRef}
+                        entity="deal"
+                        record={deal}
+                        onSaved={async () => {
+                          await dealQ.refetch();
+                          tlQ.refetch();
+                        }}
+                      />
+                    </div>
+                    <div className="col-span-12 xl:col-span-5 grid gap-2 self-start">
+                      <div className="board-panel p-3">
+                        <div className="text-xs text-text2">Статус</div>
+                        <div className="mt-1 text-sm font-semibold">{deal?.expand?.stage_id?.stage_name || "Без этапа"}</div>
+                      </div>
+                      <div className="board-panel p-3">
+                        <div className="text-xs text-text2">Канал / Партнер</div>
+                        <div className="mt-1 text-sm">{salesChannel || "—"} / {partner || "—"}</div>
+                      </div>
+                      <div className="board-panel p-3">
+                        <div className="text-xs text-text2">Контрольный чек-лист</div>
+                        <ul className="mt-1 grid gap-1 text-sm">
+                          <li>• Этап актуален</li>
+                          <li>• Данные по финансам заполнены</li>
+                          <li>• Контакты ЛПР/ЛВР добавлены</li>
+                        </ul>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -1257,8 +1340,23 @@ export function DealDetailPage() {
                     </div>
 
                     <div className="col-span-6">
-                      <div className="text-xs text-text2 mb-2">Документы (ссылкой)</div>
+                      <div className="text-xs text-text2 mb-2">Документы</div>
                       <div className="grid gap-2">
+                        <div className="flex items-center gap-2">
+                          <label className="ui-btn ui-icon-btn px-3 border-[rgba(51,215,255,0.3)] bg-[rgba(51,215,255,0.12)] cursor-pointer">
+                            Загрузить
+                            <input
+                              type="file"
+                              className="hidden"
+                              onChange={(e) => {
+                                const f = e.target.files?.[0] || null;
+                                setWsUploadFile(f);
+                                if (f && !wsTitle.trim()) setWsTitle(f.name);
+                              }}
+                            />
+                          </label>
+                          <div className="text-xs text-text2 truncate">{wsUploadFile ? wsUploadFile.name : "Файл не выбран"}</div>
+                        </div>
                         <Input value={wsTitle} onChange={(e) => setWsTitle(e.target.value)} placeholder="Название" />
                         <div className="flex gap-2">
                           <Input value={wsUrl} onChange={(e) => setWsUrl(e.target.value)} placeholder="URL на файл (S3/Selectel/диск)" />
@@ -1266,7 +1364,11 @@ export function DealDetailPage() {
                           <Button onClick={addWorkspaceFile} disabled={!wsUrl.trim()}>
                             Добавить
                           </Button>
+                          <Button variant="secondary" onClick={addWorkspaceUploadedFile} disabled={!wsUploadFile}>
+                            Сохранить файл
+                          </Button>
                         </div>
+                        {wsUploadError ? <div className="text-xs text-danger">{wsUploadError}</div> : null}
                       </div>
                       <div className="mt-3 grid gap-2">
                         {(entityFilesQ.data || []).map((ef: EntityFileLink) => {
@@ -1313,7 +1415,7 @@ export function DealDetailPage() {
 
         {/* SIDEBAR: decision rail + комментарии */}
         <div className="col-span-12 min-w-0 xl:col-span-4 grid gap-4 self-start">
-          <Card className="neon-accent xl:sticky xl:top-24">
+          <Card className="neon-accent">
             <CardHeader>
               <div className="flex items-center justify-between gap-2">
                 <div>
@@ -1528,11 +1630,12 @@ export function DealDetailPage() {
                       <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-text2">
                         Детальный разбор AI ({dynamicSections.length} секций)
                       </summary>
-                      <div className="mt-3 grid gap-3">
+                      <div className="mt-3 grid gap-3 lg:grid-cols-2">
                         {dynamicSections.map((section, idx) => (
                           <div key={`${section.title}-${idx}`} className="rounded-lg border border-border bg-rowHover/60 p-3">
                             <div className="text-xs font-semibold uppercase tracking-wide text-text2">{section.title}</div>
-                            <div className="mt-2 min-w-0">
+                            <div className="mt-1 h-px bg-border/70" />
+                            <div className="mt-2 min-w-0 text-sm leading-relaxed">
                               <AiInsightSectionBody value={section.raw} />
                             </div>
                           </div>

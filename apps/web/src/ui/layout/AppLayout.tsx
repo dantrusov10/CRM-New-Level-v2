@@ -67,7 +67,7 @@ export function AppLayout() {
     <div className="min-h-screen w-full theme-cockpit">
       {/* Sidebar is fixed, content scrolls independently */}
       <div className="fixed left-0 top-0 h-screen" style={{ width: sidebarCollapsed ? SIDEBAR_COLLAPSED_W : SIDEBAR_W }}>
-        <Sidebar perms={perms} collapsed={sidebarCollapsed} />
+        <Sidebar perms={perms} collapsed={sidebarCollapsed} onToggleCollapsed={() => setSidebarCollapsed((v) => !v)} />
       </div>
 
       <div className="min-h-screen relative" style={{ marginLeft: sidebarCollapsed ? SIDEBAR_COLLAPSED_W : SIDEBAR_W }}>
@@ -78,8 +78,6 @@ export function AppLayout() {
           onImport={() => setOpenImport(true)}
           onExport={() => setOpenExport(true)}
           perms={perms}
-          sidebarCollapsed={sidebarCollapsed}
-          onToggleSidebar={() => setSidebarCollapsed((v) => !v)}
         />
 
         {/* Page content scrolls; header stays sticky */}

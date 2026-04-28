@@ -1,6 +1,6 @@
 import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { Building2, KanbanSquare, LayoutDashboard, LayoutGrid, Settings, Upload, CalendarDays } from "lucide-react";
+import { Building2, KanbanSquare, LayoutDashboard, LayoutGrid, Settings, Upload, CalendarDays, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { PermissionMatrix } from "../../lib/rbac";
 import { can } from "../../lib/rbac";
@@ -18,11 +18,29 @@ const Item = ({ to, icon: Icon, label, collapsed }: { to: string; icon: LucideIc
   </NavLink>
 );
 
-export function Sidebar({ perms, collapsed }: { perms: PermissionMatrix; collapsed?: boolean }) {
+export function Sidebar({
+  perms,
+  collapsed,
+  onToggleCollapsed,
+}: {
+  perms: PermissionMatrix;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
+}) {
   const nav = useNavigate();
   return (
     <aside className="cockpit-sidebar p-3 overflow-y-auto border-r border-[rgba(51,215,255,0.18)] shadow-[0_0_28px_rgba(45,123,255,0.14)]">
       <div className="mb-4">
+        <div className="mb-2 flex justify-end">
+          <button
+            className="ui-btn ui-icon-btn border-[rgba(51,215,255,0.3)] bg-[rgba(51,215,255,0.12)]"
+            onClick={onToggleCollapsed}
+            title={collapsed ? "Развернуть меню" : "Свернуть меню"}
+            aria-label={collapsed ? "Развернуть меню" : "Свернуть меню"}
+          >
+            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
+        </div>
         <button
           type="button"
           onClick={() => nav("/dashboard")}

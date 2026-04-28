@@ -2426,6 +2426,16 @@ def run_ai_deal_analysis(payload):
     primary_engine = str(route.get("primary_engine", "")).strip()
     fallback_provider = str(route.get("fallback_provider", "")).strip().lower()
     fallback_engine = str(route.get("fallback_engine", "")).strip()
+    if task_code == "client_research":
+        # Force deep-research route via OpenRouter aliases for this scenario.
+        if not primary_provider.startswith("or_"):
+            primary_provider = "or_deepseek"
+        if not primary_engine:
+            primary_engine = "deepseek/deepseek-r1"
+        if not fallback_provider:
+            fallback_provider = "or_qwen"
+        if not fallback_engine:
+            fallback_engine = "qwen/qwen3-235b-a22b"
 
     if not primary_provider or not primary_engine:
         return {"ok": False, "error": f"routing for '{task_code}' is not configured"}

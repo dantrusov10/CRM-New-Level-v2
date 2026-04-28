@@ -431,8 +431,35 @@ function formatRisksForDisplay(raw: unknown): string {
 }
 
 function extractActionItems(raw: unknown): string[] {
+  if (raw && typeof raw === "object") {
+    const out: string[] = [];
+    const walk = (v: unknown) => {
+      if (!v) return;
+      if (Array.isArray(v)) {
+        v.forEach(walk);
+        return;
+      }
+      if (typeof v === "object") {
+        const o = v as Record<string, unknown>;
+        const action = String(o.action ?? o["действие"] ?? "").trim();
+        const topic = String(o.topic ?? o["тема"] ?? "").trim();
+        const deadline = String(o.deadline ?? o["срок"] ?? "").trim();
+        if (action || topic || deadline) {
+          const parts = [action, topic ? `Тема: ${topic}` : "", deadline ? `Срок: ${deadline}` : ""].filter(Boolean);
+          if (parts.length) out.push(parts.join(" · "));
+        }
+        Object.values(o).forEach(walk);
+      }
+    };
+    walk(raw);
+    if (out.length) return Array.from(new Set(out)).slice(0, 6);
+  }
   const text = valueToText(raw);
   if (!text) return [];
+  const parsed = parseJsonLoose(text);
+  if (parsed && typeof parsed === "object") {
+    return extractActionItems(parsed);
+  }
   return text
     .split(/\n|;|•|-/)
     .map((line) => line.trim())
@@ -607,6 +634,29 @@ function Select({
 function TimelineText({ text }: { text: string }) {
   const raw = String(text || "").trim();
   if (!raw) return <span>—</span>;
+  const recommendationJson = raw.match(/Рекомендации:\s*([\s\S]+)$/i);
+  if (recommendationJson?.[1]) {
+    const parsed = parseJsonLoose(recommendationJson[1].trim());
+    const items = extractActionItems(parsed ?? recommendationJson[1]);
+    const preface = raw
+      .replace(/Рекомендации:\s*([\s\S]+)$/i, "")
+      .trim();
+    return (
+      <div className="grid gap-2">
+        {preface ? <div className="text-sm whitespace-pre-wrap">{preface}</div> : null}
+        {items.length ? (
+          <ul className="grid gap-1.5 text-sm">
+            {items.map((item, idx) => (
+              <li key={`${item}-${idx}`} className="flex items-start gap-2">
+                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary/80" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    );
+  }
   const lines = raw
     .split("\n")
     .map((line) => line.trim())
@@ -1036,6 +1086,8 @@ export function DealDetailPage() {
         .filter((t) => t.action === "comment" || t.action === "note")
         .slice(0, 8);
       const prevInsight = ((aiQ.data ?? [])[1] ?? null) as AiInsight | null;
+      const lastCommentEntry = recentNotes.find((t) => t.action === "comment" || t.action === "note") || null;
+      const lastCommentText = String(lastCommentEntry?.comment || "").trim();
       const requestContext = {
         analysis_mode: mode,
         deal_id: deal.id,
@@ -1086,6 +1138,15 @@ export function DealDetailPage() {
         },
         response_style:
           "Верни непустые summary и suggestions. Если данных мало — заполни кратким fallback по фактам сделки и последним комментариям.",
+        latest_update_anchor: {
+          timestamp: lastCommentEntry?.timestamp || "",
+          text: lastCommentText.slice(0, 800),
+          author: String(lastCommentEntry?.author || ""),
+        },
+        update_mandatory_rule:
+          mode === "update"
+            ? "В summary первой строкой обязательно укажи: 'Последнее изменение:' и перескажи последний комментарий/заметку своими словами. Если последнего изменения нет — явно напиши это."
+            : "",
         update_focus: mode === "update"
           ? "Сфокусируйся только на изменениях после последнего анализа: что улучшилось/ухудшилось, как изменилась вероятность и что делать дальше."
           : "",

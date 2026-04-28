@@ -13,10 +13,6 @@ type ProductVariant = {
   docs?: string;
   tz_passport?: string;
   lpr_map?: string;
-  parsers_config?: string;
-  ai_prompt_deal?: string;
-  ai_prompt_client_research?: string;
-  ai_prompt_tz_analysis?: string;
 };
 
 function parseVariants(raw: unknown): ProductVariant {
@@ -37,10 +33,6 @@ export function AdminProductsPage() {
   const [docs, setDocs] = React.useState("");
   const [tzPassport, setTzPassport] = React.useState("");
   const [lprMap, setLprMap] = React.useState("");
-  const [parsersConfig, setParsersConfig] = React.useState("");
-  const [promptDeal, setPromptDeal] = React.useState("");
-  const [promptClientResearch, setPromptClientResearch] = React.useState("");
-  const [promptTz, setPromptTz] = React.useState("");
   const [fileTag, setFileTag] = React.useState("docs");
   const [fileTitle, setFileTitle] = React.useState("");
   const [uploadFile, setUploadFile] = React.useState<File | null>(null);
@@ -77,10 +69,6 @@ export function AdminProductsPage() {
     setDocs("");
     setTzPassport("");
     setLprMap("");
-    setParsersConfig("");
-    setPromptDeal("");
-    setPromptClientResearch("");
-    setPromptTz("");
   }
 
   function applyFromItem(item: ProductProfile) {
@@ -91,10 +79,6 @@ export function AdminProductsPage() {
     setDocs(String(v.docs || ""));
     setTzPassport(String(v.tz_passport || ""));
     setLprMap(String(v.lpr_map || ""));
-    setParsersConfig(String(v.parsers_config || ""));
-    setPromptDeal(String(v.ai_prompt_deal || ""));
-    setPromptClientResearch(String(v.ai_prompt_client_research || ""));
-    setPromptTz(String(v.ai_prompt_tz_analysis || ""));
   }
 
   React.useEffect(() => {
@@ -146,11 +130,15 @@ export function AdminProductsPage() {
   }
 
   async function save() {
-    if (!activeId) return;
+    const profileId = await ensureActiveProfileId();
+    if (!profileId) {
+      setStatus("Ошибка: не удалось создать/выбрать продукт");
+      return;
+    }
     setSaving(true);
     setStatus("");
     try {
-      await pb.collection("semantic_packs").update(activeId, {
+      await pb.collection("semantic_packs").update(profileId, {
         type: "product_profile",
         model: "product_profile_v1",
         language: "ru",
@@ -162,14 +150,12 @@ export function AdminProductsPage() {
           docs: docs.trim(),
           tz_passport: tzPassport.trim(),
           lpr_map: lprMap.trim(),
-          parsers_config: parsersConfig.trim(),
-          ai_prompt_deal: promptDeal.trim(),
-          ai_prompt_client_research: promptClientResearch.trim(),
-          ai_prompt_tz_analysis: promptTz.trim(),
         },
       });
       await load();
       setStatus("Сохранено");
+    } catch (e) {
+      setStatus(`Ошибка сохранения: ${e instanceof Error ? e.message : "unknown"}`);
     } finally {
       setSaving(false);
     }
@@ -189,10 +175,6 @@ export function AdminProductsPage() {
         docs: docs.trim(),
         tz_passport: tzPassport.trim(),
         lpr_map: lprMap.trim(),
-        parsers_config: parsersConfig.trim(),
-        ai_prompt_deal: promptDeal.trim(),
-        ai_prompt_client_research: promptClientResearch.trim(),
-        ai_prompt_tz_analysis: promptTz.trim(),
       },
     });
     const newId = String((created as { id?: string }).id || "");
@@ -257,10 +239,6 @@ export function AdminProductsPage() {
       { key: "docs", label: "Документация / материалы" },
       { key: "tz_passport", label: "Паспорт / ТЗ продукта" },
       { key: "lpr_map", label: "Карта ЛПР / роли и веса" },
-      { key: "parsers_config", label: "Конфигурация парсеров" },
-      { key: "ai_prompt_deal", label: "AI промпт: анализ сделки" },
-      { key: "ai_prompt_client_research", label: "AI промпт: исследование клиента" },
-      { key: "ai_prompt_tz_analysis", label: "AI промпт: анализ ТЗ" },
     ],
     [],
   );
@@ -346,42 +324,9 @@ export function AdminProductsPage() {
                     files={productFiles}
                     onAddFile={() => { setFileTag("lpr_map"); setFileModalOpen(true); }}
                   />
-                  <TextAreaWithFiles
-                    label="Конфигурация парсеров (медиа/контакты/тендеры)"
-                    blockKey="parsers_config"
-                    value={parsersConfig}
-                    onChange={setParsersConfig}
-                    files={productFiles}
-                    onAddFile={() => { setFileTag("parsers_config"); setFileModalOpen(true); }}
-                  />
-                  <TextAreaWithFiles
-                    label="AI промпт: анализ сделки"
-                    blockKey="ai_prompt_deal"
-                    value={promptDeal}
-                    onChange={setPromptDeal}
-                    files={productFiles}
-                    onAddFile={() => { setFileTag("ai_prompt_deal"); setFileModalOpen(true); }}
-                  />
-                  <TextAreaWithFiles
-                    label="AI промпт: исследование клиента"
-                    blockKey="ai_prompt_client_research"
-                    value={promptClientResearch}
-                    onChange={setPromptClientResearch}
-                    files={productFiles}
-                    onAddFile={() => { setFileTag("ai_prompt_client_research"); setFileModalOpen(true); }}
-                  />
-                  <TextAreaWithFiles
-                    label="AI промпт: анализ ТЗ"
-                    blockKey="ai_prompt_tz_analysis"
-                    value={promptTz}
-                    onChange={setPromptTz}
-                    files={productFiles}
-                    onAddFile={() => { setFileTag("ai_prompt_tz_analysis"); setFileModalOpen(true); }}
-                  />
-
                   <div className="flex items-center gap-2">
-                    <Button onClick={save} disabled={!activeId || saving || !name.trim()}>Сохранить продукт</Button>
-                    {status ? <span className="text-sm text-success">{status}</span> : null}
+                    <Button onClick={save} disabled={saving || !name.trim()}>Сохранить продукт</Button>
+                    {status ? <span className={`text-sm ${status.startsWith("Ошибка") ? "text-danger" : "text-success"}`}>{status}</span> : null}
                   </div>
                 </div>
               </div>

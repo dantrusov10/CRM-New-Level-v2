@@ -21,6 +21,7 @@ type MediaLink = { id: string; source_id: string };
 type TenderParserSettings = { id: string; enabled?: boolean; schedule_cron?: string; keywords?: ParserKeywordBag; platform_tokens?: Record<string, unknown> };
 type TenderPlatform = { id: string; name: string; integration_type?: string };
 type TenderLink = { id: string; platform_id: string };
+type ProductProfileItem = { id: string; variants?: Record<string, unknown> };
 
 type KpTemplatePatch = { template_json?: KpTemplateConfig; name?: string };
 type DealScoringFactor = { code: string; name: string; weight: number; enabled: boolean };
@@ -74,7 +75,7 @@ export function AdminParsersPage() {
             <TabButton active={tab==="contacts"} onClick={() => setTab("contacts")}>Контакты</TabButton>
             <TabButton active={tab==="media"} onClick={() => setTab("media")}>Медиа</TabButton>
             <TabButton active={tab==="tenders"} onClick={() => setTab("tenders")}>Тендеры</TabButton>
-            <TabButton active={tab==="ai"} onClick={() => setTab("ai")}>Парсеры + AI</TabButton>
+            <TabButton active={tab==="ai"} onClick={() => setTab("ai")}>Настройка AI</TabButton>
             <TabButton active={tab==="kp"} onClick={() => setTab("kp")}>КП (каркас)</TabButton>
           </div>
         </CardContent>
@@ -85,6 +86,136 @@ export function AdminParsersPage() {
       {tab === "tenders" ? <TenderParser /> : null}
       {tab === "ai" ? <AiPromptsSettings /> : null}
       {tab === "kp" ? <KpSettings /> : null}
+    </div>
+  );
+}
+
+function ParserAiControls({ parserKey }: { parserKey: "contacts" | "media" | "tenders" }) {
+  const [recordId, setRecordId] = React.useState("");
+  const [products, setProducts] = React.useState<Array<{ id: string; name: string }>>([]);
+  const [productId, setProductId] = React.useState("");
+  const [prompt, setPrompt] = React.useState("");
+  const [enabled, setEnabled] = React.useState(true);
+  const [status, setStatus] = React.useState("");
+
+  async function load() {
+    const productRows = await pb.collection("semantic_packs").getList(1, 200, {
+      filter: 'type="product_profile" && model="product_profile_v1"',
+      sort: "-updated",
+    }).catch(() => ({ items: [] as ProductProfileItem[] }));
+    const mapped = (productRows.items || []).map((p: ProductProfileItem) => ({
+      id: p.id,
+      name: String((p.variants && typeof p.variants === "object" ? (p.variants as Record<string, unknown>).name : "") || "Без названия"),
+    }));
+    setProducts(mapped);
+    if (!productId && mapped[0]) setProductId(mapped[0].id);
+
+    const pack = await pb.collection("semantic_packs").getList(1, 1, {
+      filter: 'type="parser_ai_settings" && model="parser_ai_settings_v1"',
+      sort: "-updated",
+    }).catch(() => ({ items: [] as Array<Record<string, unknown>> }));
+    const item = (pack.items || [])[0] as Record<string, unknown> | undefined;
+    if (!item) return;
+    setRecordId(String(item.id || ""));
+    const variants = item.variants && typeof item.variants === "object" ? item.variants as Record<string, unknown> : {};
+    const section = variants[parserKey] && typeof variants[parserKey] === "object" ? variants[parserKey] as Record<string, unknown> : {};
+    setPrompt(String(section.prompt || ""));
+    const byProduct = section.enrich_by_product && typeof section.enrich_by_product === "object" ? section.enrich_by_product as Record<string, unknown> : {};
+    const pid = productId || mapped[0]?.id || "";
+    setEnabled(Boolean(byProduct[pid] ?? true));
+  }
+
+  React.useEffect(() => {
+    void load();
+  }, []);
+
+  React.useEffect(() => {
+    const run = async () => {
+      if (!productId) return;
+      const pack = await pb.collection("semantic_packs").getList(1, 1, {
+        filter: 'type="parser_ai_settings" && model="parser_ai_settings_v1"',
+        sort: "-updated",
+      }).catch(() => ({ items: [] as Array<Record<string, unknown>> }));
+      const item = (pack.items || [])[0] as Record<string, unknown> | undefined;
+      if (!item) return;
+      const variants = item.variants && typeof item.variants === "object" ? item.variants as Record<string, unknown> : {};
+      const section = variants[parserKey] && typeof variants[parserKey] === "object" ? variants[parserKey] as Record<string, unknown> : {};
+      const byProduct = section.enrich_by_product && typeof section.enrich_by_product === "object" ? section.enrich_by_product as Record<string, unknown> : {};
+      setEnabled(Boolean(byProduct[productId] ?? true));
+      setPrompt(String(section.prompt || ""));
+    };
+    void run();
+  }, [productId, parserKey]);
+
+  async function save() {
+    if (!productId) return;
+    setStatus("");
+    const pack = await pb.collection("semantic_packs").getList(1, 1, {
+      filter: 'type="parser_ai_settings" && model="parser_ai_settings_v1"',
+      sort: "-updated",
+    }).catch(() => ({ items: [] as Array<Record<string, unknown>> }));
+    const item = (pack.items || [])[0] as Record<string, unknown> | undefined;
+    const root = item?.variants && typeof item.variants === "object" ? item.variants as Record<string, unknown> : {};
+    const currentSection = root[parserKey] && typeof root[parserKey] === "object" ? root[parserKey] as Record<string, unknown> : {};
+    const byProduct = currentSection.enrich_by_product && typeof currentSection.enrich_by_product === "object"
+      ? currentSection.enrich_by_product as Record<string, unknown>
+      : {};
+    byProduct[productId] = enabled;
+    root[parserKey] = {
+      ...currentSection,
+      prompt: prompt.trim(),
+      enrich_by_product: byProduct,
+    };
+    const payload = {
+      type: "parser_ai_settings",
+      model: "parser_ai_settings_v1",
+      language: "ru",
+      base_text: "Parser AI enrichment settings",
+      variants: root,
+    };
+    if (item?.id) {
+      await pb.collection("semantic_packs").update(String(item.id), payload);
+      setRecordId(String(item.id));
+    } else {
+      const created = await pb.collection("semantic_packs").create(payload);
+      setRecordId(String((created as { id?: string }).id || ""));
+    }
+    setStatus("Сохранено");
+    setTimeout(() => setStatus(""), 2000);
+  }
+
+  return (
+    <div className="rounded-card border border-border bg-rowHover p-3">
+      <div className="text-sm font-semibold">AI-обогащение по продуктам</div>
+      <div className="mt-2 grid grid-cols-12 gap-2">
+        <div className="col-span-12 md:col-span-4">
+          <div className="text-xs text-text2 mb-1">Продукт</div>
+          <select className="h-10 w-full rounded-card border border-[#9CA3AF] bg-white px-3 text-sm" value={productId} onChange={(e) => setProductId(e.target.value)}>
+            <option value="">—</option>
+            {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+        <div className="col-span-12 md:col-span-4 flex items-end">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+            Включить ИИ для обогащения
+          </label>
+        </div>
+      </div>
+      <div className="mt-2">
+        <div className="text-xs text-text2 mb-1">Промт (общий для этого парсера)</div>
+        <textarea
+          className="w-full rounded-card border border-[#9CA3AF] bg-white px-3 py-2 text-sm"
+          rows={4}
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder="Вставь промт для AI-обогащения"
+        />
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <Button onClick={save} disabled={!productId}>Сохранить AI-настройку</Button>
+        {status ? <span className="text-sm text-success">{status}</span> : null}
+      </div>
     </div>
   );
 }
@@ -174,6 +305,7 @@ function ContactsParser() {
           <div className="text-sm text-text2">Загрузка...</div>
         ) : (
           <div className="grid gap-4">
+            <ParserAiControls parserKey="contacts" />
             <div className="grid grid-cols-4 gap-3">
               <label className="flex items-center gap-2 text-sm col-span-1">
                 <input type="checkbox" checked={!!settings.enabled} onChange={(e) => saveSettings({ enabled: e.target.checked })} />
@@ -341,6 +473,7 @@ function MediaParser() {
       <CardContent>
         {!settings ? <div className="text-sm text-text2">Загрузка...</div> : (
           <div className="grid gap-4">
+            <ParserAiControls parserKey="media" />
             <div className="grid grid-cols-3 gap-3">
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={!!settings.enabled} onChange={(e) => saveSettings({ enabled: e.target.checked })} />
@@ -435,6 +568,7 @@ function TenderParser() {
       <CardContent>
         {!settings ? <div className="text-sm text-text2">Загрузка...</div> : (
           <div className="grid gap-4">
+            <ParserAiControls parserKey="tenders" />
             <div className="grid grid-cols-3 gap-3">
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={!!settings.enabled} onChange={(e) => saveSettings({ enabled: e.target.checked })} />
@@ -489,8 +623,12 @@ function TenderParser() {
 /** AI PROMPTS (tenant-level) */
 function AiPromptsSettings() {
   const [loading, setLoading] = React.useState(true);
-  const [recordId, setRecordId] = React.useState<string>("");
+  const [dealPromptId, setDealPromptId] = React.useState<string>("");
+  const [clientPromptId, setClientPromptId] = React.useState<string>("");
+  const [tzPromptId, setTzPromptId] = React.useState<string>("");
   const [prompt, setPrompt] = React.useState("");
+  const [clientPrompt, setClientPrompt] = React.useState("");
+  const [tzPrompt, setTzPrompt] = React.useState("");
   const [scoringRecordId, setScoringRecordId] = React.useState<string>("");
   const [scoringModel, setScoringModel] = React.useState<DealScoringModel>(DEFAULT_DEAL_SCORING_MODEL);
   const [status, setStatus] = React.useState("");
@@ -505,13 +643,37 @@ function AiPromptsSettings() {
       });
       const item = list.items[0] as { id: string; base_text?: string } | undefined;
       if (item) {
-        setRecordId(item.id);
+        setDealPromptId(item.id);
         setPrompt(item.base_text || "");
       } else {
-        setRecordId("");
+        setDealPromptId("");
         setPrompt(
           "Проанализируй сделку с учетом всех полей карточки, истории комментариев, заметок, динамики событий и прошлых AI-оценок. Верни четкий вывод по вероятности закрытия, рискам и следующим шагам."
         );
+      }
+      const clientList = await pb.collection("semantic_packs").getList(1, 1, {
+        filter: 'type="deal" && model="client_research_prompt" && (language="ru" || language="")',
+        sort: "-created",
+      }).catch(() => ({ items: [] as Array<{ id: string; base_text?: string }> }));
+      const clientItem = clientList.items[0];
+      if (clientItem) {
+        setClientPromptId(clientItem.id);
+        setClientPrompt(clientItem.base_text || "");
+      } else {
+        setClientPromptId("");
+        setClientPrompt("Исследуй клиента по открытым источникам и данным CRM, выдели подтвержденные факты, ЛПР/ЛВР, риски и рекомендации для входа.");
+      }
+      const tzList = await pb.collection("semantic_packs").getList(1, 1, {
+        filter: 'type="deal" && model="tz_analysis_prompt" && (language="ru" || language="")',
+        sort: "-created",
+      }).catch(() => ({ items: [] as Array<{ id: string; base_text?: string }> }));
+      const tzItem = tzList.items[0];
+      if (tzItem) {
+        setTzPromptId(tzItem.id);
+        setTzPrompt(tzItem.base_text || "");
+      } else {
+        setTzPromptId("");
+        setTzPrompt("Сравни ТЗ клиента с паспортом продукта, выдели fit/gap, блокеры, вероятность прохождения и шаги по доработке КП.");
       }
 
       const scoringList = await pb.collection("semantic_packs").getList(1, 1, {
@@ -567,11 +729,35 @@ function AiPromptsSettings() {
       language: "ru",
       model: "deal_analysis_prompt",
     };
-    if (recordId) {
-      await pb.collection("semantic_packs").update(recordId, payload);
+    if (dealPromptId) {
+      await pb.collection("semantic_packs").update(dealPromptId, payload);
     } else {
       const created = await pb.collection("semantic_packs").create(payload);
-      setRecordId((created as { id: string }).id);
+      setDealPromptId((created as { id: string }).id);
+    }
+    const clientPayload = {
+      type: "deal",
+      base_text: clientPrompt,
+      variants: { purpose: "client_research_prompt", source: "admin_ai_tab" },
+      language: "ru",
+      model: "client_research_prompt",
+    };
+    if (clientPromptId) await pb.collection("semantic_packs").update(clientPromptId, clientPayload);
+    else {
+      const created = await pb.collection("semantic_packs").create(clientPayload);
+      setClientPromptId((created as { id: string }).id);
+    }
+    const tzPayload = {
+      type: "deal",
+      base_text: tzPrompt,
+      variants: { purpose: "tz_analysis_prompt", source: "admin_ai_tab" },
+      language: "ru",
+      model: "tz_analysis_prompt",
+    };
+    if (tzPromptId) await pb.collection("semantic_packs").update(tzPromptId, tzPayload);
+    else {
+      const created = await pb.collection("semantic_packs").create(tzPayload);
+      setTzPromptId((created as { id: string }).id);
     }
     const scoringPayload = {
       type: "deal_scoring_model",
@@ -600,9 +786,9 @@ function AiPromptsSettings() {
   return (
     <Card>
       <CardHeader>
-        <div className="text-sm font-semibold">Парсеры + AI: промпт анализа сделки</div>
+        <div className="text-sm font-semibold">Настройка AI: промпты сценариев</div>
         <div className="text-xs text-text2 mt-1">
-          Этот промпт задает правила анализа для данного клиента CRM. Он учитывается независимо от выбранного AI-провайдера.
+          Рекомендуется не менять без веской причины. Эти промпты используются как базовые сценарные инструкции.
         </div>
       </CardHeader>
       <CardContent>
@@ -631,13 +817,31 @@ function AiPromptsSettings() {
               </div>
             </div>
             <div>
-              <div className="text-xs text-text2 mb-1">Промпт AI (tenant-level)</div>
+              <div className="text-xs text-text2 mb-1">Промпт: анализ сделки (рекомендуется не менять)</div>
               <textarea
                 className="w-full rounded-card border border-[#9CA3AF] bg-white px-3 py-2 text-sm"
                 rows={8}
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="Опиши правила AI-анализа для этой CRM..."
+              />
+            </div>
+            <div>
+              <div className="text-xs text-text2 mb-1">Промпт: исследование клиента (рекомендуется не менять)</div>
+              <textarea
+                className="w-full rounded-card border border-[#9CA3AF] bg-white px-3 py-2 text-sm"
+                rows={6}
+                value={clientPrompt}
+                onChange={(e) => setClientPrompt(e.target.value)}
+              />
+            </div>
+            <div>
+              <div className="text-xs text-text2 mb-1">Промпт: анализ ТЗ (рекомендуется не менять)</div>
+              <textarea
+                className="w-full rounded-card border border-[#9CA3AF] bg-white px-3 py-2 text-sm"
+                rows={6}
+                value={tzPrompt}
+                onChange={(e) => setTzPrompt(e.target.value)}
               />
             </div>
             <div className="rounded-card border border-border bg-rowHover p-3">
@@ -682,7 +886,7 @@ function AiPromptsSettings() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button onClick={save} disabled={!prompt.trim()}>Сохранить промпт</Button>
+              <Button onClick={save} disabled={!prompt.trim() || !clientPrompt.trim() || !tzPrompt.trim()}>Сохранить промпты</Button>
               {status ? <span className="text-sm text-success">{status}</span> : null}
             </div>
           </div>

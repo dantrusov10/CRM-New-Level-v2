@@ -1574,7 +1574,7 @@ def run_ai_deal_analysis(payload):
     prompt = (
         f"{deal_prompt}\n"
         + (f"{master_prompt}\n" if master_prompt else "")
-        f"Контекст сделки (JSON): {json.dumps(full_context, ensure_ascii=False)}\n"
+        + f"Контекст сделки (JSON): {json.dumps(full_context, ensure_ascii=False)}\n"
         "Формат ответа: один валидный JSON-объект без markdown и без текста вне JSON.\n"
         + AI_DEAL_OUTPUT_RULES
     )

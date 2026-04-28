@@ -160,7 +160,7 @@ export function DynamicEntityForm(
       {sortedSections.map((section) => (
         <div key={section.id} className="rounded-card border border-border bg-rowHover p-3">
           <div className="text-sm font-semibold mb-3">{section.title}</div>
-          <div className="grid gap-3">
+          <div className="grid gap-2.5">
             {(fieldsBySection[section.id] ?? []).map((field) => {
               const options = parseFieldOptions(field.options);
               const value = values[field.id] ?? '';
@@ -170,12 +170,12 @@ export function DynamicEntityForm(
               if (field.field_type === 'select') {
                 const list = Array.isArray(options.values) ? options.values : [];
                 return (
-                  <div key={field.id} className="grid grid-cols-12 gap-3 items-center">
-                    <div className="col-span-4 text-xs text-text2">
+                  <div key={field.id} className="grid grid-cols-12 gap-2 items-center">
+                    <div className="col-span-12 md:col-span-4 xl:col-span-3 text-xs text-text2">
                       {label}
                       {required ? ' *' : ''}
                     </div>
-                    <div className="col-span-8">
+                    <div className="col-span-12 md:col-span-8 xl:col-span-9">
                       <select
                         className="h-10 w-full rounded-card border border-border bg-white px-3 text-sm"
                         value={String(value ?? '')}
@@ -197,12 +197,12 @@ export function DynamicEntityForm(
                 const list = relationOptions[field.id] || [];
                 const labelField = options.labelField || 'name';
                 return (
-                  <div key={field.id} className="grid grid-cols-12 gap-3 items-center">
-                    <div className="col-span-4 text-xs text-text2">
+                  <div key={field.id} className="grid grid-cols-12 gap-2 items-center">
+                    <div className="col-span-12 md:col-span-4 xl:col-span-3 text-xs text-text2">
                       {label}
                       {required ? ' *' : ''}
                     </div>
-                    <div className="col-span-8">
+                    <div className="col-span-12 md:col-span-8 xl:col-span-9">
                       <select
                         className="h-10 w-full rounded-card border border-border bg-white px-3 text-sm"
                         value={String(value ?? '')}
@@ -222,12 +222,12 @@ export function DynamicEntityForm(
 
               const inputType: InputType = field.field_type === 'number' ? 'number' : field.field_type === 'email' ? 'email' : field.field_type === 'date' ? 'date' : 'text';
               return (
-                <div key={field.id} className="grid grid-cols-12 gap-3 items-center">
-                  <div className="col-span-4 text-xs text-text2">
+                <div key={field.id} className="grid grid-cols-12 gap-2 items-center">
+                  <div className="col-span-12 md:col-span-4 xl:col-span-3 text-xs text-text2">
                     {label}
                     {required ? ' *' : ''}
                   </div>
-                  <div className="col-span-8">
+                  <div className="col-span-12 md:col-span-8 xl:col-span-9">
                     <Input
                       type={inputType}
                       value={String(value ?? '')}

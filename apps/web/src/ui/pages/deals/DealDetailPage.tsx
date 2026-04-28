@@ -26,7 +26,7 @@ import {
 } from "../../data/hooks";
 import { DealKpModule } from "../../modules/kp/DealKpModule";
 import { DynamicEntityFormWithRef, DynamicEntityFormHandle } from "../../components/DynamicEntityForm";
-import type { AiInsight, Deal, FunnelStage, TimelineItem } from "../../../lib/types";
+import type { AiInsight, Deal, TimelineItem } from "../../../lib/types";
 import type { ContactFound, EntityFileLink } from "../../data/hooks";
 import { analyzeDealWithAi } from "../../../lib/aiGateway";
 
@@ -135,6 +135,19 @@ function SmartStringContent({ text }: { text: string }) {
   }
   const blocks = trimmed.split(/\n{2,}/).map((b) => b.trim()).filter(Boolean);
   if (blocks.length <= 1) {
+    const lines = trimmed.split("\n").map((line) => line.trim()).filter(Boolean);
+    if (lines.length >= 3) {
+      return (
+        <ul className="grid gap-1.5 text-sm leading-relaxed">
+          {lines.map((line, idx) => (
+            <li key={`${line}-${idx}`} className="flex items-start gap-2">
+              <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary/80" />
+              <span>{line}</span>
+            </li>
+          ))}
+        </ul>
+      );
+    }
     return <div className="text-sm whitespace-pre-wrap leading-relaxed text-text">{text}</div>;
   }
   return (
@@ -495,23 +508,33 @@ function TimelineItemRow({ item }: { item: TimelineItem & { expand?: { user_id?:
   const isStage = action === "stage_change";
   const isAI = action.startsWith("ai");
 
-  const dot = isComment ? "bg-primary" : isStage ? "bg-[#9CA3AF]" : isAI ? "bg-infoBorder" : "bg-borderHover";
-  const title = isComment ? "Комментарий" : isStage ? "Этап" : isAI ? "AI" : "Событие";
+  const tone = isComment
+    ? "border-primary/35 bg-[rgba(51,215,255,0.08)]"
+    : isStage
+      ? "border-[rgba(45,123,255,0.35)] bg-[rgba(45,123,255,0.08)]"
+      : isAI
+        ? "border-infoBorder bg-infoBg"
+        : "border-border bg-rowHover/60";
+  const title = isComment ? "Комментарий" : isStage ? "Изменение этапа" : isAI ? "AI событие" : "Системное событие";
+  const payload = item.payload && typeof item.payload === "object" ? (item.payload as Record<string, unknown>) : null;
 
   return (
-    <div className="flex gap-3">
-      <div className="flex flex-col items-center">
-        <div className={`h-2 w-2 rounded-full ${dot}`} />
-        <div className="w-px flex-1 bg-border" />
+    <div className={`rounded-lg border p-3 ${tone}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-xs text-text2">{when}{by ? ` · ${by}` : ""}</div>
+        <Badge>{title}</Badge>
       </div>
-      <div className="flex-1">
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-xs text-text2">{when}{by ? ` · ${by}` : ""}</div>
-          <div className="text-xs text-text2">{title}</div>
+      <div className="mt-2 text-sm whitespace-pre-wrap">{item.comment || item.action}</div>
+      {payload ? (
+        <div className="mt-2 grid gap-1.5">
+          {Object.entries(payload).map(([k, v]) => (
+            <div key={k} className="rounded-md border border-border bg-white/70 px-2 py-1.5 text-xs">
+              <span className="font-semibold">{toSectionTitle(k)}:</span>{" "}
+              <span className="text-text2">{valueToText(v) || "—"}</span>
+            </div>
+          ))}
         </div>
-        <div className="text-sm mt-1 whitespace-pre-wrap">{item.comment || item.action}</div>
-      </div>
-
+      ) : null}
     </div>
   );
 }
@@ -554,6 +577,7 @@ export function DealDetailPage() {
   const [cTelegram, setCTelegram] = React.useState("");
   const [cInfluence, setCInfluence] = React.useState<string>("");
   const [cError, setCError] = React.useState<string>("");
+  const [editingContactId, setEditingContactId] = React.useState<string | null>(null);
 
   // Workspace add file/link
   const [wsUrl, setWsUrl] = React.useState("");
@@ -763,6 +787,37 @@ export function DealDetailPage() {
     contactsQ.refetch();
   }
 
+  async function saveContactChanges() {
+    if (!editingContactId) return;
+    const full_name = cFullName.trim();
+    const phone = cPhone.trim();
+    const email = cEmail.trim();
+    const telegram = cTelegram.trim();
+    if (!full_name) {
+      setCError("Укажите имя контакта");
+      return;
+    }
+    if (!phone && !email && !telegram) {
+      setCError("Укажите хотя бы один контакт: телефон / email / Telegram");
+      return;
+    }
+    await pb
+      .collection("contacts_found")
+      .update(editingContactId, {
+        full_name,
+        position: cPosition.trim(),
+        phone,
+        email,
+        telegram,
+        influence_type: cInfluence || "",
+      })
+      .catch(() => null);
+    setContactModal(false);
+    setEditingContactId(null);
+    setCError("");
+    contactsQ.refetch();
+  }
+
   async function addWorkspaceFile() {
     if (!id) return;
     const url = normalizeExternalUrl(wsUrl);
@@ -865,7 +920,7 @@ export function DealDetailPage() {
           <div className="grid gap-3">
             <div className="flex items-center gap-2 flex-wrap">
               <div className="text-sm font-semibold">Сделка</div>
-              <span className="neon-pill">Deal card</span>
+              <span className="neon-pill">Карточка</span>
               <Badge>{deal?.expand?.company_id?.name ? "Компания: " + deal.expand.company_id.name : "Компания: —"}</Badge>
             </div>
 
@@ -922,11 +977,11 @@ export function DealDetailPage() {
             <Tabs
               items={[
                 { key: "overview", label: "Обзор" },
-                { key: "timeline", label: "Timeline" },
-                { key: "relationship", label: "Relationship" },
+                { key: "timeline", label: "Лента изменений" },
+                { key: "relationship", label: "Контакты" },
                 { key: "notes", label: "Заметки" },
                 { key: "kp", label: "КП" },
-                { key: "workspace", label: "Workspace" },
+                { key: "workspace", label: "Файлы" },
               ]}
               activeKey={tab}
               onChange={setTab}
@@ -943,7 +998,7 @@ export function DealDetailPage() {
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <div className="text-sm font-semibold">Карточка сделки</div>
-                  <span className="neon-pill">Primary section</span>
+                  <span className="neon-pill">Основной блок</span>
                 </div>
                 <div className="text-xs text-text2 mt-1">Полностью настраивается в Админ → Поля (разделы + поля).</div>
                 <div className="mt-2 neon-divider" />
@@ -975,15 +1030,17 @@ export function DealDetailPage() {
                     </div>
                   </div>
 
-                  <DynamicEntityFormWithRef
-                    ref={formRef}
-                    entity="deal"
-                    record={deal}
-                    onSaved={async () => {
-                      await dealQ.refetch();
-                      tlQ.refetch();
-                    }}
-                  />
+                  <div className="max-w-[980px]">
+                    <DynamicEntityFormWithRef
+                      ref={formRef}
+                      entity="deal"
+                      record={deal}
+                      onSaved={async () => {
+                        await dealQ.refetch();
+                        tlQ.refetch();
+                      }}
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -995,10 +1052,10 @@ export function DealDetailPage() {
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2">
-                      <div className="text-sm font-semibold">Timeline</div>
-                      <span className="neon-pill">Activity feed</span>
+                      <div className="text-sm font-semibold">Лента изменений</div>
+                      <span className="neon-pill">История сделки</span>
                     </div>
-                    <div className="text-xs text-text2 mt-1">События: комментарии / этапы / изменения / AI</div>
+                    <div className="text-xs text-text2 mt-1">Явные модули по времени: что поменялось, кто автор, какие поля затронуты</div>
                   </div>
                   <div className="w-56">
                     <Select value={timelineFilter} onChange={setTimelineFilter}>
@@ -1028,15 +1085,27 @@ export function DealDetailPage() {
           {tab === "relationship" ? (
             <Card>
               <CardHeader>
-                <div className="text-sm font-semibold">Relationship Map</div>
-                <div className="text-xs text-text2 mt-1">ЛПР/влияющие/блокеры + что важно + “что говорить”</div>
+                <div className="text-sm font-semibold">Карточки контактов</div>
+                <div className="text-xs text-text2 mt-1">Полноценные карточки: должность, роль, каналы связи, редактирование и удаление</div>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-xs text-text2">
                     Контакты по сделке (ручные + из парсера). Можно добавлять вручную.
                   </div>
-                  <Button onClick={() => setContactModal(true)}>
+                  <Button
+                    onClick={() => {
+                      setEditingContactId(null);
+                      setCError("");
+                      setCFullName("");
+                      setCPosition("");
+                      setCPhone("");
+                      setCEmail("");
+                      setCTelegram("");
+                      setCInfluence("");
+                      setContactModal(true);
+                    }}
+                  >
                     + Контакт
                   </Button>
                 </div>
@@ -1056,6 +1125,7 @@ export function DealDetailPage() {
                               {c.is_verified ? <Badge>verified</Badge> : null}
                             </div>
                             {meta ? <div className="text-xs text-text2 mt-1">{meta}</div> : null}
+                            {c.position ? <div className="text-xs text-text2 mt-1">Должность: {c.position}</div> : null}
                             <div className="mt-2 grid gap-1 text-sm">
                               {c.phone ? <div>📞 {c.phone}</div> : null}
                               {c.email ? <div>✉️ {c.email}</div> : null}
@@ -1067,17 +1137,36 @@ export function DealDetailPage() {
                               ) : null}
                             </div>
                           </div>
-                          {isManual ? (
+                          <div className="flex items-center gap-2">
                             <Button
-                              variant="ghost"
-                              onClick={async () => {
-                                await deleteContactM.mutateAsync({ id: c.id, dealId: id! }).catch(() => null);
-                                contactsQ.refetch();
+                              small
+                              variant="secondary"
+                              onClick={() => {
+                                setEditingContactId(c.id);
+                                setCError("");
+                                setCFullName(c.full_name || "");
+                                setCPosition(c.position || "");
+                                setCPhone(c.phone || "");
+                                setCEmail(c.email || "");
+                                setCTelegram(c.telegram || "");
+                                setCInfluence(c.influence_type || "");
+                                setContactModal(true);
                               }}
                             >
-                              Удалить
+                              Открыть
                             </Button>
-                          ) : null}
+                            {isManual ? (
+                              <Button
+                                variant="ghost"
+                                onClick={async () => {
+                                  await deleteContactM.mutateAsync({ id: c.id, dealId: id! }).catch(() => null);
+                                  contactsQ.refetch();
+                                }}
+                              >
+                                Удалить
+                              </Button>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
                     );
@@ -1128,8 +1217,8 @@ export function DealDetailPage() {
           {tab === "workspace" ? (
             <Card>
               <CardHeader>
-                <div className="text-sm font-semibold">Workspace</div>
-                <div className="text-xs text-text2 mt-1">Документы, ссылки, материалы по сделке</div>
+                <div className="text-sm font-semibold">Файлы</div>
+                <div className="text-xs text-text2 mt-1">Хранилище документов и ссылок по сделке</div>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4">
@@ -1223,15 +1312,15 @@ export function DealDetailPage() {
         </div>
 
         {/* SIDEBAR: decision rail + комментарии */}
-        <div className="col-span-12 min-w-0 xl:col-span-4 grid gap-4 xl:sticky xl:top-24 self-start">
-          <Card className="neon-accent">
+        <div className="col-span-12 min-w-0 xl:col-span-4 grid gap-4 self-start">
+          <Card className="neon-accent xl:sticky xl:top-24">
             <CardHeader>
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <div className="text-sm font-semibold">Decision rail</div>
+                  <div className="text-sm font-semibold">Контур решений</div>
                   <div className="text-xs text-text2 mt-1">Ключевой контур: AI + следующий шаг</div>
                 </div>
-                <span className="neon-pill">Priority</span>
+                <span className="neon-pill">Приоритет</span>
               </div>
             </CardHeader>
             <CardContent>
@@ -1263,16 +1352,9 @@ export function DealDetailPage() {
                     <div className="text-sm text-text2">Запусти AI, чтобы получить action list.</div>
                   )}
                 </div>
-                <div className="rounded-card border border-border bg-white p-3">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-text2 mb-2">Быстро прикрепить файл</div>
-                  <div className="grid gap-2">
-                    <Input value={wsTitle} onChange={(e) => setWsTitle(e.target.value)} placeholder="Название файла" />
-                    <Input value={wsUrl} onChange={(e) => setWsUrl(e.target.value)} placeholder="https://... ссылка на файл" />
-                    <Button small onClick={addWorkspaceFile} disabled={!wsUrl.trim()}>
-                      Прикрепить
-                    </Button>
-                  </div>
-                </div>
+                <Button small variant="secondary" onClick={() => setTab("workspace")}>
+                  Открыть раздел "Файлы"
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -1282,7 +1364,7 @@ export function DealDetailPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="text-sm font-semibold">Комментарии</div>
-                  <span className="neon-pill">Quick notes</span>
+                  <span className="neon-pill">Быстрые заметки</span>
                 </div>
                 <Badge>Все</Badge>
               </div>
@@ -1328,7 +1410,7 @@ export function DealDetailPage() {
                   ) : null}
                 </div>
 
-                <div className="grid gap-3">
+                <div className="grid gap-3 max-h-[420px] overflow-y-auto pr-1">
                   {tlAll
                     .filter((t) => String(t.action) === "comment")
                     .slice(0, 20)
@@ -1357,7 +1439,7 @@ export function DealDetailPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <div className="text-sm font-semibold">AI-отчёт по сделке</div>
-                    <span className="neon-pill">AI command mode</span>
+                    <span className="neon-pill">AI режим</span>
                   </div>
                   <div className="text-xs text-text2 mt-1">Сначала вывод и действия, ниже — детальная декомпозиция сигналов и рисков</div>
                 </div>
@@ -1471,9 +1553,10 @@ export function DealDetailPage() {
 
       <Modal
         open={contactModal}
-        title="Новый контакт"
+        title={editingContactId ? "Карточка контакта" : "Новый контакт"}
         onClose={() => {
           setContactModal(false);
+          setEditingContactId(null);
           setCError("");
         }}
       >
@@ -1507,8 +1590,11 @@ export function DealDetailPage() {
             <Button variant="ghost" onClick={() => setContactModal(false)}>
               Отмена
             </Button>
-            <Button onClick={addContact} disabled={createContactM.isPending}>
-              Создать
+            <Button
+              onClick={editingContactId ? saveContactChanges : addContact}
+              disabled={createContactM.isPending}
+            >
+              {editingContactId ? "Сохранить" : "Создать"}
             </Button>
           </div>
           <div className="text-xs text-text2">

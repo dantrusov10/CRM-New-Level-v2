@@ -5,6 +5,7 @@ import { useDeals, useFunnelStages, useUsers } from "../data/hooks";
 import type { Deal, FunnelStage, UserSummary } from "../../lib/types";
 import { Button } from "../components/Button";
 import { Modal } from "../components/Modal";
+import { pb } from "../../lib/pb";
 
 function money(n: number) {
   if (!Number.isFinite(n)) return "0";
@@ -192,12 +193,82 @@ export function DashboardPage() {
   const [cfg, setCfg] = React.useState<DashCfg>(() => loadCfg());
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [settingsTarget, setSettingsTarget] = React.useState<WidgetId | "dashboard">("dashboard");
+  const [showScoringWelcome, setShowScoringWelcome] = React.useState(false);
+  const [scoringRecordId, setScoringRecordId] = React.useState("");
 
   React.useEffect(() => {
     try {
       localStorage.setItem("nwlvl_dashboard_cfg", JSON.stringify(cfg));
     } catch {}
   }, [cfg]);
+
+  React.useEffect(() => {
+    let ignore = false;
+    async function ensureScoringModel() {
+      try {
+        const list = await pb.collection("semantic_packs").getList(1, 1, {
+          filter: 'type="deal_scoring_model" && model="deal_scoring_model_v1"',
+          sort: "-created",
+        });
+        const item = list.items[0] as { id: string; variants?: unknown } | undefined;
+        if (!item) {
+          const created = await pb.collection("semantic_packs").create({
+            type: "deal_scoring_model",
+            model: "deal_scoring_model_v1",
+            language: "ru",
+            base_text: "Tenant scoring factors for deterministic deal probability",
+            variants: {
+              version: "v1",
+              recommended: true,
+              acknowledged: false,
+              factors: [
+                { code: "stage_progress", name: "Прогресс этапа", weight: 22, enabled: true },
+                { code: "decision_maker_coverage", name: "Покрытие ЛПР/ЛВР", weight: 18, enabled: true },
+                { code: "activity_freshness", name: "Свежесть активности", weight: 14, enabled: true },
+                { code: "budget_clarity", name: "Определенность бюджета", weight: 14, enabled: true },
+                { code: "pilot_status", name: "Статус пилота/пресейла", weight: 12, enabled: true },
+                { code: "competition_pressure", name: "Конкурентное давление", weight: 10, enabled: true },
+                { code: "data_completeness", name: "Полнота данных сделки", weight: 10, enabled: true },
+              ],
+            },
+          });
+          if (!ignore) {
+            setScoringRecordId((created as { id: string }).id);
+            setShowScoringWelcome(true);
+          }
+          return;
+        }
+        const variants = item.variants && typeof item.variants === "object" ? (item.variants as Record<string, unknown>) : {};
+        if (!ignore) {
+          setScoringRecordId(item.id);
+          if (variants.acknowledged !== true) setShowScoringWelcome(true);
+        }
+      } catch {
+        // no-op
+      }
+    }
+    ensureScoringModel();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  async function acknowledgeScoringModel() {
+    if (!scoringRecordId) {
+      setShowScoringWelcome(false);
+      return;
+    }
+    try {
+      const rec = (await pb.collection("semantic_packs").getOne(scoringRecordId)) as { variants?: unknown };
+      const variants = rec.variants && typeof rec.variants === "object" ? (rec.variants as Record<string, unknown>) : {};
+      await pb.collection("semantic_packs").update(scoringRecordId, {
+        variants: { ...variants, acknowledged: true },
+      });
+    } catch {
+      // no-op
+    }
+    setShowScoringWelcome(false);
+  }
 
   const stages = stagesQ.data ?? [];
   const deals = dealsQ.data ?? [];
@@ -851,6 +922,22 @@ export function DashboardPage() {
             );
           })()
         )}
+      </Modal>
+
+      <Modal open={showScoringWelcome} title="Рекомендуемая модель AI-скоринга" onClose={acknowledgeScoringModel}>
+        <div className="grid gap-3">
+          <div className="text-sm">
+            Для вашего кабинета включена преднастроенная факторная модель оценки вероятности сделки.
+            Рекомендуем использовать ее как baseline — при необходимости ее можно изменить в настройках клиента.
+          </div>
+          <div className="text-xs text-text2">
+            Путь: Админ → Парсеры + AI → Парсеры + AI (вкладка) → Факторы скоринга вероятности сделки.
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => nav("/admin/parsers")}>Открыть настройки</Button>
+            <Button onClick={acknowledgeScoringModel}>Понятно</Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

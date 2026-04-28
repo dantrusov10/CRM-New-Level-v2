@@ -31,6 +31,8 @@ AI_GATEWAY_AUDIT_LOG = os.getenv("AI_GATEWAY_AUDIT_LOG", "/opt/pb-control/ai-gat
 SESSIONS = {}
 PUBLIC_AI_RATE_LIMIT = {}
 
+MASTER_PROMPT_KEY_DEAL_ANALYSIS = "ai.master_prompt.deal_analysis"
+
 
 INDEX_HTML = """<!doctype html>
 <html lang="ru">
@@ -209,6 +211,13 @@ INDEX_HTML = """<!doctype html>
             <label title="Общий шаблон запроса для анализа сделки. Можно менять без релиза кода.">Промпт AI для анализа сделки</label>
             <textarea id="rtPromptDeal" rows="5" placeholder="Инструкция модели для анализа сделки..."></textarea>
             <div class="hint">В запрос также автоматически добавляются: все поля сделки, комментарии/заметки/события timeline, последние AI-результаты.</div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <div style="min-width:100%;">
+            <label title="Founder-only. Не виден клиентам. Главный промпт-модератор конкретности и формата.">Master Prompt (только founder)</label>
+            <textarea id="rtMasterPromptDeal" rows="6" placeholder="Системные правила конкретности и anti-water для всех клиентов..."></textarea>
+            <div class="hint">Этот промпт применяется поверх tenant-промпта и хранится только в control DB.</div>
           </div>
         </div>
 
@@ -405,6 +414,8 @@ INDEX_HTML = """<!doctype html>
 
       document.getElementById("rtPricePer1k").value = budget.default_price_rub_per_1k_tokens || "";
       document.getElementById("rtPromptDeal").value = prompts.deal_analysis || "";
+      const mp = await getJson(api("master-prompt"));
+      document.getElementById("rtMasterPromptDeal").value = (mp.master_prompt || "");
     }
 
     function buildRoute(primaryProviderId, primaryEngineId, fallbackProviderId, fallbackEngineId, tokenProviderId, maxReqId, maxOutId) {
@@ -438,6 +449,11 @@ INDEX_HTML = """<!doctype html>
         method: "POST",
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify(payload)
+      });
+      await getJson(api("master-prompt"), {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ master_prompt: document.getElementById("rtMasterPromptDeal").value || "" })
       });
       setMsg("Матрица маршрутизации сохранена");
       document.getElementById("routingMsg").textContent = "Сохранено";
@@ -1139,6 +1155,12 @@ def _build_ai_context(tenant_pb_url, deal_id, admin_token, ui_context):
         {"perPage": 20, "sort": "-created", "filter": f'deal_id="{_safe_filter_value(deal_id)}"'},
         admin_token,
     )
+    funnel_stages = _tenant_api_list(
+        tenant_pb_url,
+        "funnel_stages",
+        {"perPage": 200, "sort": "position"},
+        admin_token,
+    )
     events = timeline.get("items", []) if isinstance(timeline, dict) else []
     notes = []
     comments = []
@@ -1198,9 +1220,274 @@ def _build_ai_context(tenant_pb_url, deal_id, admin_token, ui_context):
             "ai_insights_recent": insights.get("items", []) if isinstance(insights, dict) else [],
             "contacts_found": contacts_items,
             "entity_files_deal": entity_file_items,
+            "funnel_stages": funnel_stages.get("items", []) if isinstance(funnel_stages, dict) else [],
         }
     }
     return context
+
+
+def _default_scoring_model():
+    return {
+        "version": "v1",
+        "recommended": True,
+        "acknowledged": False,
+        "factors": [
+            {"code": "stage_progress", "name": "Прогресс этапа", "weight": 22, "enabled": True},
+            {"code": "decision_maker_coverage", "name": "Покрытие ЛПР/ЛВР", "weight": 18, "enabled": True},
+            {"code": "activity_freshness", "name": "Свежесть активности", "weight": 14, "enabled": True},
+            {"code": "budget_clarity", "name": "Определенность бюджета", "weight": 14, "enabled": True},
+            {"code": "pilot_status", "name": "Статус пилота/пресейла", "weight": 12, "enabled": True},
+            {"code": "competition_pressure", "name": "Конкурентное давление", "weight": 10, "enabled": True},
+            {"code": "data_completeness", "name": "Полнота данных сделки", "weight": 10, "enabled": True},
+        ],
+    }
+
+
+def _to_float(v, default=0.0):
+    try:
+        return float(v)
+    except Exception:
+        return float(default)
+
+
+def _to_dt(v):
+    s = str(v or "").strip()
+    if not s:
+        return None
+    s = s.replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(s)
+    except Exception:
+        return None
+
+
+def _get_source(full_context):
+    if not isinstance(full_context, dict):
+        return {}
+    src = full_context.get("source")
+    return src if isinstance(src, dict) else {}
+
+
+def _calc_factor_value(code, full_context):
+    src = _get_source(full_context)
+    deal = src.get("deal_record", {}) if isinstance(src.get("deal_record"), dict) else {}
+    contacts = src.get("contacts_found", []) if isinstance(src.get("contacts_found"), list) else []
+    timeline = src.get("timeline_recent", []) if isinstance(src.get("timeline_recent"), list) else []
+    stages = src.get("funnel_stages", []) if isinstance(src.get("funnel_stages"), list) else []
+
+    if code == "stage_progress":
+        stage_id = str(deal.get("stage_id") or ((deal.get("expand") or {}).get("stage_id") or {}).get("id") or "")
+        if not stage_id or not stages:
+            return 50.0
+        ordered = sorted(
+            [s for s in stages if isinstance(s, dict)],
+            key=lambda x: _to_float(x.get("position"), 0),
+        )
+        total = max(1, len(ordered) - 1)
+        idx = 0
+        for i, s in enumerate(ordered):
+            if str(s.get("id", "")) == stage_id:
+                idx = i
+                break
+        return 35.0 + (idx / total) * 55.0
+
+    if code == "decision_maker_coverage":
+        infl = [str((c or {}).get("influence_type", "")).lower() for c in contacts if isinstance(c, dict)]
+        has_lpr = any(x == "lpr" for x in infl)
+        has_lvr = any(x == "lvr" for x in infl)
+        has_infl = any(x in ("influencer", "blocker") for x in infl)
+        if has_lpr and has_lvr:
+            return 88.0
+        if has_lpr:
+            return 74.0
+        if has_lvr:
+            return 62.0
+        if has_infl:
+            return 46.0
+        return 24.0
+
+    if code == "activity_freshness":
+        latest = None
+        for e in timeline:
+            if not isinstance(e, dict):
+                continue
+            dt = _to_dt(e.get("timestamp") or e.get("created"))
+            if dt and (latest is None or dt > latest):
+                latest = dt
+        if latest is None:
+            return 28.0
+        days = max(0, (datetime.utcnow().date() - latest.date()).days)
+        if days <= 2:
+            return 92.0
+        if days <= 7:
+            return 76.0
+        if days <= 14:
+            return 60.0
+        if days <= 30:
+            return 42.0
+        return 22.0
+
+    if code == "budget_clarity":
+        budget = _to_float(deal.get("budget"), 0)
+        turnover = _to_float(deal.get("turnover"), 0)
+        if budget > 0:
+            return 82.0
+        if turnover > 0:
+            return 61.0
+        return 26.0
+
+    if code == "pilot_status":
+        hay = " ".join(
+            [
+                str(deal.get("presale", "")),
+                " ".join(str((e or {}).get("comment", "")) for e in timeline if isinstance(e, dict)),
+            ]
+        ).lower()
+        if any(k in hay for k in ["пилот окончен", "пилот заверш", "pilot complete", "pilot done", "успешн"]):
+            return 90.0
+        if "пилот" in hay:
+            return 67.0
+        return 48.0
+
+    if code == "competition_pressure":
+        hay = " ".join(str((e or {}).get("comment", "")) for e in timeline if isinstance(e, dict)).lower()
+        if any(k in hay for k in ["конкур", "айтеко", "тендер", "демпинг"]):
+            return 38.0
+        return 72.0
+
+    if code == "data_completeness":
+        required = [
+            bool(str(deal.get("title", "")).strip()),
+            bool(str(deal.get("company_id", "")).strip()),
+            bool(str(deal.get("stage_id", "")).strip()),
+            _to_float(deal.get("budget"), 0) > 0 or _to_float(deal.get("turnover"), 0) > 0,
+            bool(str(deal.get("activity_type", "")).strip()),
+            bool(str(deal.get("presale", "")).strip()),
+        ]
+        ratio = sum(1 for x in required if x) / max(1, len(required))
+        return 20.0 + ratio * 75.0
+
+    return 50.0
+
+
+def _get_tenant_scoring_model(tenant_pb_url, admin_token):
+    fallback = _default_scoring_model()
+    try:
+        packs = _tenant_api_list(
+            tenant_pb_url,
+            "semantic_packs",
+            {
+                "perPage": 1,
+                "sort": "-created",
+                "filter": 'type="deal_scoring_model" && model="deal_scoring_model_v1"',
+            },
+            admin_token,
+        )
+        items = packs.get("items", []) if isinstance(packs, dict) else []
+        if not items:
+            return {"record_id": "", "model": fallback}
+        rec = items[0] if isinstance(items[0], dict) else {}
+        variants = rec.get("variants")
+        parsed = None
+        if isinstance(variants, dict):
+            parsed = variants
+        elif isinstance(variants, str):
+            try:
+                maybe = json.loads(variants)
+                if isinstance(maybe, dict):
+                    parsed = maybe
+            except Exception:
+                parsed = None
+        if not isinstance(parsed, dict):
+            parsed = {}
+        model = dict(fallback)
+        model.update(parsed)
+        if not isinstance(model.get("factors"), list) or not model.get("factors"):
+            model["factors"] = fallback["factors"]
+        return {"record_id": str(rec.get("id", "")), "model": model}
+    except Exception:
+        return {"record_id": "", "model": fallback}
+
+
+def _compute_deterministic_score(scoring_model, full_context, llm_score):
+    model = scoring_model if isinstance(scoring_model, dict) else _default_scoring_model()
+    factors = model.get("factors", []) if isinstance(model.get("factors"), list) else []
+    breakdown = []
+    weighted_sum = 0.0
+    weight_total = 0.0
+    for f in factors:
+        if not isinstance(f, dict):
+            continue
+        enabled = bool(f.get("enabled", True))
+        weight = max(0.0, _to_float(f.get("weight", 0), 0))
+        code = str(f.get("code", "")).strip()
+        name = str(f.get("name", code or "factor")).strip() or code or "factor"
+        if not enabled or not code or weight <= 0:
+            continue
+        val = max(0.0, min(100.0, _calc_factor_value(code, full_context)))
+        contrib = (val * weight) / 100.0
+        breakdown.append(
+            {
+                "code": code,
+                "name": name,
+                "weight": round(weight, 2),
+                "value": round(val, 2),
+                "weighted_contribution": round(contrib, 2),
+            }
+        )
+        weighted_sum += val * weight
+        weight_total += weight
+    if weight_total <= 0:
+        return {
+            "score": int(max(0, min(100, _to_float(llm_score, 0)))),
+            "method": "llm_fallback",
+            "breakdown": breakdown,
+        }
+    final_score = int(max(0, min(100, round(weighted_sum / weight_total))))
+    return {"score": final_score, "method": "weighted_factors_v1", "breakdown": breakdown}
+
+
+def _get_master_prompt_deal_analysis():
+    con = sqlite3.connect(DB_PATH)
+    cur = con.cursor()
+    cur.execute("SELECT value FROM system_settings WHERE key=?", (MASTER_PROMPT_KEY_DEAL_ANALYSIS,))
+    row = cur.fetchone()
+    con.close()
+    if not row or not row[0]:
+        return ""
+    return str(row[0]).strip()
+
+
+def _save_master_prompt_deal_analysis(text):
+    ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S.%fZ")
+    value = str(text or "").strip()
+    con = sqlite3.connect(DB_PATH)
+    cur = con.cursor()
+    cur.execute("SELECT id FROM system_settings WHERE key=?", (MASTER_PROMPT_KEY_DEAL_ANALYSIS,))
+    row = cur.fetchone()
+    if row:
+        cur.execute("UPDATE system_settings SET value=?, updated=? WHERE key=?", (value, ts, MASTER_PROMPT_KEY_DEAL_ANALYSIS))
+    else:
+        rid = "r" + secrets.token_hex(7)
+        cur.execute(
+            """
+            INSERT INTO system_settings (id, key, value, description, group_name, is_public, created, updated)
+            VALUES (?,?,?,?,?,?,?,?)
+            """,
+            (
+                rid,
+                MASTER_PROMPT_KEY_DEAL_ANALYSIS,
+                value,
+                "Master prompt (founder-only) for deal_analysis moderation",
+                "ai",
+                0,
+                ts,
+                ts,
+            ),
+        )
+    con.commit()
+    con.close()
+    return {"ok": True}
 
 
 def _get_tenant_prompt(tenant_pb_url, admin_token):
@@ -1276,6 +1563,9 @@ def run_ai_deal_analysis(payload):
         ((routing.get("prompts", {}) if isinstance(routing.get("prompts"), dict) else {}).get("deal_analysis") or "")
     ).strip()
     tenant_prompt = _get_tenant_prompt(tenant_pb_url, admin_token)
+    master_prompt = _get_master_prompt_deal_analysis()
+    scoring_bundle = _get_tenant_scoring_model(tenant_pb_url, admin_token)
+    scoring_model = scoring_bundle.get("model", _default_scoring_model())
     deal_prompt = tenant_prompt or owner_prompt
     if not deal_prompt:
         deal_prompt = (
@@ -1283,6 +1573,7 @@ def run_ai_deal_analysis(payload):
         )
     prompt = (
         f"{deal_prompt}\n"
+        + (f"{master_prompt}\n" if master_prompt else "")
         f"Контекст сделки (JSON): {json.dumps(full_context, ensure_ascii=False)}\n"
         "Формат ответа: один валидный JSON-объект без markdown и без текста вне JSON.\n"
         + AI_DEAL_OUTPUT_RULES
@@ -1357,11 +1648,32 @@ def run_ai_deal_analysis(payload):
     raw_content = str(llm_result.get("content", "") or "")
     usage = llm_result.get("usage", {}) if isinstance(llm_result.get("usage"), dict) else {}
     normalized = _normalize_ai_result(raw_content, parsed)
-    score = normalized.get("score", 0)
+    llm_score = normalized.get("score", 0)
+    deterministic = _compute_deterministic_score(scoring_model, full_context, llm_score)
+    score = deterministic.get("score", 0)
     summary = str(normalized.get("summary", "")).strip()
     suggestions = str(normalized.get("suggestions", "")).strip()
     risks_value = normalized.get("risks")
     explainability = normalized.get("explainability")
+    if isinstance(explainability, dict):
+        explainability["_scoring"] = {
+            "model": scoring_model,
+            "method": deterministic.get("method"),
+            "breakdown": deterministic.get("breakdown", []),
+            "final_probability": score,
+            "llm_probability_raw": llm_score,
+        }
+    else:
+        explainability = {
+            "raw_model_output": explainability,
+            "_scoring": {
+                "model": scoring_model,
+                "method": deterministic.get("method"),
+                "breakdown": deterministic.get("breakdown", []),
+                "final_probability": score,
+                "llm_probability_raw": llm_score,
+            },
+        }
     total_tokens = usage.get("total_tokens", 0) if isinstance(usage, dict) else 0
     try:
         total_tokens = float(total_tokens or 0)
@@ -1418,6 +1730,7 @@ def run_ai_deal_analysis(payload):
             "provider": used_provider,
             "engine": used_engine,
             "score": score,
+            "llm_score_raw": llm_score,
             "summary": summary,
             "suggestions": suggestions,
             "token_usage": total_tokens,
@@ -1846,6 +2159,15 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._json(500, {"error": str(e)})
             return
+        if path == "/api/master-prompt":
+            if not self._require_auth():
+                self._json(401, {"error": "unauthorized"})
+                return
+            try:
+                self._json(200, {"master_prompt": _get_master_prompt_deal_analysis()})
+            except Exception as e:
+                self._json(500, {"error": str(e)})
+            return
         if path == "/api/public/health":
             self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8", headers=self._public_headers())
             return
@@ -1935,6 +2257,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/routing":
                 self._json(200, save_routing_matrix(payload))
+                return
+            if path == "/api/master-prompt":
+                self._json(200, _save_master_prompt_deal_analysis(payload.get("master_prompt", "")))
                 return
             self._send(404, "not found")
         except Exception as e:

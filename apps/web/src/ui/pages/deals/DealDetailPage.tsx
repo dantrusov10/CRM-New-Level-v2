@@ -1078,37 +1078,24 @@ export function DealDetailPage() {
         previous_ai_summary: prevInsight?.summary || "",
         previous_ai_suggestions: String(prevInsight?.suggestions || prevInsight?.recommendations || ""),
         previous_ai_score: resolveDisplayScore(prevInsight),
+        output_contract: {
+          required_fields: ["score", "summary", "suggestions", "risks"],
+          min_summary_chars: 100,
+          min_suggestions_items: 3,
+          min_suggestion_chars: 60,
+        },
+        response_style:
+          "Верни непустые summary и suggestions. Если данных мало — заполни кратким fallback по фактам сделки и последним комментариям.",
         update_focus: mode === "update"
           ? "Сфокусируйся только на изменениях после последнего анализа: что улучшилось/ухудшилось, как изменилась вероятность и что делать дальше."
           : "",
       };
-      const aiResponse = await analyzeDealWithAi({
+      await analyzeDealWithAi({
         dealId: deal.id,
         userId: auth?.id,
         taskCode: "deal_analysis",
         context: requestContext,
       });
-      await createTimelineEvent(
-        "ai_debug_trace",
-        `AI trace (${mode}) · score=${String(aiResponse?.score ?? "—")} · summary=${String(aiResponse?.summary ?? "").slice(0, 90)} · suggestions=${String(aiResponse?.suggestions ?? "").slice(0, 90)}`,
-        {
-          analysis_mode: mode,
-          task_code: "deal_analysis",
-          request_context_preview: {
-            stage: requestContext.stage,
-            company: requestContext.company,
-            latest_comment: String((requestContext.recent_comments_notes?.[0] as { comment?: unknown } | undefined)?.comment || "").slice(0, 220),
-            recent_comments_count: Array.isArray(requestContext.recent_comments_notes) ? requestContext.recent_comments_notes.length : 0,
-          },
-          response_preview: {
-            provider: String(aiResponse?.provider || ""),
-            engine: String(aiResponse?.engine || ""),
-            score: aiResponse?.score ?? null,
-            summary: String(aiResponse?.summary || "").slice(0, 300),
-            suggestions: String(aiResponse?.suggestions || "").slice(0, 300),
-          },
-        },
-      );
       await Promise.all([aiQ.refetch(), tlQ.refetch(), dealQ.refetch()]);
     } catch (e) {
       setAiRunError(e instanceof Error ? e.message : "Ошибка AI-анализа");
@@ -1138,7 +1125,7 @@ export function DealDetailPage() {
     () =>
       tlAll.find((t) => {
         const action = String(t.action || "").toLowerCase();
-        return action === "ai_analysis" || action === "ai_update_analysis" || action.startsWith("ai");
+        return action === "ai_analysis" || action === "ai_update_analysis";
       }) || null,
     [tlAll],
   );

@@ -129,6 +129,10 @@ INDEX_HTML = """<!doctype html>
             <input id="secretToken" type="password" placeholder="для gigachat: Authorization Key из ЛК"/>
           </div>
           <div>
+            <label title="Базовый URL API провайдера (для OpenRouter: https://openrouter.ai/api/v1)">Base URL (опц.)</label>
+            <input id="secretBaseUrl" type="text" placeholder="например: https://openrouter.ai/api/v1"/>
+          </div>
+          <div>
             <label title="Быстрая проверка: есть ли токен у выбранного провайдера">Проверка провайдера</label>
             <input id="testProvider" type="text" placeholder="например: deepseek"/>
           </div>
@@ -342,6 +346,7 @@ INDEX_HTML = """<!doctype html>
     async function saveProviderToken() {
       const provider = val("secretProvider").toLowerCase();
       const token = val("secretToken");
+      const baseUrl = val("secretBaseUrl");
       if (!provider || !token) {
         setErr("Укажи код провайдера и токен.");
         return;
@@ -349,9 +354,10 @@ INDEX_HTML = """<!doctype html>
       await getJson(api("provider-secrets"), {
         method: "POST",
         headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ provider, api_key: token })
+        body: JSON.stringify({ provider, api_key: token, base_url: baseUrl })
       });
       document.getElementById("secretToken").value = "";
+      document.getElementById("secretBaseUrl").value = "";
       setMsg("Токен сохранен на сервере");
       await loadSecretsMeta();
     }

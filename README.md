@@ -321,6 +321,7 @@ cd backend/pocketbase
   - production credentials.
 - Для founder-console обязательно сменить дефолтный пароль и вести ротацию.
 - Для сервисных пользователей и деплой-ботов использовать минимально необходимые права.
+- Формальный baseline по AI-данным: `SECURITY_BASELINE.md`.
 
 ---
 

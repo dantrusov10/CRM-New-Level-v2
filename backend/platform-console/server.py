@@ -34,6 +34,7 @@ PUBLIC_AI_RATE_LIMIT = {}
 AI_QUALITY_GATE_WINDOW = {}
 
 MASTER_PROMPT_KEY_DEAL_ANALYSIS = "ai.master_prompt.deal_analysis"
+AI_DATA_POLICY_KEY = "ai.data_policy.v1"
 
 
 INDEX_HTML = """<!doctype html>
@@ -773,8 +774,83 @@ def _mask_account_like(text):
     return d[:2] + ("*" * (len(d) - 4)) + d[-2:]
 
 
-def _sanitize_scalar_by_key(key, value):
+def _default_ai_data_policy():
+    return {
+        "version": "v1",
+        "mode": "allow_all_except_deny",
+        "allow_key_patterns": [],
+        "deny_key_patterns": [
+            "password",
+            "pass",
+            "token",
+            "secret",
+            "api_key",
+            "cookie",
+            "session",
+            "credential",
+            "passport",
+            "snils",
+            "card",
+            "iban",
+            "swift",
+            "ogrn",
+            "inn",
+            "kpp",
+            "bik",
+            "account",
+            "address",
+        ],
+        "mask_key_patterns": [
+            "name",
+            "full_name",
+            "fio",
+            "email",
+            "phone",
+            "mobile",
+            "telegram",
+            "whatsapp",
+            "inn",
+            "kpp",
+            "bik",
+            "account",
+            "address",
+        ],
+        "redacted_placeholder": "[redacted_by_policy]",
+    }
+
+
+def _get_ai_data_policy():
+    policy = _default_ai_data_policy()
+    try:
+        con = sqlite3.connect(DB_PATH)
+        cur = con.cursor()
+        cur.execute("SELECT value FROM system_settings WHERE key=?", (AI_DATA_POLICY_KEY,))
+        row = cur.fetchone()
+        con.close()
+        if not row or not row[0]:
+            return policy
+        parsed = json.loads(str(row[0]))
+        if isinstance(parsed, dict):
+            policy.update(parsed)
+    except Exception:
+        return policy
+    return policy
+
+
+def _policy_match(patterns, key):
     k = str(key or "").lower()
+    for p in patterns or []:
+        pp = str(p or "").lower().strip()
+        if pp and pp in k:
+            return True
+    return False
+
+
+def _sanitize_scalar_by_key(key, value, policy=None):
+    policy = policy or _default_ai_data_policy()
+    k = str(key or "").lower()
+    if _policy_match(policy.get("deny_key_patterns"), k):
+        return str(policy.get("redacted_placeholder", "[redacted_by_policy]"))
     s = str(value or "")
     if "email" in k or "mail" in k:
         return _mask_email(s)
@@ -800,21 +876,29 @@ def _sanitize_text_pii(text):
     return s
 
 
-def _sanitize_for_llm(value, key_hint=""):
+def _sanitize_for_llm(value, key_hint="", policy=None):
+    policy = policy or _default_ai_data_policy()
     if value is None:
         return None
     if isinstance(value, dict):
         out = {}
         for k, v in value.items():
-            out[k] = _sanitize_for_llm(v, str(k))
+            kk = str(k)
+            mode = str(policy.get("mode", "allow_all_except_deny"))
+            if mode == "allowlist" and not _policy_match(policy.get("allow_key_patterns"), kk):
+                continue
+            if _policy_match(policy.get("deny_key_patterns"), kk):
+                out[kk] = str(policy.get("redacted_placeholder", "[redacted_by_policy]"))
+                continue
+            out[kk] = _sanitize_for_llm(v, kk, policy)
         return out
     if isinstance(value, list):
-        return [_sanitize_for_llm(v, key_hint) for v in value]
+        return [_sanitize_for_llm(v, key_hint, policy) for v in value]
     if isinstance(value, tuple):
-        return [_sanitize_for_llm(v, key_hint) for v in value]
+        return [_sanitize_for_llm(v, key_hint, policy) for v in value]
     if isinstance(value, (int, float, bool)):
         return value
-    txt = _sanitize_scalar_by_key(key_hint, value)
+    txt = _sanitize_scalar_by_key(key_hint, value, policy)
     return _sanitize_text_pii(txt)
 
 
@@ -1770,6 +1854,41 @@ def _save_master_prompt_deal_analysis(text):
     return {"ok": True}
 
 
+def _save_ai_data_policy(payload):
+    policy = _default_ai_data_policy()
+    if isinstance(payload, dict):
+        policy.update(payload)
+    value = json.dumps(policy, ensure_ascii=False)
+    ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S.%fZ")
+    con = sqlite3.connect(DB_PATH)
+    cur = con.cursor()
+    cur.execute("SELECT id FROM system_settings WHERE key=?", (AI_DATA_POLICY_KEY,))
+    row = cur.fetchone()
+    if row:
+        cur.execute("UPDATE system_settings SET value=?, updated=? WHERE key=?", (value, ts, AI_DATA_POLICY_KEY))
+    else:
+        rid = "r" + secrets.token_hex(7)
+        cur.execute(
+            """
+            INSERT INTO system_settings (id, key, value, description, group_name, is_public, created, updated)
+            VALUES (?,?,?,?,?,?,?,?)
+            """,
+            (
+                rid,
+                AI_DATA_POLICY_KEY,
+                value,
+                "AI data policy: allow/deny/mask rules for outbound LLM context",
+                "ai",
+                0,
+                ts,
+                ts,
+            ),
+        )
+    con.commit()
+    con.close()
+    return {"ok": True, "policy": policy}
+
+
 def _get_tenant_prompt(tenant_pb_url, admin_token):
     try:
         packs = _tenant_api_list(
@@ -1798,7 +1917,8 @@ def run_ai_deal_analysis(payload):
     user_id = str(payload.get("user_id", "")).strip()
     tenant_user_token = str(payload.get("tenant_user_token", "")).strip()
     context = payload.get("context", {}) if isinstance(payload.get("context"), dict) else {}
-    safe_request_context = _sanitize_for_llm(context, "context")
+    data_policy = _get_ai_data_policy()
+    safe_request_context = _sanitize_for_llm(context, "context", data_policy)
     _audit_log(
         "analyze_request",
         {
@@ -1840,7 +1960,7 @@ def run_ai_deal_analysis(payload):
         return {"ok": False, "error": f"tenant admin auth failed: {e}"}
 
     full_context = _build_ai_context(tenant_pb_url, deal_id, admin_token, context)
-    llm_context = _sanitize_for_llm(full_context, "context")
+    llm_context = _sanitize_for_llm(full_context, "context", data_policy)
     owner_prompt = str(
         ((routing.get("prompts", {}) if isinstance(routing.get("prompts"), dict) else {}).get("deal_analysis") or "")
     ).strip()
@@ -1872,9 +1992,10 @@ def run_ai_deal_analysis(payload):
     elif not primary_structured:
         primary_error = "primary returned unstructured/empty payload"
     parsed_payload = llm_result.get("parsed", {})
+    parsed_payload_safe = _sanitize_for_llm(parsed_payload, "parsed", data_policy) if isinstance(parsed_payload, dict) else parsed_payload
     content_preview = ""
     if isinstance(parsed_payload, dict) and not parsed_payload:
-        content_preview = str(llm_result.get("content", "") or "")[:1500]
+        content_preview = _sanitize_text_pii(str(llm_result.get("content", "") or ""))[:1500]
     _audit_log(
         "provider_attempt",
         {
@@ -1884,7 +2005,7 @@ def run_ai_deal_analysis(payload):
             "ok": bool(llm_result.get("ok")),
             "error": llm_result.get("error", ""),
             "usage": llm_result.get("usage", {}),
-            "parsed": parsed_payload,
+            "parsed": parsed_payload_safe,
             "content_preview": content_preview,
         },
     )
@@ -1901,9 +2022,10 @@ def run_ai_deal_analysis(payload):
             elif not _llm_result_has_structured_payload(llm_result):
                 fallback_error = "fallback returned unstructured/empty payload"
             fb_parsed_payload = llm_result.get("parsed", {})
+            fb_parsed_payload_safe = _sanitize_for_llm(fb_parsed_payload, "parsed", data_policy) if isinstance(fb_parsed_payload, dict) else fb_parsed_payload
             fb_content_preview = ""
             if isinstance(fb_parsed_payload, dict) and not fb_parsed_payload:
-                fb_content_preview = str(llm_result.get("content", "") or "")[:1500]
+                fb_content_preview = _sanitize_text_pii(str(llm_result.get("content", "") or ""))[:1500]
             _audit_log(
                 "provider_attempt",
                 {
@@ -1913,7 +2035,7 @@ def run_ai_deal_analysis(payload):
                     "ok": bool(llm_result.get("ok")),
                     "error": llm_result.get("error", ""),
                     "usage": llm_result.get("usage", {}),
-                    "parsed": fb_parsed_payload,
+                    "parsed": fb_parsed_payload_safe,
                     "content_preview": fb_content_preview,
                 },
             )
@@ -2044,6 +2166,7 @@ def run_ai_deal_analysis(payload):
                 "fallback_used": fallback_used,
                 "structured_ok": structured_ok,
                 "quality_gate": quality_gate,
+                "data_policy_version": data_policy.get("version", "v1"),
             },
         )
     _audit_log(
@@ -2056,6 +2179,7 @@ def run_ai_deal_analysis(payload):
             "fallback_used": fallback_used,
             "structured_ok": structured_ok,
             "quality_gate": quality_gate,
+            "data_policy_version": data_policy.get("version", "v1"),
             "score": score,
             "llm_score_raw": llm_score,
             "summary": summary,
@@ -2495,6 +2619,15 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._json(500, {"error": str(e)})
             return
+        if path == "/api/ai-data-policy":
+            if not self._require_auth():
+                self._json(401, {"error": "unauthorized"})
+                return
+            try:
+                self._json(200, {"policy": _get_ai_data_policy()})
+            except Exception as e:
+                self._json(500, {"error": str(e)})
+            return
         if path == "/api/public/health":
             self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8", headers=self._public_headers())
             return
@@ -2598,6 +2731,10 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/master-prompt":
                 self._json(200, _save_master_prompt_deal_analysis(payload.get("master_prompt", "")))
+                return
+            if path == "/api/ai-data-policy":
+                policy = payload.get("policy", payload if isinstance(payload, dict) else {})
+                self._json(200, _save_ai_data_policy(policy if isinstance(policy, dict) else {}))
                 return
             self._send(404, "not found")
         except Exception as e:

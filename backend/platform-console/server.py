@@ -8,7 +8,7 @@ import sqlite3
 import ssl
 import uuid
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -1720,7 +1720,11 @@ def _to_dt(v):
         return None
     s = s.replace("Z", "+00:00")
     try:
-        return datetime.fromisoformat(s)
+        dt = datetime.fromisoformat(s)
+        # Normalize to timezone-aware UTC to avoid naive/aware comparison errors.
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
     except Exception:
         return None
 
@@ -2330,7 +2334,7 @@ def _check_and_mark_client_research_cooldown(tenant_code, company_id, product_id
         return {"ok": False, "error": "company_id and product_id are required for client_research"}
     data = _read_json_system_setting(AI_CLIENT_RESEARCH_COOLDOWN_KEY)
     records = data.get("records", []) if isinstance(data.get("records"), list) else []
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     key = f"{tenant_code}:{company_id}:{product_id}:client_research"
     active = []
     blocked_until = None

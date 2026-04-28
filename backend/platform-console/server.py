@@ -808,6 +808,60 @@ def _urlopen_with_tls(req, timeout=40, allow_insecure=False):
     return urlopen(req, timeout=timeout)
 
 
+def _collect_public_web_signals(company_name, product_name, limit=8):
+    company = str(company_name or "").strip()
+    product = str(product_name or "").strip()
+    if not company:
+        return []
+    queries = [
+        f"{company} новости",
+        f"{company} IT инфраструктура",
+        f"{company} тендер ИТ",
+    ]
+    if product:
+        queries.append(f"{company} {product}")
+    out = []
+    seen = set()
+    for q in queries:
+        if len(out) >= int(limit):
+            break
+        try:
+            url = "https://duckduckgo.com/html/?" + urlencode({"q": q})
+            req = Request(
+                url=url,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; NWLVL-AI/1.0)"},
+                method="GET",
+            )
+            with urlopen(req, timeout=15) as r:
+                html = r.read().decode("utf-8", errors="ignore")
+        except Exception:
+            continue
+        for m in re.finditer(r'<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)</a>', html, flags=re.IGNORECASE | re.DOTALL):
+            href = re.sub(r"\s+", " ", str(m.group(1) or "").strip())
+            title_html = str(m.group(2) or "")
+            title = re.sub(r"<[^>]+>", "", title_html).strip()
+            if not href or not title:
+                continue
+            parsed = urlparse(href)
+            # DuckDuckGo wraps target URLs in /l/?uddg=...
+            if "duckduckgo.com" in (parsed.netloc or "") and parsed.path.startswith("/l/"):
+                qd = parse_qs(parsed.query)
+                target = str((qd.get("uddg", [""])[0] or "")).strip()
+            else:
+                target = href
+            p2 = urlparse(target)
+            if p2.scheme not in ("http", "https"):
+                continue
+            norm = target.strip()
+            if not norm or norm in seen:
+                continue
+            seen.add(norm)
+            out.append({"query": q, "title": title, "url": norm})
+            if len(out) >= int(limit):
+                break
+    return out
+
+
 def _allowed_origins():
     return [x.strip() for x in PUBLIC_AI_ALLOWED_ORIGINS.split(",") if x.strip()]
 
@@ -2505,6 +2559,19 @@ def run_ai_deal_analysis(payload):
     context_mode = str((context or {}).get("analysis_mode", "")).strip().lower()
     is_update_mode = task_code == "deal_update_analysis" or context_mode == "update"
     full_context = _build_ai_context(tenant_pb_url, deal_id, admin_token, context)
+    if task_code == "client_research":
+        try:
+            src = _get_source(full_context)
+            frontend_ctx = src.get("frontend_context", {}) if isinstance(src.get("frontend_context"), dict) else {}
+            deal = src.get("deal_record", {}) if isinstance(src.get("deal_record"), dict) else {}
+            company_name = str(frontend_ctx.get("company") or ((deal.get("expand") or {}).get("company_id") or {}).get("name") or "").strip()
+            product_name = str(frontend_ctx.get("product_name") or "").strip()
+            web_signals = _collect_public_web_signals(company_name, product_name, limit=10)
+            if web_signals:
+                src["public_web_signals"] = web_signals
+                full_context["source"] = src
+        except Exception:
+            pass
     tenant_code = _resolve_tenant_code_from_pb_url(tenant_pb_url)
     company_id, product_id = _extract_company_product_for_cooldown(full_context)
     tenant_limits = _resolve_tenant_limits(tenant_code)
@@ -2554,7 +2621,8 @@ def run_ai_deal_analysis(payload):
             "Режим DEEP_RESEARCH: выполни глубокое исследование клиента под продукт. "
             "Сначала собери и проверь сигналы, затем выдай структурированный итог с разделением на факты/гипотезы, "
             "карту ЛПР/ЛВР/блокеров, подтвержденные боли, зрелость, риски, окна входа и план действий на 7/14/30 дней. "
-            "Отдельно перечисли data-gaps и какие вопросы задать клиенту для валидации гипотез.\n"
+            "Отдельно перечисли data-gaps и какие вопросы задать клиенту для валидации гипотез. "
+            "Используй public_web_signals из контекста, приоритетно опирайся на них и возвращай source_ref/url для подтвержденных тезисов.\n"
         )
     output_rules = AI_DEAL_OUTPUT_RULES
     if task_code == "client_research":

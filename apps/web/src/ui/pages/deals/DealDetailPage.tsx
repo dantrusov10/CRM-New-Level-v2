@@ -409,6 +409,25 @@ function normalizeExternalUrl(raw: string): string {
   }
 }
 
+function openExternalUrl(raw: string) {
+  const url = normalizeExternalUrl(raw);
+  if (!url) return;
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function downloadExternalUrl(raw: string, filename?: string) {
+  const url = normalizeExternalUrl(raw);
+  if (!url) return;
+  const a = document.createElement("a");
+  a.href = url;
+  if (filename) a.download = filename;
+  a.target = "_blank";
+  a.rel = "noreferrer";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Parse JSON or legacy Python-ish repr (single quotes) from older gateway rows. */
@@ -2033,9 +2052,12 @@ export function DealDetailPage() {
                             return (
                               <div key={t.id} className="rounded-card border border-border bg-white p-3">
                                 <div className="text-xs text-text2">{dayjs(t.timestamp || t.created).format("DD.MM.YYYY HH:mm")}</div>
-                                <a className="text-sm text-primary underline break-all" href={url} target="_blank" rel="noreferrer">
-                                  {t.comment || url}
-                                </a>
+                                <div className="text-sm">{t.comment || "Ссылка"}</div>
+                                <div className="mt-2 flex items-center gap-2">
+                                  <Button small variant="secondary" onClick={() => openExternalUrl(url)}>
+                                    Открыть ссылку
+                                  </Button>
+                                </div>
                               </div>
                             );
                           })}
@@ -2096,19 +2118,13 @@ export function DealDetailPage() {
                                     </Select>
                                   </div>
                                   {url ? (
-                                    <div className="mt-2 flex items-center gap-3 flex-wrap">
-                                      <a className="text-sm text-primary underline break-all" href={url} target="_blank" rel="noreferrer">
-                                        {url}
-                                      </a>
-                                      <a
-                                        className="text-sm text-primary underline"
-                                        href={url}
-                                        download={String(f?.filename || "file")}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                      >
+                                    <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                      <Button small variant="secondary" onClick={() => openExternalUrl(url)}>
+                                        Открыть
+                                      </Button>
+                                      <Button small variant="secondary" onClick={() => downloadExternalUrl(url, String(f?.filename || "file"))}>
                                         Скачать
-                                      </a>
+                                      </Button>
                                     </div>
                                   ) : null}
                                 </div>
@@ -2145,15 +2161,9 @@ export function DealDetailPage() {
                                   <div className="text-sm font-semibold truncate">{pf.filename}</div>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                  <a
-                                    className="text-sm text-primary underline"
-                                    href={normalizeExternalUrl(pf.url)}
-                                    download={pf.filename}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                  >
+                                  <Button small variant="secondary" onClick={() => downloadExternalUrl(pf.url, pf.filename)}>
                                     Скачать
-                                  </a>
+                                  </Button>
                                   <label className="flex items-center gap-2 text-xs text-text2">
                                     <input
                                       type="radio"

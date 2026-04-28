@@ -2663,6 +2663,23 @@ def run_ai_deal_analysis(payload):
     suggestions = str(normalized.get("suggestions", "")).strip()
     risks_value = normalized.get("risks")
     explainability = normalized.get("explainability")
+    if task_code == "client_research":
+        # Do not force deal-scoring fallback templates into client research output.
+        if isinstance(explainability, dict):
+            if not summary:
+                summary = _value_to_text(
+                    explainability.get("executive_summary")
+                    or explainability.get("research_summary")
+                    or explainability.get("deal_health")
+                )
+            if not suggestions:
+                suggestions = _value_to_text(
+                    explainability.get("action_plan_7_14_30")
+                    or explainability.get("next_steps")
+                    or explainability.get("entry_strategy")
+                )
+        if llm_score and int(llm_score) > 0:
+            score = int(max(0, min(100, int(llm_score))))
     if isinstance(explainability, dict):
         explainability["_scoring"] = {
             "model": scoring_model,
@@ -2683,6 +2700,8 @@ def run_ai_deal_analysis(payload):
             },
         }
     need_fallback = (not summary) or (not suggestions) or (risks_value in (None, "", [], {}))
+    if task_code == "client_research":
+        need_fallback = False
     if need_fallback:
         fb = _build_fallback_analysis_from_scoring(full_context, score, deterministic.get("breakdown", []))
         if not summary:
@@ -2742,6 +2761,11 @@ def run_ai_deal_analysis(payload):
         "tender_tz_analysis": "ai_tz_analysis",
     }
     timeline_text = f"AI-анализ обновлен ({mode_label}). Score: {score}/100.\nРезюме: {summary}\nРекомендации: {suggestions}"
+    if task_code == "client_research":
+        timeline_text = (
+            f"AI-исследование клиента завершено ({mode_label}). Score: {score}/100.\n"
+            f"Кратко: {summary[:700] if summary else 'См. полный отчет в файлах сделки.'}"
+        )
     _tenant_api_create(
         tenant_pb_url,
         "timeline",

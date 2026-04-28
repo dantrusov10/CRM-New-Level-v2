@@ -42,6 +42,26 @@ const DEFAULT_DEAL_SCORING_MODEL: DealScoringModel = {
   ],
 };
 
+function CjmChecklist({ title, items }: { title: string; items: Array<{ label: string; ok: boolean }> }) {
+  const done = items.filter((i) => i.ok).length;
+  return (
+    <div className="rounded-card border border-border bg-rowHover p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-sm font-semibold">{title}</div>
+        <div className="text-xs text-text2">{done}/{items.length} готово</div>
+      </div>
+      <div className="mt-2 grid gap-1.5">
+        {items.map((item) => (
+          <div key={item.label} className="flex items-center gap-2 text-xs">
+            <span className={item.ok ? "text-success" : "text-warning"}>{item.ok ? "●" : "○"}</span>
+            <span className={item.ok ? "text-text" : "text-text2"}>{item.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function AdminParsersPage() {
   const [tab, setTab] = React.useState<Tab>("contacts");
   const [guidedMode, setGuidedMode] = React.useState(true);
@@ -211,6 +231,7 @@ function ParserAiControls({ parserKey }: { parserKey: "contacts" | "media" | "te
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="Вставь промт для AI-обогащения"
         />
+        <div className="text-[11px] text-text2 mt-1">Рекомендуется не переписывать радикально: сначала использовать founder parent prompt, затем точечно адаптировать под продукт.</div>
       </div>
       <div className="mt-2 flex items-center gap-2">
         <Button onClick={save} disabled={!productId}>Сохранить AI-настройку</Button>
@@ -306,6 +327,16 @@ function ContactsParser() {
         ) : (
           <div className="grid gap-4">
             <ParserAiControls parserKey="contacts" />
+            <CjmChecklist
+              title="CJM-проверка: Контакты"
+              items={[
+                { label: "Парсер контактов включен", ok: Boolean(settings.enabled) },
+                { label: "Cron расписание заполнено", ok: Boolean((settings.schedule_cron || "").trim()) },
+                { label: "Политика источников выбрана", ok: Boolean((settings.sources_policy || "").trim()) },
+                { label: "Карта ролей назначена", ok: Boolean(currentMap) },
+                { label: "Есть хотя бы одна роль/должность", ok: items.length > 0 },
+              ]}
+            />
             <div className="grid grid-cols-4 gap-3">
               <label className="flex items-center gap-2 text-sm col-span-1">
                 <input type="checkbox" checked={!!settings.enabled} onChange={(e) => saveSettings({ enabled: e.target.checked })} />
@@ -474,6 +505,15 @@ function MediaParser() {
         {!settings ? <div className="text-sm text-text2">Загрузка...</div> : (
           <div className="grid gap-4">
             <ParserAiControls parserKey="media" />
+            <CjmChecklist
+              title="CJM-проверка: Медиа"
+              items={[
+                { label: "Медиа-парсер включен", ok: Boolean(settings.enabled) },
+                { label: "Cron расписание заполнено", ok: Boolean((settings.schedule_cron || "").trim()) },
+                { label: "Выбран хотя бы один источник", ok: selected.size > 0 },
+                { label: "Ключевые слова заполнены", ok: Boolean(keywords.trim()) },
+              ]}
+            />
             <div className="grid grid-cols-3 gap-3">
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={!!settings.enabled} onChange={(e) => saveSettings({ enabled: e.target.checked })} />
@@ -569,6 +609,15 @@ function TenderParser() {
         {!settings ? <div className="text-sm text-text2">Загрузка...</div> : (
           <div className="grid gap-4">
             <ParserAiControls parserKey="tenders" />
+            <CjmChecklist
+              title="CJM-проверка: Тендеры"
+              items={[
+                { label: "Тендерный парсер включен", ok: Boolean(settings.enabled) },
+                { label: "Cron расписание заполнено", ok: Boolean((settings.schedule_cron || "").trim()) },
+                { label: "Выбрана хотя бы одна площадка", ok: selected.size > 0 },
+                { label: "Ключевые слова заполнены", ok: Boolean(keywords.trim()) },
+              ]}
+            />
             <div className="grid grid-cols-3 gap-3">
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={!!settings.enabled} onChange={(e) => saveSettings({ enabled: e.target.checked })} />

@@ -31,9 +31,21 @@ export function Sidebar({
   return (
     <aside className="cockpit-sidebar p-3 overflow-y-auto border-r border-[rgba(51,215,255,0.18)] shadow-[0_0_28px_rgba(45,123,255,0.14)]">
       <div className="mb-4">
-        <div className="mb-2 flex justify-end">
+        <div className="flex items-center gap-2.5 rounded-xl border border-[rgba(255,255,255,0.1)] bg-[rgba(255,255,255,0.04)] p-2">
           <button
-            className="ui-btn ui-icon-btn border-[rgba(51,215,255,0.3)] bg-[rgba(51,215,255,0.12)]"
+            type="button"
+            onClick={() => nav("/dashboard")}
+            className="flex min-w-0 flex-1 items-center gap-2.5 text-left hover:opacity-95 active:opacity-90"
+            title="На главную (Dashboard)"
+          >
+            <img src={logo} alt="NewLevel CRM" className="w-9 h-9 rounded-xl border border-[rgba(51,215,255,0.35)] shadow-[0_0_20px_rgba(51,215,255,0.2)]" />
+            {!collapsed ? <div className="min-w-0">
+              <div className="text-sm font-extrabold leading-none truncate">NewLevel CRM</div>
+              <div className="text-[11px] mt-1 muted font-semibold">Command center</div>
+            </div> : null}
+          </button>
+          <button
+            className="ui-btn ui-icon-btn border-[rgba(51,215,255,0.3)] bg-[rgba(51,215,255,0.12)] h-8 w-8"
             onClick={onToggleCollapsed}
             title={collapsed ? "Развернуть меню" : "Свернуть меню"}
             aria-label={collapsed ? "Развернуть меню" : "Свернуть меню"}
@@ -41,18 +53,6 @@ export function Sidebar({
             {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
           </button>
         </div>
-        <button
-          type="button"
-          onClick={() => nav("/dashboard")}
-          className="flex items-center gap-2.5 text-left w-full hover:opacity-95 active:opacity-90 rounded-xl border border-[rgba(255,255,255,0.1)] bg-[rgba(255,255,255,0.04)] p-2"
-          title="На главную (Dashboard)"
-        >
-          <img src={logo} alt="NewLevel CRM" className="w-9 h-9 rounded-xl border border-[rgba(51,215,255,0.35)] shadow-[0_0_20px_rgba(51,215,255,0.2)]" />
-          {!collapsed ? <div>
-            <div className="text-sm font-extrabold leading-none">NewLevel CRM</div>
-            <div className="text-[11px] mt-1 muted font-semibold">Command center</div>
-          </div> : null}
-        </button>
       </div>
 
       <div className="space-y-1">

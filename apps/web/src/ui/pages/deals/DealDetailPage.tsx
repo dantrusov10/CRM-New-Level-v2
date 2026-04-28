@@ -252,6 +252,16 @@ function scoreBadge(score?: number | null) {
 }
 
 function toSectionTitle(key: string) {
+  const aliases: Record<string, string> = {
+    data_gaps: "Пробелы в данных",
+    "data gaps": "Пробелы в данных",
+    probability: "Вероятность",
+    criticality: "Критичность",
+    description: "Описание",
+    current_score: "Текущий score",
+  };
+  const normalized = String(key || "").trim().toLowerCase();
+  if (aliases[normalized]) return aliases[normalized];
   return key
     .replace(/_/g, " ")
     .replace(/\s+/g, " ")
@@ -278,6 +288,7 @@ function toBusinessSectionTitle(key: string) {
     risks: "Риски",
     risk_register: "Риски",
     data_gaps: "Чего не хватает",
+    "data gaps": "Чего не хватает",
     missing_data: "Чего не хватает",
     upsides: "Точки роста",
     upside: "Точки роста",
@@ -544,32 +555,38 @@ function TimelineItemRow({ item }: { item: TimelineItem & { expand?: { user_id?:
   const payload = payloadRaw
     ? Object.entries(payloadRaw).filter(([k]) => !["engine", "provider", "insight_id", "model"].includes(k.toLowerCase()))
     : [];
+  const [expanded, setExpanded] = React.useState(isStage || isAI);
 
   return (
-    <details className={`rounded-lg border p-3 ${tone}`} open={isStage || isAI}>
-      <summary className="cursor-pointer list-none">
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-xs text-text2">{when}{by ? ` · ${by}` : ""}</div>
+    <div className={`rounded-lg border p-3 ${tone}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-xs text-text2">{when}{by ? ` · ${by}` : ""}</div>
+        <div className="flex items-center gap-2">
           <Badge>{title}</Badge>
+          <Button small variant="secondary" onClick={() => setExpanded((v) => !v)}>
+            {expanded ? "Свернуть" : "Развернуть"}
+          </Button>
         </div>
-        <div className="mt-2 text-sm font-medium">
-          {String(item.comment || item.action || "").slice(0, 160) || "Событие"}
-        </div>
-      </summary>
-      <div className="mt-2">
-        <TimelineText text={String(item.comment || item.action || "")} />
       </div>
-      {payload.length ? (
-        <div className="mt-2 grid gap-1.5">
-          {payload.map(([k, v]) => (
-            <div key={k} className="rounded-md border border-border bg-[rgba(255,255,255,0.04)] px-2 py-1.5 text-xs">
-              <span className="font-semibold">{toSectionTitle(k)}:</span>{" "}
-              <span className="text-text2">{valueToText(v) || "—"}</span>
+      <div className="mt-2 text-sm font-medium">
+        {String(item.comment || item.action || "").slice(0, 160) || "Событие"}
+      </div>
+      {expanded ? (
+        <div className="mt-2 grid gap-2">
+          <TimelineText text={String(item.comment || item.action || "")} />
+          {payload.length ? (
+            <div className="grid gap-1.5">
+              {payload.map(([k, v]) => (
+                <div key={k} className="rounded-md border border-border bg-[rgba(255,255,255,0.04)] px-2 py-1.5 text-xs">
+                  <span className="font-semibold">{toSectionTitle(k)}:</span>{" "}
+                  <span className="text-text2">{valueToText(v) || "—"}</span>
+                </div>
+              ))}
             </div>
-          ))}
+          ) : null}
         </div>
       ) : null}
-    </details>
+    </div>
   );
 }
 
@@ -970,6 +987,9 @@ export function DealDetailPage() {
     () => extractActionItems(latestAi?.suggestions || latestAi?.recommendations || ""),
     [latestAi],
   );
+  const hasRiskSignals =
+    Boolean(latestAi?.risks) ||
+    dynamicSections.some((section) => /риск|risk/i.test(section.key) || /риск|risk/i.test(section.title));
 
   const tlAll = (tlQ.data ?? []) as Array<TimelineItem & { expand?: { user_id?: { name?: string; email?: string } } }>;
   const tlFiltered = tlAll.filter((t) => {
@@ -1300,8 +1320,24 @@ export function DealDetailPage() {
           {tab === "workspace" ? (
             <Card>
               <CardHeader>
-                <div className="text-sm font-semibold">Файлы</div>
-                <div className="text-xs text-text2 mt-1">Хранилище документов и ссылок по сделке</div>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold">Файлы</div>
+                    <div className="text-xs text-text2 mt-1">Хранилище документов и ссылок по сделке</div>
+                  </div>
+                  <label className="ui-btn ui-btn-secondary h-9 px-3 cursor-pointer">
+                    Загрузить
+                    <input
+                      type="file"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] || null;
+                        setWsUploadFile(f);
+                        if (f && !wsTitle.trim()) setWsTitle(f.name);
+                      }}
+                    />
+                  </label>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4">
@@ -1342,21 +1378,7 @@ export function DealDetailPage() {
                     <div className="col-span-6">
                       <div className="text-xs text-text2 mb-2">Документы</div>
                       <div className="grid gap-2">
-                        <div className="flex items-center gap-2">
-                          <label className="ui-btn ui-icon-btn px-3 border-[rgba(51,215,255,0.3)] bg-[rgba(51,215,255,0.12)] cursor-pointer">
-                            Загрузить
-                            <input
-                              type="file"
-                              className="hidden"
-                              onChange={(e) => {
-                                const f = e.target.files?.[0] || null;
-                                setWsUploadFile(f);
-                                if (f && !wsTitle.trim()) setWsTitle(f.name);
-                              }}
-                            />
-                          </label>
-                          <div className="text-xs text-text2 truncate">{wsUploadFile ? wsUploadFile.name : "Файл не выбран"}</div>
-                        </div>
+                        <div className="text-xs text-text2 truncate">{wsUploadFile ? `Выбран файл: ${wsUploadFile.name}` : "Файл не выбран"}</div>
                         <Input value={wsTitle} onChange={(e) => setWsTitle(e.target.value)} placeholder="Название" />
                         <div className="flex gap-2">
                           <Input value={wsUrl} onChange={(e) => setWsUrl(e.target.value)} placeholder="URL на файл (S3/Selectel/диск)" />
@@ -1454,9 +1476,6 @@ export function DealDetailPage() {
                     <div className="text-sm text-text2">Запусти AI, чтобы получить action list.</div>
                   )}
                 </div>
-                <Button small variant="secondary" onClick={() => setTab("workspace")}>
-                  Открыть раздел "Файлы"
-                </Button>
               </div>
             </CardContent>
           </Card>
@@ -1512,7 +1531,7 @@ export function DealDetailPage() {
                   ) : null}
                 </div>
 
-                <div className="grid gap-3 max-h-[420px] overflow-y-auto pr-1">
+                <div className="crm-scrollbar grid gap-3 max-h-[420px] overflow-y-auto pr-1">
                   {tlAll
                     .filter((t) => String(t.action) === "comment")
                     .slice(0, 20)
@@ -1600,13 +1619,13 @@ export function DealDetailPage() {
                       </div>
                     )}
 
-                    {latestAi.risks ? (
+                    {hasRiskSignals ? (
                       <div className="rounded-lg border border-amber-500/35 bg-[rgba(251,191,36,0.07)] p-3">
                         <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text2">
                           <AlertTriangle size={14} />
                           Ключевые риски
                         </div>
-                        <AiRisksVisual raw={latestAi.risks} />
+                        <AiRisksVisual raw={latestAi.risks || dynamicSections.find((section) => /риск|risk/i.test(section.key))?.raw} />
                       </div>
                     ) : (
                       <div className="rounded-lg border border-border bg-rowHover/60 p-3 text-sm text-text2">
@@ -1630,16 +1649,20 @@ export function DealDetailPage() {
                       <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-text2">
                         Детальный разбор AI ({dynamicSections.length} секций)
                       </summary>
-                      <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                        {dynamicSections.map((section, idx) => (
-                          <div key={`${section.title}-${idx}`} className="rounded-lg border border-border bg-rowHover/60 p-3">
-                            <div className="text-xs font-semibold uppercase tracking-wide text-text2">{section.title}</div>
-                            <div className="mt-1 h-px bg-border/70" />
-                            <div className="mt-2 min-w-0 text-sm leading-relaxed">
-                              <AiInsightSectionBody value={section.raw} />
-                            </div>
-                          </div>
-                        ))}
+                      <div className="mt-3 rounded-lg border border-border bg-[rgba(255,255,255,0.02)] p-4">
+                        <div className="text-sm text-text2 mb-3">Структурированное исследование по текущему срезу сделки</div>
+                        <div className="grid gap-4">
+                          {dynamicSections.map((section, idx) => (
+                            <section key={`${section.title}-${idx}`} className="border-b border-border/60 pb-3 last:border-b-0 last:pb-0">
+                              <h4 className="text-sm font-semibold tracking-wide text-text">
+                                {idx + 1}. {section.title}
+                              </h4>
+                              <div className="mt-2 min-w-0 text-sm leading-relaxed">
+                                <AiInsightSectionBody value={section.raw} />
+                              </div>
+                            </section>
+                          ))}
+                        </div>
                       </div>
                     </details>
                   ) : null}

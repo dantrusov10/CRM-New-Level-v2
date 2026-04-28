@@ -1985,7 +1985,10 @@ def run_ai_deal_analysis(payload):
         user_id = str(tenant_user.get("id", ""))
 
     routing = get_routing_matrix()
-    route = (routing.get("routes", {}) or {}).get(task_code, {})
+    routes_map = (routing.get("routes", {}) or {})
+    route = routes_map.get(task_code, {})
+    if not route and task_code == "deal_update_analysis":
+        route = routes_map.get("deal_analysis", {})
     primary_provider = str(route.get("primary_provider", "")).strip().lower()
     primary_engine = str(route.get("primary_engine", "")).strip()
     fallback_provider = str(route.get("fallback_provider", "")).strip().lower()
@@ -2016,9 +2019,17 @@ def run_ai_deal_analysis(payload):
         deal_prompt = (
             "Проанализируй сделку и дай оценку риска/шансов. Учитывай динамику комментариев, заметки, timeline и предыдущие AI-оценки."
         )
+    update_instruction = ""
+    if task_code == "deal_update_analysis":
+        update_instruction = (
+            "Режим UPDATE-анализа: это НЕ первичное исследование. "
+            "Сфокусируйся на изменениях после прошлого AI-среза: "
+            "что улучшилось, что ухудшилось, как изменилась вероятность закрытия и какие 3-5 действий приоритетны в ближайшие 24-72 часа.\n"
+        )
     prompt = (
         f"{deal_prompt}\n"
         + (f"{master_prompt}\n" if master_prompt else "")
+        + update_instruction
         + f"Контекст сделки (JSON): {json.dumps(llm_context, ensure_ascii=False)}\n"
         "Формат ответа: один валидный JSON-объект без markdown и без текста вне JSON.\n"
         + AI_DEAL_OUTPUT_RULES

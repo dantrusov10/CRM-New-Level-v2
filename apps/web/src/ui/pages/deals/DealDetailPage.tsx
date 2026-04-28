@@ -38,7 +38,7 @@ type TimelineWithAuthor = TimelineItem & { expand?: { user_id?: { name?: string;
 
 function normalizeAiText(input: string): string {
   return String(input || "")
-    .replace(/данные\s*гапы/gi, "Пробелы в данных")
+    .replace(/данн\w*\s*гап\w*/gi, "Пробелы в данных")
     .replace(/data\s*gaps?/gi, "Пробелы в данных");
 }
 
@@ -1019,7 +1019,7 @@ export function DealDetailPage() {
     tlQ.refetch();
   }
 
-  async function runAiAnalysis() {
+  async function runAiAnalysis(mode: "full" | "update" = "full") {
     if (!deal?.id) return;
     setAiRunError("");
     setAiRunLoading(true);
@@ -1039,8 +1039,9 @@ export function DealDetailPage() {
       await analyzeDealWithAi({
         dealId: deal.id,
         userId: auth?.id,
-        taskCode: "deal_analysis",
+        taskCode: mode === "update" ? "deal_update_analysis" : "deal_analysis",
         context: {
+          analysis_mode: mode,
           deal_id: deal.id,
           title: deal.title || "",
           stage: deal?.expand?.stage_id?.stage_name || "",
@@ -1081,6 +1082,9 @@ export function DealDetailPage() {
           previous_ai_summary: prevInsight?.summary || "",
           previous_ai_suggestions: String(prevInsight?.suggestions || prevInsight?.recommendations || ""),
           previous_ai_score: resolveDisplayScore(prevInsight),
+          update_focus: mode === "update"
+            ? "Сфокусируйся только на изменениях после последнего анализа: что улучшилось/ухудшилось, как изменилась вероятность и что делать дальше."
+            : "",
         },
       });
       await Promise.all([aiQ.refetch(), tlQ.refetch(), dealQ.refetch()]);
@@ -1278,9 +1282,14 @@ export function DealDetailPage() {
                     </div>
                     <div className="text-xs text-text2 mt-1">Формат управленческого исследования: изменения, риски, причины, план</div>
                   </div>
-                  <Button onClick={runAiAnalysis} disabled={aiRunLoading || !deal?.id}>
-                    {aiRunLoading ? "AI анализ..." : "Запустить AI-анализ"}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button onClick={() => void runAiAnalysis("full")} disabled={aiRunLoading || !deal?.id}>
+                      {aiRunLoading ? "AI анализ..." : "Запустить AI-анализ"}
+                    </Button>
+                    <Button variant="secondary" onClick={() => void runAiAnalysis("update")} disabled={aiRunLoading || !deal?.id}>
+                      Обновить AI-анализ
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -1328,14 +1337,14 @@ export function DealDetailPage() {
                         <div className="mt-3 rounded-lg border border-border bg-[rgba(255,255,255,0.02)] p-4">
                           <div className="grid gap-4">
                             {dynamicSections.map((section, idx) => (
-                              <section key={`${section.title}-${idx}`} className="border-b border-border/60 pb-3 last:border-b-0 last:pb-0">
-                                <h4 className="text-sm font-semibold tracking-wide text-text">
+                              <details key={`${section.title}-${idx}`} className="border-b border-border/60 pb-3 last:border-b-0 last:pb-0" open={idx < 2}>
+                                <summary className="cursor-pointer text-sm font-semibold tracking-wide text-text">
                                   {idx + 1}. {section.title}
-                                </h4>
+                                </summary>
                                 <div className="mt-2 min-w-0 text-sm leading-relaxed">
                                   <AiInsightSectionBody value={section.raw} />
                                 </div>
-                              </section>
+                              </details>
                             ))}
                           </div>
                         </div>
@@ -1659,8 +1668,11 @@ export function DealDetailPage() {
                   <div className="mt-2 text-2xl font-extrabold">{typeof score === "number" ? `${score}/100` : "—"}</div>
                 </div>
 
-                <Button onClick={runAiAnalysis} disabled={aiRunLoading || !deal?.id} className="neon-accent">
+                <Button onClick={() => void runAiAnalysis("full")} disabled={aiRunLoading || !deal?.id} className="neon-accent">
                   {aiRunLoading ? "AI анализ..." : "Запустить AI-анализ"}
+                </Button>
+                <Button variant="secondary" onClick={() => void runAiAnalysis("update")} disabled={aiRunLoading || !deal?.id}>
+                  Обновить AI-анализ
                 </Button>
 
                 <div className="rounded-card border border-border bg-white p-3">

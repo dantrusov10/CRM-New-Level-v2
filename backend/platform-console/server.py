@@ -1597,6 +1597,53 @@ def _get_source(full_context):
     return src if isinstance(src, dict) else {}
 
 
+def _extract_latest_update_text(full_context):
+    src = _get_source(full_context)
+    frontend_ctx = src.get("frontend_context", {}) if isinstance(src.get("frontend_context"), dict) else {}
+    anchor = frontend_ctx.get("latest_update_anchor", {}) if isinstance(frontend_ctx.get("latest_update_anchor"), dict) else {}
+    anchor_text = str(anchor.get("text", "")).strip()
+    if anchor_text:
+        return anchor_text
+    comments = src.get("comments_recent", []) if isinstance(src.get("comments_recent"), list) else []
+    for item in comments:
+        if not isinstance(item, dict):
+            continue
+        txt = str(item.get("comment", "")).strip()
+        if txt:
+            return txt
+    notes = src.get("notes_recent", []) if isinstance(src.get("notes_recent"), list) else []
+    for item in notes:
+        if not isinstance(item, dict):
+            continue
+        txt = str(item.get("comment", "")).strip()
+        if txt:
+            return txt
+    return ""
+
+
+def _negative_signal_penalty(text):
+    t = str(text or "").lower()
+    if not t:
+        return 0
+    # Strong negative signals from manager comments should reduce optimistic drift.
+    signals = [
+        ("тендер", 3),
+        ("под айтеко", 4),
+        ("не под нас", 4),
+        ("не сможем выиграть", 6),
+        ("нет выхода", 6),
+        ("конкур", 3),
+        ("риск срыва", 5),
+        ("непонятно что делать", 4),
+        ("блокер", 5),
+    ]
+    penalty = 0
+    for token, score in signals:
+        if token in t:
+            penalty += score
+    return min(18, penalty)
+
+
 def _calc_factor_value(code, full_context):
     src = _get_source(full_context)
     deal = src.get("deal_record", {}) if isinstance(src.get("deal_record"), dict) else {}
@@ -2173,6 +2220,22 @@ def run_ai_deal_analysis(payload):
             suggestions = str(fb.get("suggestions", "")).strip()
         if risks_value in (None, "", [], {}):
             risks_value = fb.get("risks")
+    latest_update_text = _extract_latest_update_text(full_context)
+    if is_update_mode and latest_update_text:
+        penalty = _negative_signal_penalty(latest_update_text)
+        if penalty > 0:
+            score = int(max(0, min(100, score - penalty)))
+            explainability["_update_penalty"] = {
+                "applied": True,
+                "penalty_points": penalty,
+                "reason": "negative_signals_in_latest_comment",
+                "latest_comment_excerpt": latest_update_text[:280],
+            }
+            if isinstance(explainability.get("_scoring"), dict):
+                explainability["_scoring"]["final_probability"] = score
+        anchor_line = f"Последнее изменение: {latest_update_text[:220]}"
+        if anchor_line.lower() not in summary.lower():
+            summary = f"{anchor_line}. {summary}".strip()
     total_tokens = usage.get("total_tokens", 0) if isinstance(usage, dict) else 0
     try:
         total_tokens = float(total_tokens or 0)

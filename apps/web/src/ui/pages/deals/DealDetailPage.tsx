@@ -1956,69 +1956,47 @@ export function DealDetailPage() {
         <CardHeader className="py-3">
           <div className="grid gap-2">
             <div className="grid grid-cols-12 gap-2 items-end">
-              <div className="col-span-12 xl:col-span-3 grid gap-2">
-                <div>
-                  <div className="text-xs text-text2 mb-1">Название сделки</div>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={titleDraft}
-                      onChange={(e) => setTitleDraft(e.target.value)}
-                      placeholder="Название сделки"
-                    />
-                    {titleDraft.trim() !== String(title || "").trim() ? (
-                      <>
-                        <Button small onClick={() => void saveDealTitleInline()} title="Подтвердить">
-                          <Check size={14} />
-                        </Button>
-                        <Button
-                          small
-                          variant="ghost"
-                          onClick={() => setTitleDraft(String(title || ""))}
-                          title="Отменить"
-                        >
-                          <X size={14} />
-                        </Button>
-                      </>
-                    ) : null}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-text2 mb-1">Этап сделки</div>
-                  <Select value={deal?.stage_id || ""} onChange={changeStage}>
-                    <option value="">Этап</option>
-                    {stages.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.stage_name}
-                      </option>
-                    ))}
-                  </Select>
+              <div className="col-span-12 xl:col-span-2">
+                <div className="text-xs text-text2 mb-1">Название сделки</div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={titleDraft}
+                    onChange={(e) => setTitleDraft(e.target.value)}
+                    placeholder="Название сделки"
+                  />
+                  {titleDraft.trim() !== String(title || "").trim() ? (
+                    <>
+                      <Button small onClick={() => void saveDealTitleInline()} title="Подтвердить">
+                        <Check size={14} />
+                      </Button>
+                      <Button
+                        small
+                        variant="ghost"
+                        onClick={() => setTitleDraft(String(title || ""))}
+                        title="Отменить"
+                      >
+                        <X size={14} />
+                      </Button>
+                    </>
+                  ) : null}
                 </div>
               </div>
-              <div className="col-span-12 xl:col-span-6 text-center">
+              <div className="col-span-12 xl:col-span-2">
+                <div className="text-xs text-text2 mb-1">Этап сделки</div>
+                <Select value={deal?.stage_id || ""} onChange={changeStage}>
+                  <option value="">Этап</option>
+                  {stages.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.stage_name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="col-span-12 xl:col-span-4 text-center">
                 <div className="text-xs text-text2 mb-1">Бюджет</div>
                 <div className="text-2xl font-semibold">{budget ? `${formatMoney(Number(budget))} ₽` : "—"}</div>
               </div>
-              <div className="col-span-12 xl:col-span-3">
-                <div className="text-xs text-text2 mb-1">Компания</div>
-                <div className="text-lg font-semibold">{deal?.expand?.company_id?.name || "—"}</div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-12 gap-2 items-end">
-              <div className="col-span-12 xl:col-span-6">
-                <Tabs
-                  items={[
-                    { key: "overview", label: "Обзор" },
-                    { key: "ai", label: "AI-анализ" },
-                    { key: "relationship", label: "Контакты" },
-                    { key: "kp", label: "КП" },
-                    { key: "workspace", label: "Файлы" },
-                  ]}
-                  activeKey={tab}
-                  onChange={setTab}
-                />
-              </div>
-              <div className="col-span-12 xl:col-span-3">
+              <div className="col-span-12 xl:col-span-4">
                 <div className="text-xs text-text2 mb-1">Ответственный</div>
                 <Select
                   value={String(deal?.responsible_id || deal?.expand?.responsible_id?.id || "")}
@@ -2038,6 +2016,27 @@ export function DealDetailPage() {
                     </option>
                   ))}
                 </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-12 gap-2 items-end">
+              <div className="col-span-12 xl:col-span-2">
+                <div className="text-xs text-text2 mb-1">Компания</div>
+                <div className="text-lg font-semibold">{deal?.expand?.company_id?.name || "—"}</div>
+              </div>
+              <div className="col-span-12 xl:col-span-6">
+                <Tabs
+                  items={[
+                    { key: "overview", label: "Обзор" },
+                    { key: "ai", label: "AI-анализ" },
+                    { key: "relationship", label: "Контакты" },
+                    { key: "kp", label: "КП" },
+                    { key: "workspace", label: "Файлы" },
+                  ]}
+                  activeKey={tab}
+                  onChange={setTab}
+                  buttonClassName="h-10 px-4 text-base"
+                />
               </div>
               <div className="col-span-12 xl:col-span-3">
                 <div className="flex items-center justify-end gap-2 relative">

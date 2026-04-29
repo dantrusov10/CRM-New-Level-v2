@@ -547,6 +547,27 @@ export function DashboardPage() {
           <div className="mt-6 text-sm text-text2">Загрузка данных...</div>
         ) : (
           <>
+            {/* INSIGHTS (TOP) */}
+            {cfg.widgets.insights.enabled ? (
+              <div className="mt-6">
+                <WidgetFrame
+                  title="Insights"
+                  subtitle="Быстрые сигналы по данным"
+                  widgetId="insights"
+                  onDrill={() => drillToDeals(cfg.widgets.insights.filters)}
+                >
+                  <div className="space-y-3">
+                    {ins.map((x) => (
+                      <div key={x.title} className="p-3 rounded-[16px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.08)]">
+                        <div className="text-sm font-extrabold">{x.title}</div>
+                        <div className="text-xs text-text2 mt-1">{x.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                </WidgetFrame>
+              </div>
+            ) : null}
+
             {/* STAT CARDS */}
             {cfg.widgets.statCards.enabled ? (
               <div className="mt-6">
@@ -710,26 +731,6 @@ export function DashboardPage() {
               ) : null}
             </div>
 
-            {/* INSIGHTS */}
-            {cfg.widgets.insights.enabled ? (
-              <div className="mt-6">
-                <WidgetFrame
-                  title="Insights"
-                  subtitle="Быстрые сигналы по данным"
-                  widgetId="insights"
-                  onDrill={() => drillToDeals(cfg.widgets.insights.filters)}
-                >
-                  <div className="space-y-3">
-                    {ins.map((x) => (
-                      <div key={x.title} className="p-3 rounded-[16px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.08)]">
-                        <div className="text-sm font-extrabold">{x.title}</div>
-                        <div className="text-xs text-text2 mt-1">{x.desc}</div>
-                      </div>
-                    ))}
-                  </div>
-                </WidgetFrame>
-              </div>
-            ) : null}
           </>
         )}
       </div>

@@ -21,8 +21,15 @@ function parseQuery(raw: string): { entity: "all" | "deal" | "company" | "contac
   return { entity: m[1].toLowerCase() as "deal" | "company" | "contact", term: m[2].trim() };
 }
 
-function includesCi(value: unknown, term: string): boolean {
-  return String(value || "").toLocaleLowerCase("ru-RU").includes(term.toLocaleLowerCase("ru-RU"));
+function matchesAllWords(text: string, term: string): boolean {
+  const normalized = String(text || "").toLocaleLowerCase("ru-RU");
+  const words = String(term || "")
+    .toLocaleLowerCase("ru-RU")
+    .split(/\s+/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+  if (!words.length) return true;
+  return words.every((w) => normalized.includes(w));
 }
 
 export function GlobalSearchPage() {
@@ -55,7 +62,10 @@ export function GlobalSearchPage() {
         });
         setDeals(
           (d.items as SearchDeal[])
-            .filter((x) => includesCi(x.title, term) || includesCi(x.expand?.company_id?.name, term))
+            .filter((x) => {
+              const blob = [x.title, x.expand?.company_id?.name, x.current_score, JSON.stringify(x)].join(" ");
+              return matchesAllWords(blob, term);
+            })
             .slice(0, 15),
         );
       } else setDeals([]);
@@ -65,7 +75,7 @@ export function GlobalSearchPage() {
         });
         setCompanies(
           (c.items as SearchCompany[])
-            .filter((x) => includesCi(x.name, term) || includesCi(x.inn, term) || includesCi(x.city, term))
+            .filter((x) => matchesAllWords([x.name, x.inn, x.city, JSON.stringify(x)].join(" "), term))
             .slice(0, 15),
         );
       } else setCompanies([]);
@@ -75,7 +85,7 @@ export function GlobalSearchPage() {
         });
         setContacts(
           (ct.items as SearchContact[])
-            .filter((x) => includesCi(x.full_name, term) || includesCi(x.position, term))
+            .filter((x) => matchesAllWords([x.full_name, x.position, x.company_id, x.deal_id, JSON.stringify(x)].join(" "), term))
             .slice(0, 15),
         );
       } else setContacts([]);
@@ -109,9 +119,11 @@ export function GlobalSearchPage() {
             placeholder="Например: deal: тендер рсхб"
             onKeyDown={(e) => {
               if (e.key === "Enter") {
+                e.preventDefault();
                 const n = new URLSearchParams(sp);
                 n.set("q", q.trim());
                 setSp(n, { replace: true });
+                void runSearch(q.trim());
               }
             }}
           />
@@ -135,7 +147,7 @@ export function GlobalSearchPage() {
               {deals.map((d) => (
                 <button key={d.id} className="text-left rounded-md border border-border bg-rowHover/60 p-2 hover:border-primary/50" onClick={() => nav(`/deals/${d.id}`)}>
                   <div className="text-sm font-medium">{d.title || "Без названия"}</div>
-                  <div className="text-xs text-text2">{d.expand?.company_id?.name || "—"} · score {typeof d.current_score === "number" ? d.current_score : "—"}</div>
+                  <div className="text-xs text-text2">{d.expand?.company_id?.name || "—"} · вероятность {typeof d.current_score === "number" ? d.current_score : "—"}</div>
                 </button>
               ))}
               {!deals.length ? <div className="text-xs text-text2">Нет совпадений</div> : null}

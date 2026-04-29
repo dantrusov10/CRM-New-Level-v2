@@ -30,7 +30,7 @@ export function KanbanColumn({
         boxShadow: isOver ? `0 0 0 1px rgba(255,255,255,0.12) inset, 0 0 28px ${stage.color ?? "#33D7FF"}` : undefined,
       }}
     >
-      <div className="sticky top-0 z-20 flex items-start justify-between mb-3 gap-2 bg-[rgba(12,31,60,0.96)] pb-2">
+      <div className="sticky top-[56px] z-30 flex items-start justify-between mb-3 gap-2 bg-[rgba(12,31,60,0.98)] pb-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2 min-w-0">
             <span

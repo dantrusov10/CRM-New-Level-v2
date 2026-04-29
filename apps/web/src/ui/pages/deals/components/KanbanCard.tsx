@@ -56,8 +56,10 @@ export function KanbanCard({
         // @ts-expect-error CSS custom property
         "--stage-color": stageColor,
       }}
-      onDoubleClick={() => nav(`/deals/${deal.id}`)}
-      title="Двойной клик — открыть карточку"
+      onClick={() => {
+        if (!isDragging) nav(`/deals/${deal.id}`);
+      }}
+      title="Открыть карточку сделки"
     >
       <div data-kanban-card="true" className="h-1 w-full rounded-t-card kanban-accent" style={{ background: stageColor }} />
       <div className="p-3">

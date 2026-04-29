@@ -1,7 +1,7 @@
 import React from "react";
 import { useParams } from "react-router-dom";
 import dayjs from "dayjs";
-import { AlertTriangle, CheckCircle2, CircleHelp, Lightbulb, Pencil, Sparkles } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleHelp, Filter, Lightbulb, Pencil, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
@@ -1079,6 +1079,7 @@ function TimelineItemRow({
   const isTask = action === "task_created";
   const isStage = action === "stage_change";
   const isAI = action.startsWith("ai");
+  const isSystem = !(isComment || isNote || isTask || isStage || isAI);
   const isEditable = Boolean((isComment || isNote) && currentUserId && String(item.user_id || "") === String(currentUserId || ""));
 
   const tone = isComment
@@ -1142,6 +1143,29 @@ function TimelineItemRow({
       .find((x) => !/^(analysis_mode|company_id|product_id|requested_task_code|source|due_at)\s*:/i.test(x));
     return String(firstMeaningfulLine || String(item.comment || item.action || "").trim()).slice(0, 110);
   }, [item.comment, item.action]);
+
+  if (isSystem) {
+    return (
+      <div className="px-1 py-1">
+        <div className="flex items-center gap-2 text-xs text-text2">
+          <span>{when}{by ? ` · ${by}` : ""}</span>
+          <span className="text-text2/70">Системное событие</span>
+          <button
+            type="button"
+            className="text-primary underline"
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? "Свернуть" : "Развернуть"}
+          </button>
+        </div>
+        {expanded ? (
+          <div className="mt-1 text-sm">
+            <TimelineText text={String(item.comment || item.action || "")} />
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className={`rounded-lg border p-3 ${tone}`}>
@@ -1240,10 +1264,20 @@ export function DealDetailPage() {
   const [composerType, setComposerType] = React.useState<"comment" | "note" | "task">("comment");
   const [comment, setComment] = React.useState<string>("");
   const [noteText, setNoteText] = React.useState<string>("");
+  const [budgetDraft, setBudgetDraft] = React.useState<string>("");
   const [timelineSearch, setTimelineSearch] = React.useState<string>("");
   const [savingTimelineId, setSavingTimelineId] = React.useState<string | null>(null);
   const [taskDueAt, setTaskDueAt] = React.useState<string>("");
   const [timelineCategories, setTimelineCategories] = React.useState<TimelineCategory[]>([
+    "comment",
+    "note",
+    "task",
+    "stage",
+    "ai",
+    "system",
+  ]);
+  const [timelineFilterOpen, setTimelineFilterOpen] = React.useState(false);
+  const [timelineCategoriesDraft, setTimelineCategoriesDraft] = React.useState<TimelineCategory[]>([
     "comment",
     "note",
     "task",
@@ -1324,6 +1358,7 @@ export function DealDetailPage() {
     setTitle(deal.title ?? "");
     setTitleDraft(deal.title ?? "");
     setBudget(typeof deal.budget === "number" ? String(deal.budget) : "");
+    setBudgetDraft(typeof deal.budget === "number" ? String(deal.budget) : "");
     setTurnover(typeof deal.turnover === "number" ? String(deal.turnover) : "");
     setMargin(typeof deal.margin_percent === "number" ? String(deal.margin_percent) : "");
     setDiscount(typeof deal.discount_percent === "number" ? String(deal.discount_percent) : "");
@@ -1437,6 +1472,20 @@ export function DealDetailPage() {
     setTitle(next);
     setTitleDraft(next);
     await createTimelineEvent("deal_header_updated", "Обновлено название сделки");
+    await dealQ.refetch();
+    tlQ.refetch();
+  }
+
+  async function saveBudgetInline() {
+    if (!id) return;
+    const normalized = budgetDraft.replace(/[^\d]/g, "");
+    const next = normalized ? Number(normalized) : 0;
+    const current = Number(budget || 0);
+    if (next === current) return;
+    await pb.collection("deals").update(id, { budget: next }).catch(() => null);
+    setBudget(String(next || ""));
+    setBudgetDraft(String(next || ""));
+    await createTimelineEvent("deal_budget_updated", `Обновлен бюджет сделки: ${formatMoney(next)} ₽`);
     await dealQ.refetch();
     tlQ.refetch();
   }
@@ -2160,7 +2209,21 @@ export function DealDetailPage() {
                     <div className="grid grid-cols-12 gap-2 items-center rounded-md bg-[rgba(255,255,255,0.03)] p-1.5">
                       <div className="col-span-12 md:col-span-4 xl:col-span-3 text-xs text-text2">Бюджет</div>
                       <div className="col-span-12 md:col-span-8 xl:col-span-9">
-                        <div className="ui-input h-10 px-3 flex items-center text-base font-semibold">{budget ? `${formatMoney(Number(budget))} ₽` : "—"}</div>
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                          <Input
+                            type="number"
+                            value={budgetDraft}
+                            onChange={(e) => setBudgetDraft(e.target.value)}
+                            placeholder="Бюджет, ₽"
+                          />
+                          {String(budgetDraft || "") !== String(budget || "") ? (
+                            <InlineConfirmActions
+                              onConfirm={() => void saveBudgetInline()}
+                              onCancel={() => setBudgetDraft(String(budget || ""))}
+                              size="lg"
+                            />
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                     <div className="grid grid-cols-12 gap-2 items-center rounded-md bg-[rgba(255,255,255,0.03)] p-1.5">
@@ -2218,35 +2281,75 @@ export function DealDetailPage() {
                       value={timelineSearch}
                       onChange={(e) => setTimelineSearch(e.target.value)}
                       placeholder="Поиск по ленте"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          setTimelineSearch((v) => v.trim());
+                        }
+                      }}
                     />
                   </div>
-                </div>
-                <div className="mt-2 flex items-center gap-2 flex-wrap">
-                  {([
-                    ["comment", "Комментарий"],
-                    ["note", "Заметка"],
-                    ["task", "Задача"],
-                    ["stage", "Этап"],
-                    ["ai", "ИИ"],
-                    ["system", "Системное"],
-                  ] as Array<[TimelineCategory, string]>).map(([key, label]) => {
-                    const active = timelineCategories.includes(key);
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        className={`ui-btn h-8 px-2.5 text-xs ${active ? "ui-btn-secondary" : ""}`}
-                        onClick={() =>
-                          setTimelineCategories((prev) => {
-                            if (prev.includes(key)) return prev.filter((x) => x !== key);
-                            return [...prev, key];
-                          })
-                        }
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className={`ui-btn ui-icon-btn h-9 w-9 ${timelineCategories.length < 6 ? "ui-btn-secondary" : ""}`}
+                      title="Фильтр категорий"
+                      onClick={() => {
+                        setTimelineCategoriesDraft(timelineCategories);
+                        setTimelineFilterOpen((v) => !v);
+                      }}
+                    >
+                      <Filter size={16} />
+                    </button>
+                    {timelineCategories.length < 6 ? (
+                      <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-black">
+                        {timelineCategories.length}
+                      </span>
+                    ) : null}
+                    {timelineFilterOpen ? (
+                      <div className="absolute right-0 z-30 mt-2 w-56 rounded-card border border-border bg-[rgba(15,23,42,0.98)] p-3 shadow-2xl">
+                        <div className="grid gap-2 text-sm">
+                          {([
+                            ["comment", "Комментарий"],
+                            ["note", "Заметка"],
+                            ["task", "Задача"],
+                            ["stage", "Этап"],
+                            ["ai", "ИИ"],
+                            ["system", "Системное"],
+                          ] as Array<[TimelineCategory, string]>).map(([key, label]) => (
+                            <label key={key} className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={timelineCategoriesDraft.includes(key)}
+                                onChange={(e) =>
+                                  setTimelineCategoriesDraft((prev) =>
+                                    e.target.checked ? [...prev, key] : prev.filter((x) => x !== key),
+                                  )
+                                }
+                              />
+                              <span>{label}</span>
+                            </label>
+                          ))}
+                        </div>
+                        <div className="mt-3 flex justify-end gap-2">
+                          <Button small variant="secondary" onClick={() => setTimelineFilterOpen(false)}>Отмена</Button>
+                          <Button
+                            small
+                            onClick={() => {
+                              setTimelineCategories(
+                                timelineCategoriesDraft.length
+                                  ? timelineCategoriesDraft
+                                  : ["comment", "note", "task", "stage", "ai", "system"],
+                              );
+                              setTimelineFilterOpen(false);
+                            }}
+                          >
+                            Ок
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             </CardHeader>
@@ -2470,35 +2573,75 @@ export function DealDetailPage() {
                       value={timelineSearch}
                       onChange={(e) => setTimelineSearch(e.target.value)}
                       placeholder="Поиск по ленте"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          setTimelineSearch((v) => v.trim());
+                        }
+                      }}
                     />
                   </div>
-                </div>
-                <div className="mt-2 flex items-center gap-2 flex-wrap">
-                  {([
-                    ["comment", "Комментарий"],
-                    ["note", "Заметка"],
-                    ["task", "Задача"],
-                    ["stage", "Этап"],
-                    ["ai", "ИИ"],
-                    ["system", "Системное"],
-                  ] as Array<[TimelineCategory, string]>).map(([key, label]) => {
-                    const active = timelineCategories.includes(key);
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        className={`ui-btn h-8 px-2.5 text-xs ${active ? "ui-btn-secondary" : ""}`}
-                        onClick={() =>
-                          setTimelineCategories((prev) => {
-                            if (prev.includes(key)) return prev.filter((x) => x !== key);
-                            return [...prev, key];
-                          })
-                        }
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className={`ui-btn ui-icon-btn h-9 w-9 ${timelineCategories.length < 6 ? "ui-btn-secondary" : ""}`}
+                      title="Фильтр категорий"
+                      onClick={() => {
+                        setTimelineCategoriesDraft(timelineCategories);
+                        setTimelineFilterOpen((v) => !v);
+                      }}
+                    >
+                      <Filter size={16} />
+                    </button>
+                    {timelineCategories.length < 6 ? (
+                      <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-black">
+                        {timelineCategories.length}
+                      </span>
+                    ) : null}
+                    {timelineFilterOpen ? (
+                      <div className="absolute right-0 z-30 mt-2 w-56 rounded-card border border-border bg-[rgba(15,23,42,0.98)] p-3 shadow-2xl">
+                        <div className="grid gap-2 text-sm">
+                          {([
+                            ["comment", "Комментарий"],
+                            ["note", "Заметка"],
+                            ["task", "Задача"],
+                            ["stage", "Этап"],
+                            ["ai", "ИИ"],
+                            ["system", "Системное"],
+                          ] as Array<[TimelineCategory, string]>).map(([key, label]) => (
+                            <label key={key} className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={timelineCategoriesDraft.includes(key)}
+                                onChange={(e) =>
+                                  setTimelineCategoriesDraft((prev) =>
+                                    e.target.checked ? [...prev, key] : prev.filter((x) => x !== key),
+                                  )
+                                }
+                              />
+                              <span>{label}</span>
+                            </label>
+                          ))}
+                        </div>
+                        <div className="mt-3 flex justify-end gap-2">
+                          <Button small variant="secondary" onClick={() => setTimelineFilterOpen(false)}>Отмена</Button>
+                          <Button
+                            small
+                            onClick={() => {
+                              setTimelineCategories(
+                                timelineCategoriesDraft.length
+                                  ? timelineCategoriesDraft
+                                  : ["comment", "note", "task", "stage", "ai", "system"],
+                              );
+                              setTimelineFilterOpen(false);
+                            }}
+                          >
+                            Ок
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>

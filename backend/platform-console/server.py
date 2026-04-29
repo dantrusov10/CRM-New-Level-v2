@@ -1243,6 +1243,21 @@ def _client_research_actions_to_text(explainability):
     return ""
 
 
+def _stakeholder_slot_label_ru(slug):
+    m = {
+        "champion": "Чемпион сделки",
+        "economic_buyer": "Экономический заказчик",
+        "lpr": "ЛПР",
+        "partner": "Партнёр",
+        "technical_buyer": "Технический заказчик",
+        "blockers": "Блокеры",
+        "influencers": "Влиятельные стороны",
+        "decision_committee": "Комитет по решению",
+    }
+    s = str(slug or "").strip().lower()
+    return m.get(s, _markdown_section_title_ru(slug))
+
+
 def _markdown_section_title_ru(key):
     aliases = {
         "executive_summary": "Краткий вывод",
@@ -1288,10 +1303,148 @@ def _markdown_format_stakeholders(val):
         for k, v in val.items():
             if v is None or v == "":
                 continue
-            vtxt = _clean_llm_display_text(v) if isinstance(v, str) else _value_to_text(v)
-            lines.append(f"**{_markdown_section_title_ru(k)}**: {vtxt}")
-        return "\n\n".join(lines)
+            label = _stakeholder_slot_label_ru(k)
+            if isinstance(v, dict):
+                name = str(v.get("name") or "").strip()
+                role = str(v.get("role") or "").strip()
+                inf = str(v.get("influence") or "").strip()
+                foc = str(v.get("focus") or "").strip()
+                acc = str(v.get("access_level") or "").strip()
+                bp = str(v.get("blocker_potential") or "").strip()
+                bits = [f"**{label}**"]
+                if name:
+                    bits.append(name + (f" — {role}" if role else ""))
+                if inf:
+                    bits.append(f"влияние: {inf}")
+                if acc:
+                    bits.append(f"доступ: {acc}")
+                if bp:
+                    bits.append(f"блокер: {bp}")
+                if foc:
+                    bits.append(f"фокус: {foc}")
+                lines.append(" ".join(x for x in bits if x))
+            elif isinstance(v, str):
+                lines.append(f"**{label}**: {_clean_llm_display_text(v)}")
+            elif isinstance(v, list):
+                for it in v:
+                    sub = _markdown_format_stakeholders(it) if isinstance(it, (dict, list)) else str(it)
+                    if sub:
+                        lines.append(f"**{label}**: {sub}")
+            else:
+                lines.append(f"**{label}**: {_value_to_text(v)}")
+        return "\n\n".join(lines) if lines else ""
     return _value_to_text(val).strip()
+
+
+def _markdown_format_pains(val):
+    if isinstance(val, list):
+        out = []
+        for it in val:
+            if not isinstance(it, dict):
+                out.append(f"- {str(it).strip()}")
+                continue
+            pain = str(it.get("pain") or "").strip()
+            ev = str(it.get("evidence") or "").strip()
+            ref = str(it.get("source_ref") or it.get("source") or "").strip()
+            hyp = "Гипотеза. " if it.get("hypothesis") is True else ""
+            tail = []
+            if ev:
+                tail.append(f"Обоснование: {ev}")
+            if ref and not ref.lower().startswith("internal"):
+                ref = re.sub(r"^public_web_signals:\s*", "Публичный источник: ", ref, flags=re.I)
+                ref = re.sub(r"^crm:\s*", "Данные CRM: ", ref, flags=re.I)
+                tail.append(f"Источник: {ref}")
+            line = f"- {hyp}{pain}".strip()
+            if tail:
+                line += " " + " ".join(tail)
+            out.append(line)
+        return "\n".join(out) if out else ""
+    return _markdown_format_generic_block(val)
+
+
+def _markdown_format_data_gaps(val):
+    if isinstance(val, list):
+        out = []
+        for it in val:
+            if not isinstance(it, dict):
+                out.append(f"- {str(it).strip()}")
+                continue
+            gap = str(it.get("gap") or "").strip()
+            how = str(it.get("how_to_get") or "").strip()
+            own = str(it.get("owner") or "").strip()
+            bits = []
+            if gap:
+                bits.append(f"Пробел: {gap}")
+            if how:
+                bits.append(f"Как закрыть: {how}")
+            if own:
+                bits.append(f"Ответственный: {own}")
+            if bits:
+                out.append("- " + ". ".join(bits))
+        return "\n".join(out) if out else ""
+    return _markdown_format_generic_block(val)
+
+
+def _markdown_format_sources(val):
+    if isinstance(val, list):
+        out = []
+        for it in val:
+            if not isinstance(it, dict):
+                out.append(f"- {str(it).strip()}")
+                continue
+            name = str(it.get("source") or it.get("title") or "").strip()
+            url = str(it.get("url") or "").strip()
+            if url.lower().startswith("internal://"):
+                out.append(f"- {name or 'Запись в CRM'} (внутренняя ссылка CRM)")
+                continue
+            if name and url:
+                out.append(f"- {name} — {url}")
+            elif url:
+                out.append(f"- {url}")
+            elif name:
+                out.append(f"- {name}")
+        return "\n".join(out) if out else ""
+    return _markdown_format_generic_block(val)
+
+
+def _markdown_format_action_plan_list(val):
+    if isinstance(val, list):
+        out = []
+        for i, it in enumerate(val, 1):
+            if isinstance(it, dict):
+                act = str(it.get("action") or it.get("step") or it.get("title") or "").strip()
+                own = str(it.get("owner") or "").strip()
+                due = str(it.get("due_window") or it.get("deadline") or "").strip()
+                oc = str(it.get("expected_outcome") or "").strip()
+                bits = [f"{i}. {act}".strip()] if act else [f"{i}."]
+                if own:
+                    bits.append(f"Ответственный: {own}")
+                if due:
+                    bits.append(f"Срок: {due}")
+                if oc:
+                    bits.append(f"Результат: {oc}")
+                out.append("- " + " · ".join(b for b in bits if b and b != f"{i}."))
+            else:
+                s = re.sub(r'^["\']|["\']$', "", str(it).strip())
+                out.append(f"- {s}")
+        return "\n".join(out) if out else ""
+    if isinstance(val, str):
+        return _clean_llm_display_text(val)
+    return _markdown_format_generic_block(val)
+
+
+def _markdown_dict_to_readable_line(d):
+    if not isinstance(d, dict):
+        return str(d).strip()
+    parts = []
+    for k, v in d.items():
+        if v is None or v is False or v == "":
+            continue
+        if isinstance(v, (dict, list)):
+            continue
+        label = _markdown_section_title_ru(str(k))
+        parts.append(f"{label}: {str(v).strip()}")
+    return ", ".join(parts[:10])
 
 
 def _markdown_format_generic_block(val):
@@ -1300,7 +1453,21 @@ def _markdown_format_generic_block(val):
     if isinstance(val, list):
         if all(isinstance(x, str) for x in val):
             return "\n".join(f"- {x}" for x in val if str(x).strip())
-        return "\n\n".join(f"- {_value_to_text(x)}" for x in val if x is not None)
+        if val and isinstance(val[0], dict):
+            fk = set(val[0].keys())
+            if fk & {"pain", "evidence", "source_ref", "hypothesis"}:
+                return _markdown_format_pains(val)
+            if fk & {"gap", "how_to_get"}:
+                return _markdown_format_data_gaps(val)
+            if fk & {"source", "url"}:
+                return _markdown_format_sources(val)
+            if fk & {"action", "step", "title", "due_window", "expected_outcome"}:
+                return _markdown_format_action_plan_list(val)
+        return "\n".join(
+            f"- {_markdown_dict_to_readable_line(x) if isinstance(x, dict) else str(x).strip()}"
+            for x in val
+            if x is not None
+        )
     if isinstance(val, dict):
         parts = []
         for k, v in val.items():
@@ -1344,6 +1511,14 @@ def _markdown_from_client_research_explainability(explainability):
         parts.append(f"\n## {title}\n")
         if key == "stakeholders_map":
             body = _markdown_format_stakeholders(val)
+        elif key in ("pains_confirmed", "pains_hypotheses"):
+            body = _markdown_format_pains(val)
+        elif key == "data_gaps":
+            body = _markdown_format_data_gaps(val)
+        elif key == "sources":
+            body = _markdown_format_sources(val)
+        elif key in ("action_plan_7_14_30", "action_plan"):
+            body = _markdown_format_action_plan_list(val)
         elif isinstance(val, str):
             body = _clean_llm_display_text(val)
         else:
@@ -1360,7 +1535,20 @@ def _markdown_from_client_research_explainability(explainability):
             continue
         title = _markdown_section_title_ru(key)
         parts.append(f"\n## {title}\n")
-        body_extra = _clean_llm_display_text(val) if isinstance(val, str) else _markdown_format_generic_block(val)
+        if key == "stakeholders_map":
+            body_extra = _markdown_format_stakeholders(val)
+        elif key in ("pains_confirmed", "pains_hypotheses"):
+            body_extra = _markdown_format_pains(val)
+        elif key == "data_gaps":
+            body_extra = _markdown_format_data_gaps(val)
+        elif key == "sources":
+            body_extra = _markdown_format_sources(val)
+        elif key in ("action_plan_7_14_30", "action_plan"):
+            body_extra = _markdown_format_action_plan_list(val)
+        elif isinstance(val, str):
+            body_extra = _clean_llm_display_text(val)
+        else:
+            body_extra = _markdown_format_generic_block(val)
         parts.append("\n" + body_extra + "\n")
     return "".join(parts).strip()
 

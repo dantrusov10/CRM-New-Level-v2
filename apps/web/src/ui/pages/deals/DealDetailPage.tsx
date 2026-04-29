@@ -647,45 +647,196 @@ function collectItemsByKeywords(sections: AiSection[], keywords: RegExp): string
   return Array.from(new Set(out)).slice(0, 6);
 }
 
+/** Убирает обрамляющие кавычки у строк плана / выгрузки модели. */
+function stripDecorativeQuotes(s: string): string {
+  let t = String(s || "").trim();
+  if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) {
+    t = t.slice(1, -1).trim();
+  }
+  return t;
+}
+
+const STAKEHOLDER_SLOT_RU: Record<string, string> = {
+  champion: "Чемпион сделки",
+  economic_buyer: "Экономический заказчик",
+  lpr: "ЛПР",
+  partner: "Партнёр",
+  technical_buyer: "Технический заказчик",
+  blockers: "Блокеры",
+  influencers: "Влиятельные стороны",
+  decision_committee: "Комитет по решению",
+};
+
+function humanizeSourceRef(ref: string): string {
+  const r = ref.trim();
+  if (!r || r.toLowerCase().startsWith("internal")) return "";
+  if (/^crm:/i.test(r)) return r.replace(/^crm:\s*/i, "Данные CRM: ");
+  if (/public_web_signals:/i.test(r)) return r.replace(/^public_web_signals:\s*/i, "Публичный источник: ");
+  return `Источник: ${r}`;
+}
+
+/** Одна запись массива или вложенный объект → связные русские строки (без JSON). */
+function formatResearchRecordToLines(item: unknown): string[] {
+  if (item == null) return [];
+  if (typeof item === "string") {
+    const t = stripDecorativeQuotes(item);
+    const parsed = parseJsonLoose(t);
+    if (parsed !== null && typeof parsed === "object") {
+      return formatResearchRecordToLines(parsed);
+    }
+    const h = humanizeSummaryForDisplay(t);
+    return h.length > 4 ? [h] : [];
+  }
+  if (Array.isArray(item)) {
+    return item.flatMap((x) => formatResearchRecordToLines(x)).filter((s) => s.length > 4);
+  }
+  if (typeof item !== "object") {
+    return [String(item)].filter((s) => s.length > 4);
+  }
+  const o = item as Record<string, unknown>;
+
+  if ("pain" in o || ("evidence" in o && "hypothesis" in o)) {
+    const pain = String(o.pain ?? "").trim();
+    const ev = String(o.evidence ?? "").trim();
+    const ref = humanizeSourceRef(String(o.source_ref ?? o.source ?? ""));
+    const hyp = o.hypothesis === true ? "Гипотеза. " : "";
+    const parts = [hyp + (pain || "Потребность не названа")];
+    if (ev) parts.push(`Обоснование: ${ev}`);
+    if (ref) parts.push(ref);
+    return [parts.join(" ")];
+  }
+
+  if ("gap" in o) {
+    const gap = String(o.gap ?? "").trim();
+    const how = String(o.how_to_get ?? "").trim();
+    const owner = String(o.owner ?? "").trim();
+    const parts = [];
+    if (gap) parts.push(`Пробел: ${gap}`);
+    if (how) parts.push(`Как закрыть: ${how}`);
+    if (owner) parts.push(`Ответственный: ${owner}`);
+    return parts.length ? [parts.join(" ")] : [];
+  }
+
+  if ("source" in o || "url" in o) {
+    const name = String(o.source ?? o.title ?? "").trim();
+    const url = String(o.url ?? "").trim();
+    if (url.toLowerCase().startsWith("internal://")) {
+      return [name ? `${name} (запись в CRM)` : "Внутренняя запись в CRM"];
+    }
+    if (name && url) return [`${name} — ${url}`];
+    if (url) return [url];
+    if (name) return [name];
+    return [];
+  }
+
+  const name = String(o.name ?? o.title ?? "").trim();
+  const role = String(o.role ?? o.position ?? "").trim();
+  const inf = String(o.influence ?? "").trim();
+  const foc = String(o.focus ?? "").trim();
+  const blk = String(o.blocker_potential ?? "").trim();
+  if (name) {
+    const bits = [role ? `${name} — ${role}` : name];
+    if (inf) bits.push(`влияние: ${inf}`);
+    if (foc) bits.push(`фокус: ${foc}`);
+    if (blk) bits.push(`риск блокировки: ${blk}`);
+    return [bits.join(". ")];
+  }
+
+  return [];
+}
+
+function formatStakeholdersMapObject(obj: Record<string, unknown>): string[] {
+  const lines: string[] = [];
+  for (const [slot, raw] of Object.entries(obj)) {
+    if (raw == null || raw === "") continue;
+    const label = STAKEHOLDER_SLOT_RU[slot.toLowerCase()] || toSectionTitle(slot);
+    if (Array.isArray(raw)) {
+      for (const el of raw) {
+        const sub = formatResearchRecordToLines(el);
+        sub.forEach((s) => lines.push(`${label}: ${s}`));
+      }
+      continue;
+    }
+    if (typeof raw === "object" && raw !== null && !Array.isArray(raw)) {
+      const v = raw as Record<string, unknown>;
+      const name = String(v.name ?? "").trim();
+      const role = String(v.role ?? "").trim();
+      const inf = String(v.influence ?? "").trim();
+      const acc = String(v.access_level ?? "").trim();
+      const bp = String(v.blocker_potential ?? "").trim();
+      const foc = String(v.focus ?? "").trim();
+      const bits = [`${label}`];
+      if (name) bits.push(name + (role ? `, ${role}` : ""));
+      if (inf) bits.push(`влияние ${inf}`);
+      if (acc) bits.push(`доступ: ${acc}`);
+      if (bp) bits.push(`блокер: ${bp}`);
+      if (foc) bits.push(`фокус: ${foc}`);
+      lines.push(bits.join(" — "));
+      continue;
+    }
+    if (typeof raw === "string") {
+      lines.push(`${label}: ${humanizeSummaryForDisplay(raw)}`);
+    }
+  }
+  return lines.filter((s) => s.length > 6);
+}
+
 function researchFieldToReadableLines(val: unknown): string[] {
   if (val == null) return [];
   if (typeof val === "string") {
-    return humanizeSummaryForDisplay(val)
-      .split(/\n+|(?<=[.!?])\s+/)
-      .map((s) => s.replace(/^[-•*]\s*/, "").trim())
+    const t = val.trim();
+    const parsed = parseJsonLoose(t);
+    if (parsed !== null && typeof parsed === "object") {
+      return researchFieldToReadableLines(parsed);
+    }
+    return humanizeSummaryForDisplay(t)
+      .split(/\n+/)
+      .map((s) => stripDecorativeQuotes(s.replace(/^[-•*]\s*/, "").trim()))
       .filter((s) => s.length > 6)
-      .slice(0, 14);
+      .slice(0, 16);
   }
   if (Array.isArray(val)) {
-    const out: string[] = [];
-    for (const item of val) {
-      if (item && typeof item === "object" && !Array.isArray(item)) {
-        const o = item as Record<string, unknown>;
-        const name = String(o.name ?? o.title ?? "").trim();
-        const role = String(o.role ?? o.position ?? "").trim();
-        const inf = String(o.influence ?? "").trim();
-        const foc = String(o.focus ?? "").trim();
-        if (name) {
-          const bits = [
-            role ? `${name} — ${role}` : name,
-            inf ? `Влияние: ${inf}` : "",
-            foc ? `Фокус: ${foc}` : "",
-          ].filter(Boolean);
-          out.push(bits.join(". "));
-        } else {
-          out.push(humanizeSummaryForDisplay(valueToText(item)));
-        }
-      } else {
-        out.push(humanizeSummaryForDisplay(String(item)));
-      }
-    }
-    return out.filter((x) => x.length > 3).slice(0, 14);
+    return val.flatMap((item) => formatResearchRecordToLines(item)).filter((s) => s.length > 4).slice(0, 16);
   }
-  if (typeof val === "object") {
-    const t = humanizeSummaryForDisplay(valueToText(val));
-    return t ? [t.slice(0, 1200)] : [];
+  if (typeof val === "object" && !Array.isArray(val)) {
+    const o = val as Record<string, unknown>;
+    if ("pain" in o || "gap" in o) {
+      return formatResearchRecordToLines(o);
+    }
+    if ("url" in o || ("source" in o && typeof o.source === "string")) {
+      return formatResearchRecordToLines(o);
+    }
+    if (typeof o.name === "string" && o.name.trim()) {
+      return formatResearchRecordToLines(o);
+    }
+    const entries = Object.entries(o).filter(([, v]) => v != null && v !== "");
+    const nestedStakeholders = entries.some(
+      ([, v]) => v && typeof v === "object" && !Array.isArray(v) && ("name" in (v as object) || "role" in (v as object)),
+    );
+    if (nestedStakeholders) {
+      return formatStakeholdersMapObject(o);
+    }
+    return entries
+      .flatMap(([k, v]) => {
+        if (v && typeof v === "object" && !Array.isArray(v)) {
+          return formatResearchRecordToLines(v).map((line) => `${toSectionTitle(k)}: ${line}`);
+        }
+        return [`${toSectionTitle(k)}: ${stripDecorativeQuotes(String(v))}`];
+      })
+      .filter((s) => s.length > 6)
+      .slice(0, 16);
   }
   return [];
+}
+
+function markdownToPlainTextForManager(md: string): string {
+  return String(md || "")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*\n]+)\*/g, "$1")
+    .replace(/`{3}[\s\S]*?`{3}/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function buildClientResearchTemplate(latestAi: AiInsight | null, planLines: string[]): ResearchSection[] {
@@ -699,7 +850,7 @@ function buildClientResearchTemplate(latestAi: AiInsight | null, planLines: stri
   const sections: ResearchSection[] = [];
   sections.push({
     title: "Краткое резюме",
-    items: summary ? [summary] : ["Резюме пока пустое — см. детализацию источника ниже."],
+    items: summary ? [stripDecorativeQuotes(summary)] : ["Резюме пока пустое — см. детализацию источника ниже."],
   });
   const ctx = researchFieldToReadableLines(ex.business_context);
   if (ctx.length) sections.push({ title: "Контекст клиента и сделки", items: ctx });
@@ -720,7 +871,7 @@ function buildClientResearchTemplate(latestAi: AiInsight | null, planLines: stri
   }
   const plan =
     planLines.length > 0
-      ? planLines.slice(0, 8)
+      ? planLines.map((l) => stripDecorativeQuotes(l)).slice(0, 8)
       : researchFieldToReadableLines(ex.action_plan_7_14_30 ?? ex.entry_strategy);
   if (plan.length) sections.push({ title: "План действий", items: plan });
   const gaps = researchFieldToReadableLines(ex.data_gaps);
@@ -1514,6 +1665,14 @@ export function DealDetailPage() {
           binary += String.fromCharCode(b);
         });
         const dataUrl = `data:text/markdown;base64,${btoa(binary)}`;
+        const titleTxt = title.replace(/\.md$/i, ".txt");
+        const plainBody = markdownToPlainTextForManager(md);
+        const txtBytes = new TextEncoder().encode(plainBody);
+        let txtBinary = "";
+        txtBytes.forEach((b) => {
+          txtBinary += String.fromCharCode(b);
+        });
+        const txtDataUrl = `data:text/plain;charset=utf-8;base64,${btoa(txtBinary)}`;
         await addWorkspaceFileM
           .mutateAsync({
             entityType: "deal",
@@ -1521,6 +1680,15 @@ export function DealDetailPage() {
             url: dataUrl,
             title,
             tag: effectivePrimaryProductId ? `product_id:${effectivePrimaryProductId}` : "ai_client_research",
+          })
+          .catch(() => null);
+        await addWorkspaceFileM
+          .mutateAsync({
+            entityType: "deal",
+            entityId: id,
+            url: txtDataUrl,
+            title: titleTxt,
+            tag: effectivePrimaryProductId ? `product_id:${effectivePrimaryProductId}` : "ai_client_research_txt",
           })
           .catch(() => null);
       }

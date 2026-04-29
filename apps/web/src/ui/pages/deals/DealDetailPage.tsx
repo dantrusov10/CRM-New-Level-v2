@@ -1046,15 +1046,25 @@ function TimelineText({ text }: { text: string }) {
   return <div className="text-sm whitespace-pre-wrap">{raw}</div>;
 }
 
-function TimelineItemRow({ item }: { item: TimelineItem & { expand?: { user_id?: { name?: string; email?: string } } } }) {
+function TimelineItemRow({
+  item,
+  currentUserId,
+  onEditComment,
+}: {
+  item: TimelineItem & { expand?: { user_id?: { name?: string; email?: string } } };
+  currentUserId?: string;
+  onEditComment?: (item: TimelineItem) => void;
+}) {
   const ts = item.timestamp || item.created;
   const when = ts ? dayjs(ts).format("DD.MM.YYYY HH:mm") : "";
   const by = item.expand?.user_id?.name || item.expand?.user_id?.email || "";
 
   const action = String(item.action || "");
   const isComment = action === "comment";
+  const isNote = action === "note";
   const isStage = action === "stage_change";
   const isAI = action.startsWith("ai");
+  const isEditable = Boolean((isComment || isNote) && currentUserId && String(item.user_id || "") === String(currentUserId || ""));
 
   const tone = isComment
     ? "border-primary/35 bg-[rgba(51,215,255,0.08)]"
@@ -1071,6 +1081,7 @@ function TimelineItemRow({ item }: { item: TimelineItem & { expand?: { user_id?:
         const kl = k.toLowerCase();
         if (["engine", "provider", "insight_id", "model"].includes(kl)) return false;
         if (isClientResearchAi && ["analysis_mode", "company_id", "product_id", "requested_task_code"].includes(kl)) return false;
+        if (["due_at", "source"].includes(kl)) return false;
         return true;
       })
     : [];
@@ -1087,11 +1098,20 @@ function TimelineItemRow({ item }: { item: TimelineItem & { expand?: { user_id?:
           </Button>
         </div>
       </div>
-      <div className="mt-2 text-sm font-medium">
-        {String(item.comment || item.action || "").slice(0, 160) || "Событие"}
-      </div>
+      {!expanded ? (
+        <div className="mt-2 text-sm font-medium">
+          {String(item.comment || item.action || "").slice(0, 160) || "Событие"}
+        </div>
+      ) : null}
       {expanded ? (
         <div className="mt-2 grid gap-2">
+          {isEditable && onEditComment ? (
+            <div>
+              <Button small variant="secondary" onClick={() => onEditComment(item)}>
+                Редактировать
+              </Button>
+            </div>
+          ) : null}
           <TimelineText text={String(item.comment || item.action || "")} />
           {payload.length ? (
             <div className="grid gap-1.5">
@@ -1131,6 +1151,7 @@ export function DealDetailPage() {
   const [composerType, setComposerType] = React.useState<"comment" | "note" | "task">("comment");
   const [comment, setComment] = React.useState<string>("");
   const [noteText, setNoteText] = React.useState<string>("");
+  const [editingTimelineId, setEditingTimelineId] = React.useState<string | null>(null);
   const [taskDueAt, setTaskDueAt] = React.useState<string>("");
   const [timelineFilter, setTimelineFilter] = React.useState<string>("all");
   const [aiRunLoading, setAiRunLoading] = React.useState(false);
@@ -1385,6 +1406,17 @@ export function DealDetailPage() {
     if (!text || !id) return;
     await createTimelineEvent("note", text);
     setNoteText("");
+    tlQ.refetch();
+  }
+
+  async function saveEditedTimelineComment() {
+    const idToEdit = String(editingTimelineId || "");
+    if (!idToEdit) return;
+    const text = comment.trim();
+    if (!text) return;
+    await pb.collection("timeline").update(idToEdit, { comment: text }).catch(() => null);
+    setEditingTimelineId(null);
+    setComment("");
     tlQ.refetch();
   }
 
@@ -1795,20 +1827,6 @@ export function DealDetailPage() {
       .filter((x) => x.length > 6)
       .slice(0, 6);
   }, [latestAi]);
-  const aiContextLines = React.useMemo(() => {
-    const ex =
-      latestAi?.explainability && typeof latestAi.explainability === "object" && !Array.isArray(latestAi.explainability)
-        ? (latestAi.explainability as Record<string, unknown>)
-        : {};
-    const merged = [
-      ...researchFieldToReadableLines(ex.executive_summary ?? latestAi?.summary ?? ""),
-      ...researchFieldToReadableLines(ex.business_context ?? ""),
-      ...researchFieldToReadableLines(ex.it_landscape ?? ""),
-    ];
-    return Array.from(new Set(merged.map((x) => humanizeSummaryForDisplay(stripTimelineAiNoise(String(x || ""))).trim())))
-      .filter((x) => x.length > 10)
-      .slice(0, 5);
-  }, [latestAi]);
   const latestAiTimelineEvent = React.useMemo(
     () =>
       tlAll.find((t) => {
@@ -1903,13 +1921,17 @@ export function DealDetailPage() {
 
   return (
     <div className="grid gap-4">
-      <Card className="neon-accent">
-        <CardHeader>
-          <div className="grid gap-3">
+      <Card className="neon-accent sticky top-0 z-30">
+        <CardHeader className="py-3">
+          <div className="grid gap-2">
             <div className="flex items-center gap-2 flex-wrap">
               <div className="text-sm font-semibold">Сделка</div>
               <span className="neon-pill">Карточка</span>
               <Badge>{deal?.expand?.company_id?.name ? "Компания: " + deal.expand.company_id.name : "Компания: —"}</Badge>
+              <Badge>Бюджет: {budget ? `${formatMoney(Number(budget))} ₽` : "—"}</Badge>
+              <Badge>
+                Ответственный: {deal?.expand?.responsible_id?.full_name || deal?.expand?.responsible_id?.email || "—"}
+              </Badge>
             </div>
 
             <div className="grid grid-cols-12 gap-2 items-end">
@@ -1952,25 +1974,8 @@ export function DealDetailPage() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Badge>
-                Бюджет: {budget ? `${formatMoney(Number(budget))} ₽` : "—"}
-              </Badge>
-              <Badge>
-                Оборот: {turnover ? `${formatMoney(Number(turnover))} ₽` : "—"}
-              </Badge>
-              <Badge>Маржа: {margin ? `${margin}%` : "—"}</Badge>
-              <Badge>Скидка: {discount ? `${discount}%` : "—"}</Badge>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge>{sb.label}</Badge>
-              <Badge>Score: {typeof score === "number" ? `${score}/100` : "—"}</Badge>
-            </div>
-          </div>
-
-          <div className="mt-4">
+        <CardContent className="pt-2 pb-3">
+          <div>
             <Tabs
               items={[
                 { key: "overview", label: "Обзор" },
@@ -1994,20 +1999,23 @@ export function DealDetailPage() {
               <div className="text-sm font-semibold">Сделка: общая информация</div>
             </CardHeader>
             <CardContent>
-              <DynamicEntityFormWithRef
-                ref={formRef}
-                entity="deal"
-                record={deal}
-                onSaved={async () => {
-                  await dealQ.refetch();
-                  tlQ.refetch();
-                }}
-              />
+              <div className={`crm-scrollbar pr-1 ${tab === "overview" ? "max-h-[calc(100vh-250px)] overflow-y-auto" : ""}`}>
+                <DynamicEntityFormWithRef
+                  ref={formRef}
+                  entity="deal"
+                  record={deal}
+                  onSaved={async () => {
+                    await dealQ.refetch();
+                    tlQ.refetch();
+                  }}
+                />
+              </div>
             </CardContent>
           </Card>
         </div>
 
-        <div className="col-span-12 min-w-0 xl:col-span-6 grid gap-4">
+        <div className={`col-span-12 min-w-0 grid gap-4 ${tab === "overview" ? "xl:col-span-6" : "xl:col-span-9"}`}>
+          {tab === "overview" ? (
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between gap-3">
@@ -2025,7 +2033,7 @@ export function DealDetailPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="crm-scrollbar max-h-[calc(100vh-250px)] overflow-y-auto pr-1">
               <div className="grid gap-3">
                 <div className="rounded-card border border-border bg-rowHover p-3">
                   <div className="grid gap-2">
@@ -2051,23 +2059,53 @@ export function DealDetailPage() {
                         placeholder={composerType === "task" ? "Текст задачи" : "Введите комментарий или заметку"}
                       />
                       <Button
-                        onClick={submitComposer}
+                        onClick={() => {
+                          if (editingTimelineId) {
+                            void saveEditedTimelineComment();
+                            return;
+                          }
+                          void submitComposer();
+                        }}
                         disabled={composerType === "task" ? !(comment.trim() && taskDueAt) : !comment.trim()}
                       >
-                        {composerType === "task" ? "Создать задачу" : "Добавить"}
+                        {editingTimelineId ? "Сохранить" : composerType === "task" ? "Создать задачу" : "Добавить"}
                       </Button>
                     </div>
+                    {editingTimelineId ? (
+                      <div className="text-xs text-text2">
+                        Редактирование своей записи.
+                        <button
+                          className="ml-2 underline text-primary"
+                          onClick={() => {
+                            setEditingTimelineId(null);
+                            setComment("");
+                          }}
+                        >
+                          Отмена
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
-                <div className="crm-scrollbar grid gap-3 max-h-[460px] overflow-y-auto pr-1">
+                <div className="grid gap-3">
                   {tlFiltered.map((t) => (
-                    <TimelineItemRow key={t.id} item={t} />
+                    <TimelineItemRow
+                      key={t.id}
+                      item={t}
+                      currentUserId={auth?.id}
+                      onEditComment={(row) => {
+                        setEditingTimelineId(String(row.id || ""));
+                        setComposerType(String(row.action) === "note" ? "note" : "comment");
+                        setComment(String(row.comment || ""));
+                      }}
+                    />
                   ))}
                   {!tlFiltered.length ? <div className="text-sm text-text2">Событий пока нет.</div> : null}
                 </div>
               </div>
             </CardContent>
           </Card>
+          ) : null}
 
           {tab === "ai" ? (
             <Card className="border-infoBorder bg-infoBg neon-accent">
@@ -2244,7 +2282,16 @@ export function DealDetailPage() {
                 ) : (
                   <div className="grid gap-3">
                     {tlFiltered.map((t) => (
-                      <TimelineItemRow key={t.id} item={t} />
+                      <TimelineItemRow
+                        key={t.id}
+                        item={t}
+                        currentUserId={auth?.id}
+                        onEditComment={(row) => {
+                          setEditingTimelineId(String(row.id || ""));
+                          setComposerType(String(row.action) === "note" ? "note" : "comment");
+                          setComment(String(row.comment || ""));
+                        }}
+                      />
                     ))}
                     {!tlFiltered.length ? <div className="text-sm text-text2">Событий пока нет.</div> : null}
                   </div>
@@ -2591,7 +2638,8 @@ export function DealDetailPage() {
           ) : null}
         </div>
 
-        {/* RIGHT: AI rail */}
+        {/* RIGHT: AI rail (overview only) */}
+        {tab === "overview" ? (
         <div className="col-span-12 min-w-0 xl:col-span-3 grid gap-4 self-start">
           <Card className="neon-accent">
             <CardHeader>
@@ -2603,7 +2651,7 @@ export function DealDetailPage() {
                 <span className="neon-pill">Приоритет</span>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="crm-scrollbar max-h-[calc(100vh-250px)] overflow-y-auto pr-1">
               <div className="grid gap-3">
                 <div className="rounded-card border border-[rgba(51,215,255,0.35)] bg-[rgba(45,123,255,0.16)] p-3">
                   <div className="flex items-center justify-between">
@@ -2675,21 +2723,38 @@ export function DealDetailPage() {
             </CardContent>
           </Card>
 
-          {tab === "overview" ? (
-            <Card>
+          <Card>
               <CardHeader>
-                <div className="text-sm font-semibold">AI: обоснование, риски, контекст</div>
+                <div className="text-sm font-semibold">Почему изменился score</div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="crm-scrollbar max-h-[calc(100vh-250px)] overflow-y-auto pr-1">
                 <div className="grid gap-3">
                   {aiScoring ? (
                     <div className="rounded-card border border-border bg-white p-3">
-                      <div className="text-xs text-text2">Обоснование score</div>
+                      <div className="text-xs text-text2">Сводка</div>
                       <ul className="mt-2 grid gap-1.5 text-sm">
                         <li>Метод: <span className="font-semibold">{String(aiScoring.method || "—")}</span></li>
                         <li>Финальная вероятность: <span className="font-semibold">{String(aiScoring.final_probability ?? "—")}</span></li>
                         <li>Сырой сигнал модели: <span className="font-semibold">{String(aiScoring.llm_probability_raw ?? "—")}</span></li>
                       </ul>
+                    </div>
+                  ) : null}
+                  {Array.isArray(aiScoring?.breakdown) ? (
+                    <div className="grid gap-2">
+                      {(aiScoring?.breakdown as Array<Record<string, unknown>>).slice(0, 8).map((f, idx) => (
+                        <div key={`${String(f.code || idx)}`} className="rounded-md border border-border bg-white px-3 py-2 text-sm">
+                          <div className="font-medium">{explainabilityFactorLabel(String(f.code || ""), String(f.name || ""))}</div>
+                          <div className="mt-1 h-1.5 w-full rounded-full bg-[rgba(255,255,255,0.12)]">
+                            <div
+                              className="h-1.5 rounded-full bg-primary/80"
+                              style={{ width: `${Math.max(0, Math.min(100, Number(f.value ?? 0)))}%` }}
+                            />
+                          </div>
+                          <div className="mt-1 text-xs text-text2">
+                            Оценка: {String(f.value ?? "—")} / 100 · Вес: {String(f.weight ?? "—")} · Вклад: {String(f.weighted_contribution ?? "—")}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   ) : null}
                   <div className="rounded-card border border-border bg-white p-3">
@@ -2704,35 +2769,11 @@ export function DealDetailPage() {
                       <div className="text-sm">Риски не выделены.</div>
                     )}
                   </div>
-                  <div className="rounded-card border border-border bg-white p-3">
-                    <div className="text-xs text-text2 mb-2">Контекст сделки</div>
-                    {aiContextLines.length ? (
-                      <ul className="grid gap-1.5 text-sm">
-                        {aiContextLines.map((line, idx) => (
-                          <li key={`${line}-${idx}`} className="leading-relaxed">• {line}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="text-sm">Контекст пока не сформирован.</div>
-                    )}
-                  </div>
                 </div>
               </CardContent>
             </Card>
-          ) : null}
-          {tab !== "overview" ? (
-            <Card>
-              <CardHeader>
-                <div className="text-sm font-semibold">AI кратко</div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-sm text-text2">
-                  {humanizeSummaryForDisplay(String(latestAi?.summary || "").trim()) || "Запусти AI-анализ для обновления рекомендаций."}
-                </div>
-              </CardContent>
-            </Card>
-          ) : null}
         </div>
+        ) : null}
 
       </div>
 

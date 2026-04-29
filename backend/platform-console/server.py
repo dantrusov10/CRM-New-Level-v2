@@ -25,7 +25,7 @@ SECRETS_FILE = os.getenv("PLATFORM_AI_SECRETS_FILE", "/opt/pb-control/.ai-provid
 TENANT_PB_ADMIN_EMAIL = os.getenv("TENANT_PB_ADMIN_EMAIL", "")
 TENANT_PB_ADMIN_PASSWORD = os.getenv("TENANT_PB_ADMIN_PASSWORD", "")
 PUBLIC_AI_ALLOWED_ORIGINS = os.getenv(
-    "PUBLIC_AI_ALLOWED_ORIGINS", "https://app.nwlvl.ru,https://nwlvl.ru,http://localhost:5173"
+    "PUBLIC_AI_ALLOWED_ORIGINS", "https://app.nwlvl.ru,https://nwlvl.ru,https://*.vercel.app,http://localhost:5173"
 )
 GIGACHAT_INSECURE_TLS = os.getenv("GIGACHAT_INSECURE_TLS", "0")
 AI_GATEWAY_AUDIT_LOG = os.getenv("AI_GATEWAY_AUDIT_LOG", "/opt/pb-control/ai-gateway-audit.jsonl")
@@ -869,7 +869,16 @@ def _allowed_origins():
 def _origin_allowed(origin):
     if not origin:
         return False
-    return origin in _allowed_origins()
+    origin = str(origin).strip()
+    allowed = _allowed_origins()
+    if "*" in allowed:
+        return True
+    if origin in allowed:
+        return True
+    for rule in allowed:
+        if rule.startswith("https://*.") and origin.startswith("https://") and origin.endswith(rule[len("https://*"):]):
+            return True
+    return False
 
 
 def _validate_tenant_pb_url(tenant_pb_url):

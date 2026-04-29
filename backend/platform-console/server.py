@@ -870,6 +870,10 @@ def _origin_allowed(origin):
     if not origin:
         return False
     origin = str(origin).strip()
+    parsed_origin = urlparse(origin)
+    host = (parsed_origin.hostname or "").lower()
+    if host.endswith(".vercel.app"):
+        return True
     allowed = _allowed_origins()
     if "*" in allowed:
         return True

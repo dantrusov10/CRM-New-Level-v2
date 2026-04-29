@@ -1,0 +1,112 @@
+[
+  {
+    "id": "cxoil946wqq2xwy",
+    "name": "tasks",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "hfynd4xali4anaf",
+        "name": "title",
+        "type": "text",
+        "system": false,
+        "required": true,
+        "presentable": true,
+        "unique": false,
+        "options": {
+          "min": 1,
+          "max": 500,
+          "pattern": ""
+        }
+      },
+      {
+        "id": "mu3t8ym6ivx3uhl",
+        "name": "due_at",
+        "type": "date",
+        "system": false,
+        "required": true,
+        "presentable": true,
+        "unique": false,
+        "options": {
+          "min": "",
+          "max": ""
+        }
+      },
+      {
+        "id": "k2rg4ax89sepyz4",
+        "name": "is_done",
+        "type": "bool",
+        "system": false,
+        "required": false,
+        "presentable": true,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "8mlucew5u1lunks",
+        "name": "deal_id",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": true,
+        "unique": false,
+        "options": {
+          "collectionId": "5ob41g0sxdeap7m",
+          "cascadeDelete": false,
+          "minSelect": null,
+          "maxSelect": 1,
+          "displayFields": [
+            "title"
+          ]
+        }
+      },
+      {
+        "id": "dgvh3d8993rolbb",
+        "name": "company_id",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": true,
+        "unique": false,
+        "options": {
+          "collectionId": "jgdgjti9w9xun1i",
+          "cascadeDelete": false,
+          "minSelect": null,
+          "maxSelect": 1,
+          "displayFields": [
+            "name"
+          ]
+        }
+      },
+      {
+        "id": "g8j1d6p19j9pn0m",
+        "name": "created_by",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": true,
+        "unique": false,
+        "options": {
+          "collectionId": "_pb_users_auth_",
+          "cascadeDelete": false,
+          "minSelect": 1,
+          "maxSelect": 1,
+          "displayFields": [
+            "name",
+            "email"
+          ]
+        }
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX `idx_tasks_due` ON `tasks` (`due_at`)",
+      "CREATE INDEX `idx_tasks_owner_due` ON `tasks` (`created_by`,`due_at`)"
+    ],
+    "options": {},
+    "listRule": "@request.auth.id != \"\" && created_by = @request.auth.id",
+    "viewRule": "@request.auth.id != \"\" && created_by = @request.auth.id",
+    "createRule": "@request.auth.id != \"\" && created_by = @request.auth.id",
+    "updateRule": "@request.auth.id != \"\" && created_by = @request.auth.id",
+    "deleteRule": "@request.auth.id != \"\" && created_by = @request.auth.id"
+  }
+]

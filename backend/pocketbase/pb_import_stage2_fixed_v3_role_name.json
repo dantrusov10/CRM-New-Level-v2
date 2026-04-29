@@ -1,0 +1,2753 @@
+[
+  {
+    "id": "k85lqquwy01kngd",
+    "name": "settings_media_parser_sources",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "9e2jy6573hmpi19",
+        "name": "settings_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "ydp5dskfcr4gyb6",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "vyci5xfswf74wn3",
+        "name": "source_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "ijjcytw9d6mu9rb",
+          "cascadeDelete": false,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "deleteRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")"
+  },
+  {
+    "id": "zslwm521gkgezgy",
+    "name": "kp_settings",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "ia239vq52qibdjz",
+        "name": "company_logo_file_id",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "rv1ceb52kers7m0",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "dlqjog3ryzsi0kq",
+        "name": "disclaimer",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "e4pt1p87r4kbw2a",
+        "name": "currency",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "3bs95n5nwdx8yjw",
+        "name": "vat_percent",
+        "type": "number",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "noDecimal": false
+        }
+      },
+      {
+        "id": "gxgwiqcscfl4ul7",
+        "name": "template_config",
+        "type": "json",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 2000000
+        }
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "deleteRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")"
+  },
+  {
+    "id": "taotg7p3kucpt5t",
+    "name": "product_materials",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "i32885w09pltb5u",
+        "name": "product_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "vnkvt3ys3ygmxmp",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "0bfixtqf9o1xitx",
+        "name": "file_id",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "rv1ceb52kers7m0",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "3xsqur1dfj95cf2",
+        "name": "material_type",
+        "type": "select",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "presentation",
+            "doc",
+            "pdf",
+            "link"
+          ]
+        }
+      },
+      {
+        "id": "aodwzvohgxa12sx",
+        "name": "title",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "09y4wv1i0cej1x7",
+        "name": "url",
+        "type": "url",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "deleteRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")"
+  },
+  {
+    "id": "fphbsgd56dnwys9",
+    "name": "settings_contact_parser",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "diokb48v2aiqddu",
+        "name": "enabled",
+        "type": "bool",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "un8u4j6vga90fjc",
+        "name": "schedule_cron",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "elcssxe8cto8wyz",
+        "name": "role_map_id",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "l0hja149273tssb",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "zr2ojd0k7nsymke",
+        "name": "sources_policy",
+        "type": "select",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "official_only",
+            "balanced"
+          ]
+        }
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "deleteRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")"
+  },
+  {
+    "id": "run3xmhj2l03s64",
+    "name": "price_lists",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "vwkk4yb1yvc7o0s",
+        "name": "name",
+        "type": "text",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "nq1zt5vp3w55n10",
+        "name": "file_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "rv1ceb52kers7m0",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "0kzt49hcy49s2fe",
+        "name": "schema_version",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "qtobqwqgjv21tjx",
+        "name": "valid_from",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "hiam6vymecggr1c",
+        "name": "valid_to",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "r4ktmzcd91uyhrm",
+        "name": "uploaded_by",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "_pb_users_auth_",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "deleteRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")"
+  },
+  {
+    "id": "5ob41g0sxdeap7m",
+    "name": "deals",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "c47y81qzdojp0el",
+        "name": "title",
+        "type": "text",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "55dbmqsce1lvlr2",
+        "name": "company_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "jgdgjti9w9xun1i",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "rsn1uxtryuq3voh",
+        "name": "responsible_id",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "_pb_users_auth_",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "yzmvw4hmjoecag0",
+        "name": "stage_id",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "x6jouc59zme8fos",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "3zddnam4da7o0r8",
+        "name": "budget",
+        "type": "number",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "noDecimal": false
+        }
+      },
+      {
+        "id": "ceqh5f4wqt15mjl",
+        "name": "turnover",
+        "type": "number",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "noDecimal": false
+        }
+      },
+      {
+        "id": "wjvhjmoh6t10gh4",
+        "name": "margin_percent",
+        "type": "number",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "noDecimal": false
+        }
+      },
+      {
+        "id": "wj16yuy69rr2fhm",
+        "name": "discount_percent",
+        "type": "number",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "noDecimal": false
+        }
+      },
+      {
+        "id": "75nb7mbp3p2d2ov",
+        "name": "sales_channel",
+        "type": "select",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "прямой",
+            "партнёр"
+          ]
+        }
+      },
+      {
+        "id": "amk4yporzls514r",
+        "name": "partner",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "ef3syywf1k939ec",
+        "name": "distributor",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "omn9akm98ozgthn",
+        "name": "purchase_format",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "fc0s4ueb00ed1i1",
+        "name": "activity_type",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "jfioj7k3x1bvcj9",
+        "name": "endpoints",
+        "type": "number",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "noDecimal": false
+        }
+      },
+      {
+        "id": "206a3k8puiwoeqw",
+        "name": "infrastructure_size",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "gifgbye2cojnbbd",
+        "name": "presale",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "wq6oc964xy3ckre",
+        "name": "attraction_channel",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "b2okn0g90y0hucx",
+        "name": "attraction_date",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "exymszs2m4l6flq",
+        "name": "registration_deadline",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "96jc4s32qbzcacn",
+        "name": "test_start",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "zlaraiioj2tdi42",
+        "name": "test_end",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "288gk7nlmaxywvl",
+        "name": "delivery_date",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "jvh9b0as5lc10am",
+        "name": "expected_payment_date",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "8w7bojweiv0kk6j",
+        "name": "payment_received_date",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "ym5ygs6ui23ue6r",
+        "name": "project_map_link",
+        "type": "url",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "6wzsnndzkeuzrpj",
+        "name": "kaiten_link",
+        "type": "url",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "3p4nilat7sq9tmc",
+        "name": "current_score",
+        "type": "number",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "noDecimal": false
+        }
+      },
+      {
+        "id": "lkiuppjtibdugzs",
+        "name": "current_recommendations",
+        "type": "json",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 2000000
+        }
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || responsible_id = @request.auth.id)",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || responsible_id = @request.auth.id)",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || @request.auth.role_name = \"manager\")",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || (@request.auth.role_name = \"manager\" && responsible_id = @request.auth.id))",
+    "deleteRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")"
+  },
+  {
+    "id": "2556j0fntq4vlfx",
+    "name": "role_map_items",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "evj4i88kdb8vfs1",
+        "name": "role_map_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "l0hja149273tssb",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "2giauoo0t6h1l6b",
+        "name": "position_title",
+        "type": "text",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "fdo54i5xkciiiez",
+        "name": "influence_type",
+        "type": "select",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "lpr",
+            "lvr",
+            "blocker",
+            "influencer"
+          ]
+        }
+      },
+      {
+        "id": "ntlaxpvib2azev1",
+        "name": "weight",
+        "type": "number",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "noDecimal": false
+        }
+      },
+      {
+        "id": "83uy72rvhau08uy",
+        "name": "is_active",
+        "type": "bool",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "lkm7ezr3j0kaeg6",
+        "name": "notes",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "deleteRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")"
+  },
+  {
+    "id": "09c2v1y34gfs0f1",
+    "name": "import_jobs",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "en2t3t0a0n3yopw",
+        "name": "entity_type",
+        "type": "select",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "deal",
+            "company"
+          ]
+        }
+      },
+      {
+        "id": "1g10dxayyo47gdj",
+        "name": "file_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "rv1ceb52kers7m0",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "lchxhg6df51xzuy",
+        "name": "mapping_json",
+        "type": "json",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 2000000
+        }
+      },
+      {
+        "id": "r4q62ml7hseuyh7",
+        "name": "status",
+        "type": "select",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "queued",
+            "running",
+            "success",
+            "failed"
+          ]
+        }
+      },
+      {
+        "id": "8birptq6wkkojeb",
+        "name": "created_by",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "_pb_users_auth_",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "8engs5ip9mzfqxb",
+        "name": "created_at",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "o68czu7ndlx66a7",
+        "name": "finished_at",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "96pvjohar5qxw6g",
+        "name": "error_log",
+        "type": "json",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 2000000
+        }
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "deleteRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")"
+  },
+  {
+    "id": "sbn7mxxwr8xhyss",
+    "name": "entity_files",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "z505qjbzo7bs4xc",
+        "name": "entity_type",
+        "type": "text",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "o4qcr7p5qcwi3wc",
+        "name": "entity_id",
+        "type": "text",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "5h5fkgbg3p576xi",
+        "name": "file_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "rv1ceb52kers7m0",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "jjv2w3ox5ois6ra",
+        "name": "tag",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "n0pqmrjkkd2grpo",
+        "name": "created_at",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || @request.auth.role_name = \"manager\" || @request.auth.role_name = \"viewer\")",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || @request.auth.role_name = \"manager\" || @request.auth.role_name = \"viewer\")",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "deleteRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")"
+  },
+  {
+    "id": "22587ewlj2z7f36",
+    "name": "settings_tender_parser_platforms",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "jdsl1v9wxyx0vqx",
+        "name": "settings_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "vpodau21tvl4543",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "qm008h9bxfev205",
+        "name": "platform_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "8qqcisjdbmqg60p",
+          "cascadeDelete": false,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "deleteRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")"
+  },
+  {
+    "id": "7udsqgz86w4tl47",
+    "name": "price_list_items",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "7vn3sue4zeqmplk",
+        "name": "price_list_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "run3xmhj2l03s64",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "n1kscenf8ma99vo",
+        "name": "sku",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "t8g6gphsjuflvwj",
+        "name": "product_name",
+        "type": "text",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "xuj8kqo86x3tawi",
+        "name": "unit",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "ee16ovd0pxghaqh",
+        "name": "price",
+        "type": "number",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "noDecimal": false
+        }
+      },
+      {
+        "id": "11f4j0rxo7zpoqg",
+        "name": "currency",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "j6zjahdh8ty0txv",
+        "name": "vat_percent",
+        "type": "number",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "noDecimal": false
+        }
+      },
+      {
+        "id": "ai7ylfxljwo0j56",
+        "name": "meta",
+        "type": "json",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 2000000
+        }
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "deleteRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")"
+  },
+  {
+    "id": "qfe1vv96nrzlktj",
+    "name": "quotes",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "ra6ge4lmvq2gxdi",
+        "name": "deal_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "5ob41g0sxdeap7m",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "qnfna3s5r1nasha",
+        "name": "generated_by",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "_pb_users_auth_",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "791bfigm9l5kaqz",
+        "name": "kp_settings_snapshot",
+        "type": "json",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 2000000
+        }
+      },
+      {
+        "id": "ak5xy34uuhcrfnk",
+        "name": "totals",
+        "type": "json",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 2000000
+        }
+      },
+      {
+        "id": "kpdmko5s25f22io",
+        "name": "file_id",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "rv1ceb52kers7m0",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "g25kzkmtfzkkwd3",
+        "name": "created_at",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || deal_id.responsible_id = @request.auth.id)",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || deal_id.responsible_id = @request.auth.id)",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || @request.auth.role_name = \"manager\")",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "deleteRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")"
+  },
+  {
+    "id": "nidi61bu29kjhsr",
+    "name": "semantic_packs",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "19pcgp49iwtic0h",
+        "name": "type",
+        "type": "select",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "deal",
+            "company",
+            "role"
+          ]
+        }
+      },
+      {
+        "id": "yt5n9xoiznfby11",
+        "name": "deal_id",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "5ob41g0sxdeap7m",
+          "cascadeDelete": true,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "mihjsqwxbi9pyhz",
+        "name": "company_id",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "jgdgjti9w9xun1i",
+          "cascadeDelete": true,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "1rsberulmydtww9",
+        "name": "role_map_id",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "l0hja149273tssb",
+          "cascadeDelete": true,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "9r54y3ie5je9921",
+        "name": "base_text",
+        "type": "text",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "3s8fgm9tvr4tpxx",
+        "name": "variants",
+        "type": "json",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 2000000
+        }
+      },
+      {
+        "id": "nxzh2m25bo8k73r",
+        "name": "language",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "f9r9x7a9hzl7aut",
+        "name": "model",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "r7dpk0g05g4io66",
+        "name": "created_at",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "go0pzxby4ijmebj",
+        "name": "updated_at",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "deleteRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")"
+  },
+  {
+    "id": "8ejp7b5bco6t5e1",
+    "name": "parser_runs",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "1il3y8l41b670xf",
+        "name": "deal_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "5ob41g0sxdeap7m",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "xuimsljxh1audr6",
+        "name": "run_type",
+        "type": "select",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "manual_enrich_on_create",
+            "scheduled"
+          ]
+        }
+      },
+      {
+        "id": "epxv3er4gdr8bik",
+        "name": "parsers",
+        "type": "json",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 2000000
+        }
+      },
+      {
+        "id": "q6nbzaakavxk3w9",
+        "name": "status",
+        "type": "select",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "queued",
+            "running",
+            "success",
+            "partial",
+            "failed"
+          ]
+        }
+      },
+      {
+        "id": "c4t6wa0zlhl5v2i",
+        "name": "started_at",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "32pgq1ynnt8nv6j",
+        "name": "finished_at",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "c6y9z6a6yncgift",
+        "name": "initiated_by",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "_pb_users_auth_",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "mdb05ybmr2cvqsr",
+        "name": "error",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "b4garm0l0kd8aiu",
+        "name": "metrics",
+        "type": "json",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 2000000
+        }
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "deleteRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")"
+  },
+  {
+    "id": "6zykl3wcg0lr046",
+    "name": "timeline",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "nl74o2lm95wnii4",
+        "name": "deal_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "5ob41g0sxdeap7m",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "xu2fle8gb75s0ai",
+        "name": "user_id",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "_pb_users_auth_",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "lv3zu741jksvd2s",
+        "name": "action",
+        "type": "text",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "mfmin8werw17wrr",
+        "name": "comment",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "4ivgpo6k8bbigeg",
+        "name": "payload",
+        "type": "json",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 2000000
+        }
+      },
+      {
+        "id": "896k9lxl3pjhrou",
+        "name": "timestamp",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || deal_id.responsible_id = @request.auth.id)",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || deal_id.responsible_id = @request.auth.id)",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || @request.auth.role_name = \"manager\")",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "deleteRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")"
+  },
+  {
+    "id": "2n3bqmmpugos4iu",
+    "name": "quote_items",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "ltvmqgi1ek9q97g",
+        "name": "quote_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "qfe1vv96nrzlktj",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "ehkmc0ow4ntlhoe",
+        "name": "sku",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "y7g6azt29nq9ox7",
+        "name": "name",
+        "type": "text",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "pbzrzce35rylvad",
+        "name": "qty",
+        "type": "number",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "noDecimal": false
+        }
+      },
+      {
+        "id": "t5w4efynz576t9t",
+        "name": "unit_price",
+        "type": "number",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "noDecimal": false
+        }
+      },
+      {
+        "id": "6ka1dduf1p79ywh",
+        "name": "discount_percent",
+        "type": "number",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "noDecimal": false
+        }
+      },
+      {
+        "id": "r1juwd1o7x2lumc",
+        "name": "vat_percent",
+        "type": "number",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "noDecimal": false
+        }
+      },
+      {
+        "id": "wvdg6zjf2s1lebw",
+        "name": "total",
+        "type": "number",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "noDecimal": false
+        }
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || quote_id.deal_id.responsible_id = @request.auth.id)",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || quote_id.deal_id.responsible_id = @request.auth.id)",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || @request.auth.role_name = \"manager\")",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "deleteRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")"
+  },
+  {
+    "id": "qlx8iail3hsdq6g",
+    "name": "media_items",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "s7z5z1bcill5sl5",
+        "name": "deal_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "5ob41g0sxdeap7m",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "yzj2h3f5aw10z90",
+        "name": "company_id",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "jgdgjti9w9xun1i",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "pss8d2a44o6m751",
+        "name": "parser_run_id",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "8ejp7b5bco6t5e1",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "g2g7lzk6gafok2l",
+        "name": "matched_variant",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "3hq9hsw2wwpes7e",
+        "name": "source_id",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "ijjcytw9d6mu9rb",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "a4zfc8c4pk4ils6",
+        "name": "url",
+        "type": "url",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "bizmm89jxyi19ty",
+        "name": "title",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "3l6iqh3d2xn6gsr",
+        "name": "snippet",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "rcy3m7ruip4oyur",
+        "name": "published_at",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "sza6x7h1k3mwogb",
+        "name": "fetched_at",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "07o0n25ysebaleo",
+        "name": "ai_relevance",
+        "type": "select",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "unknown",
+            "relevant",
+            "irrelevant"
+          ]
+        }
+      },
+      {
+        "id": "quduch2d8gx0tbk",
+        "name": "ai_impact",
+        "type": "number",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "noDecimal": false
+        }
+      },
+      {
+        "id": "jtjbomt7537svcm",
+        "name": "ai_reason",
+        "type": "json",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 2000000
+        }
+      },
+      {
+        "id": "rset7dgqp691f4n",
+        "name": "raw_payload",
+        "type": "json",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 2000000
+        }
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || deal_id.responsible_id = @request.auth.id)",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || deal_id.responsible_id = @request.auth.id)",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "deleteRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")"
+  },
+  {
+    "id": "bvtjfk4hagvrifr",
+    "name": "tender_items",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "2rqkkih0gr2qw7s",
+        "name": "deal_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "5ob41g0sxdeap7m",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "qxdes664lyrbbh3",
+        "name": "company_id",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "jgdgjti9w9xun1i",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "0iy605sqfbqdxpw",
+        "name": "parser_run_id",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "8ejp7b5bco6t5e1",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "ok8rw2cz389wch9",
+        "name": "platform_id",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "8qqcisjdbmqg60p",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "zvgemqphf9uron1",
+        "name": "tender_url",
+        "type": "url",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "ych6dn407s89riq",
+        "name": "tender_external_id",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "inhq7xsbyxryo1f",
+        "name": "title",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "7xa9cvishtuz5bd",
+        "name": "customer_name",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "9a583o9bvtncemh",
+        "name": "price",
+        "type": "number",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "noDecimal": false
+        }
+      },
+      {
+        "id": "0ttwimij8ikfjb5",
+        "name": "currency",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "msltgurpz16h7w0",
+        "name": "published_at",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "qqyrmul914nhqbu",
+        "name": "deadline_at",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "ykovdmjnh7zr9r4",
+        "name": "status",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "3trxo5so9ba02au",
+        "name": "ai_relevance",
+        "type": "select",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "unknown",
+            "relevant",
+            "irrelevant"
+          ]
+        }
+      },
+      {
+        "id": "w5awj0aodq061e2",
+        "name": "ai_impact",
+        "type": "number",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "noDecimal": false
+        }
+      },
+      {
+        "id": "8n66toll1t1umcj",
+        "name": "ai_reason",
+        "type": "json",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 2000000
+        }
+      },
+      {
+        "id": "t1dzymrngp1tdsf",
+        "name": "raw_payload",
+        "type": "json",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 2000000
+        }
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || deal_id.responsible_id = @request.auth.id)",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || deal_id.responsible_id = @request.auth.id)",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "deleteRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")"
+  },
+  {
+    "id": "i8aluo77nnm5zl7",
+    "name": "contacts_found",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "zbd2ll035w4n1z7",
+        "name": "deal_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "5ob41g0sxdeap7m",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "h3ltfhcbysa8ywl",
+        "name": "company_id",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "jgdgjti9w9xun1i",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "fcpaxa7wv7m3v15",
+        "name": "parser_run_id",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "8ejp7b5bco6t5e1",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "oxt8l9ar3ecdopy",
+        "name": "role_map_item_id",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "2556j0fntq4vlfx",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "wk2bzehavtkbm0z",
+        "name": "position",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "0ychh57a3u6dg2b",
+        "name": "influence_type",
+        "type": "select",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "lpr",
+            "lvr",
+            "blocker",
+            "influencer"
+          ]
+        }
+      },
+      {
+        "id": "44koms8avwizux9",
+        "name": "full_name",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "qlvyowka38txy3m",
+        "name": "phone",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "sgfzr2jxvasi0t5",
+        "name": "telegram",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "r95wkp2ji8fnz5h",
+        "name": "email",
+        "type": "email",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "zvhy4m0paxd2qi1",
+        "name": "source_url",
+        "type": "url",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "r3xmuqsgiiwnthj",
+        "name": "source_type",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "vp7tu9t5l3vz5nx",
+        "name": "confidence",
+        "type": "number",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "noDecimal": false
+        }
+      },
+      {
+        "id": "uaffu8xwbtds0wq",
+        "name": "is_verified",
+        "type": "bool",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || deal_id.responsible_id = @request.auth.id)",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || deal_id.responsible_id = @request.auth.id)",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "deleteRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")"
+  },
+  {
+    "id": "kxr3ixojz4vmfg0",
+    "name": "ai_insights",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "tnv0m018m9t4r2s",
+        "name": "deal_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "5ob41g0sxdeap7m",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "7k542vhtuowj4n4",
+        "name": "summary",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "trh6kfpkgala8y7",
+        "name": "score",
+        "type": "number",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "noDecimal": false
+        }
+      },
+      {
+        "id": "87rq6212s7vdqyh",
+        "name": "suggestions",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "hpr22e5gjc73iqf",
+        "name": "risks",
+        "type": "json",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 2000000
+        }
+      },
+      {
+        "id": "i28kr4wndbd1z4k",
+        "name": "explainability",
+        "type": "json",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 2000000
+        }
+      },
+      {
+        "id": "2vcyhohopgahr8h",
+        "name": "model",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "ur6k5ykyqq909eb",
+        "name": "token_usage",
+        "type": "number",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "noDecimal": false
+        }
+      },
+      {
+        "id": "vb24w2w8d94vpbh",
+        "name": "trigger_event_id",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "6zykl3wcg0lr046",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "rcrmgvf0c57ph7z",
+        "name": "created_by",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "_pb_users_auth_",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "i0y1912xjragimy",
+        "name": "created_at",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || deal_id.responsible_id = @request.auth.id)",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || deal_id.responsible_id = @request.auth.id)",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "deleteRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")"
+  },
+  {
+    "id": "9welsiv0891kbyj",
+    "name": "tender_detail_requests",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "7a6gn505dnc2uuz",
+        "name": "tender_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "bvtjfk4hagvrifr",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "xne6ugtrnhjs6x1",
+        "name": "deal_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "5ob41g0sxdeap7m",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "j6jih8d5zvnljrd",
+        "name": "requested_by",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "_pb_users_auth_",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "fvnzrfpstsbqwlw",
+        "name": "status",
+        "type": "select",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "queued",
+            "running",
+            "success",
+            "failed"
+          ]
+        }
+      },
+      {
+        "id": "rbuq7c39rkyjs69",
+        "name": "requested_at",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "xysxcwu7xso5zsp",
+        "name": "finished_at",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "llvaahxza0ajrce",
+        "name": "error",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || deal_id.responsible_id = @request.auth.id)",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || deal_id.responsible_id = @request.auth.id)",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || @request.auth.role_name = \"manager\")",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "deleteRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")"
+  },
+  {
+    "id": "g5td6hq9gaw5hnc",
+    "name": "tender_documents",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "hwhuvc56ecb8wy8",
+        "name": "tender_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "bvtjfk4hagvrifr",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "dpm0fzg0elycqmi",
+        "name": "deal_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "5ob41g0sxdeap7m",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "c3ip8hjxs3837xc",
+        "name": "file_id",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "rv1ceb52kers7m0",
+          "cascadeDelete": true,
+          "minSelect": 1,
+          "maxSelect": 1
+        }
+      },
+      {
+        "id": "v3m2jt0vgwcflhp",
+        "name": "doc_type",
+        "type": "select",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "description",
+            "attachment",
+            "archive"
+          ]
+        }
+      },
+      {
+        "id": "8dgugsgdtw1uish",
+        "name": "filename",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "t4qogsji4awfgzy",
+        "name": "mime",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      },
+      {
+        "id": "3dwxu2mseze6roj",
+        "name": "size_bytes",
+        "type": "number",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "noDecimal": false
+        }
+      },
+      {
+        "id": "cl0aeugdmxap2es",
+        "name": "checksum",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "pattern": ""
+        }
+      }
+    ],
+    "indexes": [],
+    "options": {},
+    "listRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || deal_id.responsible_id = @request.auth.id)",
+    "viewRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\" || deal_id.responsible_id = @request.auth.id)",
+    "createRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "updateRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")",
+    "deleteRule": "@request.auth.id != \"\" && (@request.auth.role_name = \"admin\")"
+  }
+]

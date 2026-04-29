@@ -1,0 +1,157 @@
+import React from "react";
+import { Card, CardContent, CardHeader } from "../../components/Card";
+import { Button } from "../../components/Button";
+import { Input } from "../../components/Input";
+import { Modal } from "../../components/Modal";
+import { pb } from "../../../lib/pb";
+import { notifyPbError } from "../../../lib/pbError";
+import type { UserSummary } from "../../../lib/types";
+
+export function AdminUsersPage() {
+  const [users, setUsers] = React.useState<UserSummary[]>([]);
+  // Роль хранится в auth-коллекции `users.role` (в некоторых старых сборках могла быть `role_name`).
+  // settings_roles остаётся для матрицы прав и лейблов.
+  const ROLE_FALLBACK = [
+    { value: "admin", label: "Админ" },
+    { value: "manager", label: "Менеджер" },
+    { value: "viewer", label: "Вьюер" },
+  ];
+  const [roles, setRoles] = React.useState<Array<{ value: string; label: string }>>(ROLE_FALLBACK);
+  const [open, setOpen] = React.useState(false);
+
+  const [name, setName] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [role, setRole] = React.useState("");
+
+  async function load() {
+    const u = await pb.collection("users").getList(1, 200, { sort: "email" });
+    const r = await pb.collection("settings_roles").getFullList({ sort: "role_name" }).catch(() => []);
+    setUsers(u.items);
+    // If settings_roles exists and filled - use it; else fallback.
+    const mapped = (r as Array<{ role_name?: string; label?: string }>)
+      .map((x) => ({ value: x.role_name ?? "", label: x.label ?? x.role_name ?? "" }))
+      .filter((x) => !!x.value);
+    setRoles(mapped.length ? mapped : ROLE_FALLBACK);
+  }
+
+  React.useEffect(() => { load(); }, []);
+
+  async function createUser() {
+    if (!email || !password) return;
+    if (!role) { alert("Выберите роль"); return; }
+    const data: Record<string, string> = { email, password, passwordConfirm: password };
+    if (name.trim()) data.name = name.trim();
+    // Prefer canonical field `role` (required in PB). If backend still uses `role_name`, fallback below.
+    data.role = role;
+    try {
+      try {
+        await pb.collection("users").create(data);
+      } catch (e: unknown) {
+        // fallback for older schema
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes("role") && !msg.includes("role_name")) {
+          await pb.collection("users").create({ ...data, role_name: role, role: undefined });
+        } else {
+          throw e;
+        }
+      }
+      setOpen(false);
+      setName(""); setEmail(""); setPassword(""); setRole("");
+      load();
+    } catch (e) {
+      notifyPbError(e, "Не удалось создать пользователя");
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-semibold">Пользователи</div>
+            <div className="text-xs text-text2 mt-1">Список + добавление + назначение ролей (матрица доступов хранится в `settings_roles`)</div>
+          </div>
+          <Button onClick={() => setOpen(true)}>Добавить пользователя</Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-auto">
+          <table className="min-w-[900px] w-full text-sm">
+            <thead>
+              <tr className="h-10 bg-[#EEF1F6] text-[#374151] font-semibold">
+                <th className="text-left px-3">Имя</th>
+                <th className="text-left px-3">Email</th>
+                <th className="text-left px-3">Роль</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.id} className="h-11 border-b border-border">
+                  <td className="px-3">{u.name ?? "—"}</td>
+                  <td className="px-3 text-text2">{u.email}</td>
+                  <td className="px-3">
+                    <select
+                      className="h-9 rounded-card border border-[#9CA3AF] bg-white px-2 text-sm"
+                      value={u.role ?? u.role_name ?? ""}
+                      onChange={async (e) => {
+                        const nextRole = e.target.value || null;
+                        try {
+                          // Prefer canonical field `role`.
+                          try {
+                            await pb.collection("users").update(u.id, { role: nextRole });
+                          } catch {
+                            await pb.collection("users").update(u.id, { role_name: nextRole });
+                          }
+                          load();
+                        } catch (err) {
+                          notifyPbError(err, "Не удалось сменить роль");
+                        }
+                      }}
+                    >
+                      <option value="">—</option>
+                      {roles.map((r) => (
+                        <option key={r.value} value={r.value}>{r.label}</option>
+                      ))}
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!users.length ? <div className="text-sm text-text2 py-6">Пользователей пока нет.</div> : null}
+        </div>
+      </CardContent>
+
+      <Modal open={open} title="Добавить пользователя" onClose={() => setOpen(false)} widthClass="max-w-lg">
+        <div className="grid gap-3">
+          <div>
+            <div className="text-xs text-text2 mb-1">Имя</div>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Иван" />
+          </div>
+          <div>
+            <div className="text-xs text-text2 mb-1">Email *</div>
+            <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ivan@company.ru" />
+          </div>
+          <div>
+            <div className="text-xs text-text2 mb-1">Пароль *</div>
+            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Минимум 8 символов" />
+          </div>
+          <div>
+            <div className="text-xs text-text2 mb-1">Роль</div>
+            <select className="h-10 w-full rounded-card border border-[#9CA3AF] bg-white px-3 text-sm" value={role} onChange={(e) => setRole(e.target.value)}>
+              <option value="">— выбери роль —</option>
+              <option value="">—</option>
+              {roles.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setOpen(false)}>Отмена</Button>
+            <Button onClick={createUser} disabled={!email || !password}>Создать</Button>
+          </div>
+        </div>
+      </Modal>
+    </Card>
+  );
+}

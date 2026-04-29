@@ -1,0 +1,452 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Hide native scrollbars (keep scroll via mouse wheel / trackpad)
+   Used in DateTimePicker time lists to avoid "slider" covering values. */
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
+}
+
+/* ========= Calm Power UI (Cockpit) — Global ========= */
+:root{
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* ===== NewLevel CRM — Dark Enterprise (ref-style) ===== */
+  /* base background (deeper + higher contrast) */
+  --cp-bg-1:#040B1A; /* ultra deep navy */
+  --cp-bg-2:#06162E; /* deep navy */
+
+  /* primary surfaces */
+  /* primary surfaces (more насыщенные) */
+  --cp-panel-a:#071A33;
+  --cp-panel-b:#082A4B;
+  --cp-panel-c:#040E22;
+
+  --cp-text: rgba(255,255,255,0.92);
+  /* slightly higher contrast for readability on glass */
+  --cp-text2: rgba(226,232,240,0.86);
+  --cp-text3: rgba(226,232,240,0.72);
+
+  --cp-stroke: rgba(255,255,255,0.16);
+  --cp-stroke2: rgba(255,255,255,0.11);
+
+  /* glass */
+  --cp-glass: rgba(255,255,255,0.09);
+  --cp-glass2: rgba(255,255,255,0.13);
+
+  --cp-radius: 22px;
+  --cp-radius2: 18px;
+  --cp-radius3: 14px;
+
+  --cp-shadow: 0 22px 60px rgba(0,0,0,0.40);
+  --cp-shadow2: 0 14px 40px rgba(0,0,0,0.34);
+
+  /* neon accents */
+  --cp-neon-cyan:#33D7FF;
+  --cp-neon-blue:#2D7BFF;
+  --cp-neon-violet:#8B5CF6;
+  --cp-neon-mint:#22C55E;
+
+  --cp-primary: var(--cp-neon-cyan);
+  --cp-primary2: var(--cp-neon-blue);
+}
+
+*{box-sizing:border-box}
+
+/* App background */
+body{
+  /* Deep navy + soft bokeh (as in refs) */
+  background:
+    radial-gradient(900px 560px at 18% 16%, rgba(51,215,255,0.34), transparent 62%),
+    radial-gradient(820px 560px at 72% 18%, rgba(45,123,255,0.24), transparent 60%),
+    radial-gradient(860px 620px at 84% 78%, rgba(139,92,246,0.18), transparent 62%),
+    radial-gradient(920px 620px at 14% 82%, rgba(34,197,94,0.12), transparent 60%),
+    linear-gradient(180deg, var(--cp-bg-1), var(--cp-bg-2));
+}
+
+/* Subtle tech grid */
+body:before{
+  content:"";
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  opacity:0.22;
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      rgba(255,255,255,0.06) 0px,
+      rgba(255,255,255,0.06) 1px,
+      transparent 1px,
+      transparent 52px
+    );
+  mask-image: radial-gradient(circle at 45% 12%, rgba(0,0,0,1), rgba(0,0,0,0.35) 58%, rgba(0,0,0,0) 78%);
+}
+
+/* Noise + vignette */
+body:after{
+  content:"";
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255,255,255,0.08), transparent 42%),
+    radial-gradient(circle at 50% 110%, rgba(0,0,0,0.55), transparent 55%);
+  opacity:0.9;
+  mix-blend-mode: overlay;
+}
+
+/* ========= Cockpit utility classes (no @apply, to avoid Tailwind build issues) ========= */
+.cockpit-topbar{
+  position:sticky; top:0; z-index:40;
+  background: rgba(6,16,35,0.58);
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+  backdrop-filter: blur(14px);
+}
+
+.cockpit-sidebar{
+  height:100%;
+  border-right: 1px solid rgba(255,255,255,0.10);
+  background: linear-gradient(180deg, rgba(6,16,35,0.90), rgba(6,16,35,0.74));
+  color: var(--cp-text);
+}
+.cockpit-sidebar .muted{ color: var(--cp-text3); }
+
+.cockpit-nav-item{
+  display:flex; align-items:center; gap:12px;
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 750;
+  color: rgba(226,232,240,0.88);
+  border:1px solid transparent;
+}
+.cockpit-nav-item:hover{
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.10);
+}
+.cockpit-nav-item.active{
+  background: rgba(96,165,250,0.16);
+  border-color: rgba(96,165,250,0.30);
+  color: #fff;
+}
+
+/* Core surfaces */
+.cockpit-panel{
+  background: linear-gradient(135deg, var(--cp-panel-a) 0%, var(--cp-panel-b) 55%, var(--cp-panel-c) 120%);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: var(--cp-radius);
+  box-shadow: var(--cp-shadow);
+  color: var(--cp-text);
+  position:relative;
+  overflow:hidden;
+}
+.cockpit-panel:before{
+  content:"";
+  position:absolute; inset:0;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(255,255,255,0.16), transparent 52%),
+    radial-gradient(circle at 78% 20%, rgba(51,215,255,0.22), transparent 58%),
+    radial-gradient(circle at 72% 86%, rgba(45,123,255,0.16), transparent 60%),
+    radial-gradient(circle at 38% 92%, rgba(139,92,246,0.12), transparent 55%);
+  opacity:.9;
+  pointer-events:none;
+}
+.cockpit-panel:after{
+  content:"";
+  position:absolute; inset:0;
+  pointer-events:none;
+  /* subtle inner glow + vignette */
+  background:
+    radial-gradient(500px 220px at 50% 0%, rgba(51,215,255,0.10), transparent 60%),
+    radial-gradient(560px 260px at 20% 100%, rgba(45,123,255,0.10), transparent 62%),
+    radial-gradient(720px 380px at 50% 120%, rgba(0,0,0,0.55), transparent 60%);
+  mix-blend-mode: screen;
+  opacity: 0.55;
+}
+.cockpit-panel > *{ position:relative; }
+
+.cockpit-glass{
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: var(--cp-radius2);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 0 0 1px rgba(51,215,255,0.06) inset;
+}
+
+/* Typography on dark glass/panels */
+.cockpit-panel h1, .cockpit-panel h2, .cockpit-panel h3, .cockpit-panel h4,
+.cockpit-topbar, .cockpit-sidebar{
+  color: var(--cp-text);
+}
+.cockpit-panel .subtle{ color: var(--cp-text2); }
+.cockpit-panel .muted{ color: var(--cp-text3); }
+
+/* Buttons */
+.ui-btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  height:42px;
+  padding: 0 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.10);
+  backdrop-filter: blur(14px);
+  color: rgba(255,255,255,0.92);
+  font-weight: 850;
+  cursor:pointer;
+  transition: transform .12s ease, background .12s ease, border-color .12s ease, opacity .12s ease;
+}
+.ui-btn:hover{ transform: translateY(-1px); border-color: rgba(96,165,250,0.35); background: rgba(255,255,255,0.14); }
+.ui-btn:disabled{ opacity: .55; cursor:not-allowed; transform:none; }
+
+.ui-btn-primary{
+  background: linear-gradient(180deg, rgba(96,165,250,0.95), rgba(37,99,235,0.92));
+  border-color: rgba(96,165,250,0.45);
+  box-shadow: 0 16px 44px rgba(96,165,250,0.20);
+}
+.ui-btn-primary:hover{ border-color: rgba(96,165,250,0.75); }
+
+.ui-btn-danger{
+  background: linear-gradient(180deg, rgba(239,68,68,0.92), rgba(220,38,38,0.88));
+  border-color: rgba(239,68,68,0.35);
+}
+.ui-btn-secondary{
+  background: rgba(255,255,255,0.10);
+}
+
+/* Icon button */
+.ui-icon-btn{
+  width:42px;
+  padding:0;
+}
+
+/* Inputs */
+.ui-input{
+  height:42px;
+  width:100%;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.10);
+  backdrop-filter: blur(14px);
+  padding: 0 12px;
+  color: rgba(255,255,255,0.92);
+  outline:none;
+  font-weight: 750;
+}
+.ui-input::placeholder{ color: rgba(226,232,240,0.62); }
+.ui-input:focus{ border-color: rgba(96,165,250,0.55); }
+
+.ui-card{
+  border-radius: var(--cp-radius2);
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(7,26,51,0.30);
+  color: var(--cp-text);
+}
+
+/* Hide native scrollbars (keep scroll) */
+/* Custom (pretty) scrollbars for horizontal strips */
+.neon-scroll{ scrollbar-width: thin; scrollbar-color: rgba(51,215,255,0.45) transparent; }
+.neon-scroll::-webkit-scrollbar{ height: 10px; }
+.neon-scroll::-webkit-scrollbar-track{ background: transparent; }
+.neon-scroll::-webkit-scrollbar-thumb{
+  background: linear-gradient(90deg, rgba(51,215,255,0.55), rgba(45,123,255,0.45));
+  border-radius: 999px;
+  border: 2px solid rgba(0,0,0,0.25);
+}
+.neon-scroll::-webkit-scrollbar-thumb:hover{
+  background: linear-gradient(90deg, rgba(51,215,255,0.75), rgba(45,123,255,0.60));
+}
+
+/* Old helper (keep) */
+
+
+/* Kanban cards */
+.kanban-card{
+  position: relative;
+  /* cards must never be wider than the column */
+  width: calc(100% - 10px);
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+  /* keep all deal cards the same visual size across all columns */
+  min-height: 92px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.06));
+  border: 1px solid rgba(255,255,255,0.14);
+  /* Lighter shadow for performance (400+ cards) */
+  box-shadow: 0 10px 28px rgba(0,0,0,0.34);
+  /* blur on hundreds of elements is heavy; keep glass feel without per-card blur */
+  backdrop-filter: none;
+}
+.kanban-card::before{
+  content:"";
+  position:absolute;
+  left:0; top:0; bottom:0;
+  width:4px;
+  background: var(--stage-color, var(--cp-primary));
+  /* drop-shadow filter is expensive; rely on subtle glow via ::after */
+  filter: none;
+  border-top-left-radius: var(--cp-radius3);
+  border-bottom-left-radius: var(--cp-radius3);
+  opacity: .95;
+}
+.kanban-card::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  border-radius: var(--cp-radius3);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.08) inset, 0 0 40px rgba(45,123,255,0.08);
+  opacity: .9;
+}
+.kanban-card:hover{
+  border-color: rgba(51,215,255,0.30);
+  box-shadow: 0 18px 56px rgba(0,0,0,0.42), 0 0 0 1px rgba(51,215,255,0.10) inset;
+}
+.kanban-card .kanban-accent{
+  box-shadow: 0 0 18px rgba(51,215,255,0.18);
+}
+
+
+.brand-dot{
+  width:10px;height:10px;border-radius:999px;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.92), rgba(96,165,250,0.95));
+  box-shadow: 0 0 0 4px rgba(96,165,250,0.18), 0 12px 30px rgba(96,165,250,0.22);
+  display:inline-block;
+}
+
+
+/* ========= Tailwind class overrides inside cockpit theme ========= */
+.theme-cockpit .bg-bg{ background: transparent !important; }
+.theme-cockpit .bg-card{ background: rgba(17,24,39,0.22) !important; }
+.theme-cockpit .border-border{ border-color: rgba(255,255,255,0.12) !important; }
+.theme-cockpit .border-borderHover{ border-color: rgba(255,255,255,0.18) !important; }
+.theme-cockpit .text-text{ color: rgba(255,255,255,0.92) !important; }
+.theme-cockpit .text-text2{ color: rgba(226,232,240,0.64) !important; }
+.theme-cockpit .bg-rowHover{ background: rgba(255,255,255,0.08) !important; }
+.theme-cockpit .bg-rowSelected{ background: rgba(96,165,250,0.16) !important; }
+.theme-cockpit .border{ border-color: rgba(255,255,255,0.12) !important; }
+
+/* make “white cards” inside cockpit look slightly glassy (optional but helps consistency) */
+.theme-cockpit .bg-white{
+  /* make "white" surfaces inside cockpit darker + a bit more neon (refs-style) */
+  background: linear-gradient(135deg, rgba(7,26,51,0.70), rgba(8,42,75,0.42)) !important;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.08) inset, 0 14px 40px rgba(0,0,0,0.40);
+}
+
+/* Native selects: keep inside theme (avoid unreadable system dropdown) */
+.theme-cockpit select{
+  background: rgba(17,24,39,0.28) !important;
+  color: rgba(255,255,255,0.92) !important;
+  border-color: rgba(255,255,255,0.16) !important;
+}
+.theme-cockpit select option{
+  background: #0B1220;
+  color: #fff;
+}
+
+/* Slight text shadow helps on translucent glass */
+.theme-cockpit .cockpit-panel,
+.theme-cockpit .cockpit-glass,
+.theme-cockpit .bg-white{
+  text-shadow: 0 1px 0 rgba(0,0,0,0.28);
+}
+.theme-cockpit .hover\:bg-rowHover:hover{ background: rgba(255,255,255,0.10) !important; }
+
+
+/* === Cockpit v6: global contrast fixes + iOS-glass depth + neon outlines === */
+.theme-cockpit{
+  --cp-text: rgba(255,255,255,.92);
+  --cp-text2: rgba(226,232,240,.86);
+  --cp-text3: rgba(226,232,240,.72);
+  --cp-stroke: rgba(255,255,255,.16);
+  --cp-glass: rgba(17,24,39,.34);
+  --cp-glass2: rgba(17,24,39,.22);
+  --cp-neon: rgba(96,165,250,.55);
+  --cp-neon2: rgba(45,212,191,.35);
+}
+
+/* Fix Tailwind token classes inside cockpit (they were designed for light theme) */
+.theme-cockpit .text-text{ color: var(--cp-text) !important; }
+.theme-cockpit .text-text2{ color: var(--cp-text2) !important; }
+.theme-cockpit .text-[#374151]{ color: var(--cp-text) !important; }
+.theme-cockpit .text-[#111827]{ color: var(--cp-text) !important; }
+.theme-cockpit .text-[#6B7280]{ color: var(--cp-text2) !important; }
+
+.theme-cockpit .border-border{ border-color: var(--cp-stroke) !important; }
+.theme-cockpit .bg-white{ background: rgba(17,24,39,.26) !important; }
+.theme-cockpit .bg-card{ background: rgba(17,24,39,.22) !important; }
+.theme-cockpit .bg-tableHeader{ background: rgba(17,24,39,.30) !important; }
+.theme-cockpit .hover\:bg-rowHover:hover{ background: rgba(255,255,255,.10) !important; }
+
+/* The main “glass panel” look */
+.theme-cockpit .ui-card,
+.theme-cockpit .ui-modal,
+.theme-cockpit .ui-panel,
+.theme-cockpit .ui-glass{
+  background: linear-gradient(135deg,
+    rgba(30,58,138,.56) 0%,
+    rgba(14,116,144,.44) 52%,
+    rgba(17,24,39,.58) 110%
+  ) !important;
+  border: 1px solid var(--cp-stroke) !important;
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  color: var(--cp-text);
+  position: relative;
+  box-shadow:
+    0 18px 46px rgba(15,23,42,.22),
+    0 0 0 1px rgba(96,165,250,.10) inset;
+}
+
+/* iOS-like highlight */
+.theme-cockpit .ui-card::before,
+.theme-cockpit .ui-panel::before,
+.theme-cockpit .ui-glass::before{
+  content:"";
+  position:absolute; inset:0;
+  pointer-events:none;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(255,255,255,.16), transparent 48%),
+    radial-gradient(circle at 82% 22%, rgba(96,165,250,.18), transparent 52%);
+  opacity:.95;
+}
+
+/* neon outline */
+.theme-cockpit .ui-card::after,
+.theme-cockpit .ui-panel::after,
+.theme-cockpit .ui-glass::after{
+  content:"";
+  position:absolute; inset:-1px;
+  border-radius: inherit;
+  pointer-events:none;
+  background: linear-gradient(90deg, var(--cp-neon), transparent 35%, transparent 65%, var(--cp-neon2));
+  opacity:.22;
+  filter: blur(6px);
+}
+
+/* Inputs inside glass */
+.theme-cockpit input,
+.theme-cockpit select,
+.theme-cockpit textarea{
+  color: var(--cp-text) !important;
+  background: rgba(255,255,255,.10) !important;
+  border-color: rgba(255,255,255,.18) !important;
+}
+.theme-cockpit input::placeholder{ color: rgba(226,232,240,.55) !important; }
+
+/* Kanban cards readability */
+.theme-cockpit .kanban-card,
+.theme-cockpit [data-kanban-card="true"]{
+  background: rgba(17,24,39,.34) !important;
+  border-color: rgba(255,255,255,.14) !important;
+}
+.theme-cockpit .kanban-card *{ color: rgba(255,255,255,.86) !important; }

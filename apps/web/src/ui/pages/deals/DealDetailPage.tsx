@@ -2099,7 +2099,7 @@ export function DealDetailPage() {
       {/* MAIN AREA */}
       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-12 min-w-0 xl:col-span-3 grid gap-4 self-start">
-          <Card className="h-[calc(100vh-170px)]">
+          <Card className="h-[calc(100vh-170px)] overflow-hidden">
             <CardHeader>
               <div className="text-sm font-semibold">Сделка: общая информация</div>
             </CardHeader>
@@ -2138,7 +2138,8 @@ export function DealDetailPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="crm-scrollbar h-[calc(100vh-230px)] overflow-y-auto pr-1">
+            <CardContent className="h-[calc(100vh-230px)] min-h-0 overflow-hidden">
+              <div className="crm-scrollbar h-full overflow-y-auto pr-1">
               <div className="grid gap-3">
                 <div className="rounded-card border border-border bg-rowHover p-3">
                   <div className="grid gap-2">
@@ -2208,12 +2209,13 @@ export function DealDetailPage() {
                   {!tlFiltered.length ? <div className="text-sm text-text2">Событий пока нет.</div> : null}
                 </div>
               </div>
+              </div>
             </CardContent>
           </Card>
           ) : null}
 
           {tab === "ai" ? (
-            <Card className="border-infoBorder bg-infoBg neon-accent h-[calc(100vh-170px)]">
+            <Card className="border-infoBorder bg-infoBg neon-accent h-[calc(100vh-170px)] overflow-hidden">
               <CardHeader className="border-infoBorder">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -2252,7 +2254,8 @@ export function DealDetailPage() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="crm-scrollbar h-[calc(100vh-230px)] overflow-y-auto pr-1">
+              <CardContent className="h-[calc(100vh-230px)] min-h-0 overflow-hidden">
+                <div className="crm-scrollbar h-full overflow-y-auto pr-1">
                 {aiRunError ? <div className="text-sm text-danger mb-3">{aiRunError}</div> : null}
                 {aiQ.isLoading ? (
                   <div className="text-sm text-text2">Загрузка...</div>
@@ -2356,6 +2359,7 @@ export function DealDetailPage() {
                     AI ещё не запускался. Интеграция агента делается через записи <code>ai_insights</code> и события в <code>timeline</code>.
                   </div>
                 )}
+                </div>
               </CardContent>
             </Card>
           ) : null}
@@ -2750,7 +2754,7 @@ export function DealDetailPage() {
         {/* RIGHT: AI rail (overview only) */}
         {tab === "overview" ? (
         <div className="col-span-12 min-w-0 xl:col-span-3 grid gap-4 self-start">
-          <Card className="neon-accent h-[calc(100vh-170px)]">
+          <Card className="neon-accent h-[calc(100vh-170px)] overflow-hidden">
             <CardHeader>
               <div className="flex items-center justify-between gap-2">
                 <div>
@@ -2760,7 +2764,8 @@ export function DealDetailPage() {
                 <span className="neon-pill">Приоритет</span>
               </div>
             </CardHeader>
-            <CardContent className="crm-scrollbar h-[calc(100vh-230px)] overflow-y-auto pr-1">
+            <CardContent className="h-[calc(100vh-230px)] min-h-0 overflow-hidden">
+              <div className="crm-scrollbar h-full overflow-y-auto pr-1">
               <div className="grid gap-3">
                 <div className="rounded-card border border-[rgba(51,215,255,0.35)] bg-[rgba(45,123,255,0.16)] p-3">
                   <div className="flex items-center justify-between">
@@ -2871,6 +2876,7 @@ export function DealDetailPage() {
                     )}
                   </div>
                 </div>
+              </div>
               </div>
             </CardContent>
             </Card>

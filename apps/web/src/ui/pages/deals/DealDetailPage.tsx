@@ -1264,7 +1264,6 @@ export function DealDetailPage() {
   const [composerType, setComposerType] = React.useState<"comment" | "note" | "task">("comment");
   const [comment, setComment] = React.useState<string>("");
   const [noteText, setNoteText] = React.useState<string>("");
-  const [budgetDraft, setBudgetDraft] = React.useState<string>("");
   const [timelineSearch, setTimelineSearch] = React.useState<string>("");
   const [savingTimelineId, setSavingTimelineId] = React.useState<string | null>(null);
   const [taskDueAt, setTaskDueAt] = React.useState<string>("");
@@ -1358,7 +1357,6 @@ export function DealDetailPage() {
     setTitle(deal.title ?? "");
     setTitleDraft(deal.title ?? "");
     setBudget(typeof deal.budget === "number" ? String(deal.budget) : "");
-    setBudgetDraft(typeof deal.budget === "number" ? String(deal.budget) : "");
     setTurnover(typeof deal.turnover === "number" ? String(deal.turnover) : "");
     setMargin(typeof deal.margin_percent === "number" ? String(deal.margin_percent) : "");
     setDiscount(typeof deal.discount_percent === "number" ? String(deal.discount_percent) : "");
@@ -1476,19 +1474,6 @@ export function DealDetailPage() {
     tlQ.refetch();
   }
 
-  async function saveBudgetInline() {
-    if (!id) return;
-    const normalized = budgetDraft.replace(/[^\d]/g, "");
-    const next = normalized ? Number(normalized) : 0;
-    const current = Number(budget || 0);
-    if (next === current) return;
-    await pb.collection("deals").update(id, { budget: next }).catch(() => null);
-    setBudget(String(next || ""));
-    setBudgetDraft(String(next || ""));
-    await createTimelineEvent("deal_budget_updated", `Обновлен бюджет сделки: ${formatMoney(next)} ₽`);
-    await dealQ.refetch();
-    tlQ.refetch();
-  }
 
   async function changeResponsible(nextUserId: string) {
     if (!id || !nextUserId) return;
@@ -2209,21 +2194,7 @@ export function DealDetailPage() {
                     <div className="grid grid-cols-12 gap-2 items-center rounded-md bg-[rgba(255,255,255,0.03)] p-1.5">
                       <div className="col-span-12 md:col-span-4 xl:col-span-3 text-xs text-text2">Бюджет</div>
                       <div className="col-span-12 md:col-span-8 xl:col-span-9">
-                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-                          <Input
-                            type="number"
-                            value={budgetDraft}
-                            onChange={(e) => setBudgetDraft(e.target.value)}
-                            placeholder="Бюджет, ₽"
-                          />
-                          {String(budgetDraft || "") !== String(budget || "") ? (
-                            <InlineConfirmActions
-                              onConfirm={() => void saveBudgetInline()}
-                              onCancel={() => setBudgetDraft(String(budget || ""))}
-                              size="lg"
-                            />
-                          ) : null}
-                        </div>
+                        <div className="ui-input h-10 px-3 flex items-center text-base font-semibold">{budget ? `${formatMoney(Number(budget))} ₽` : "—"}</div>
                       </div>
                     </div>
                     <div className="grid grid-cols-12 gap-2 items-center rounded-md bg-[rgba(255,255,255,0.03)] p-1.5">

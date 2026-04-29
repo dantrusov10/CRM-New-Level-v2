@@ -2858,6 +2858,7 @@ export function DealDetailPage() {
                     ) : (
                       <div className="text-sm">Риски не выделены.</div>
                     )}
+                  </div>
                 </div>
               </div>
             </CardContent>

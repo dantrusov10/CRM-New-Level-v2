@@ -22,20 +22,34 @@ export async function analyzeDealWithAi(payload: AnalyzePayload) {
     throw new Error("Пользователь не авторизован в CRM.");
   }
 
-  const response = await fetch(`${AI_GATEWAY_URL}/ai/analyze-deal`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: tenantUserToken,
-    },
-    body: JSON.stringify({
-      deal_id: payload.dealId,
-      user_id: payload.userId || "",
-      task_code: payload.taskCode || "deal_analysis",
-      tenant_pb_url: resolveTenantPbUrl(),
-      context: payload.context,
-    }),
-  });
+  const url = `${AI_GATEWAY_URL}/ai/analyze-deal`;
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 180_000);
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: tenantUserToken,
+      },
+      body: JSON.stringify({
+        deal_id: payload.dealId,
+        user_id: payload.userId || "",
+        task_code: payload.taskCode || "deal_analysis",
+        tenant_pb_url: resolveTenantPbUrl(),
+        context: payload.context,
+      }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Неизвестная ошибка сети";
+    throw new Error(
+      `Ошибка подключения к AI Gateway (${url}). Проверь доступность сервиса и VITE_AI_GATEWAY_URL. Детали: ${message}`,
+    );
+  } finally {
+    window.clearTimeout(timeout);
+  }
 
   const text = await response.text();
   let data: Record<string, unknown> = {};

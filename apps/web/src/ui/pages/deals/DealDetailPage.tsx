@@ -543,6 +543,15 @@ function formatRisksForDisplay(raw: unknown): string {
 }
 
 function extractActionItems(raw: unknown): string[] {
+  const normalizeActionText = (line: string) =>
+    String(line || "")
+      .replace(/["'`]/g, "")
+      .replace(/\baction\b\s*:/gi, "Действие:")
+      .replace(/\bowner\b\s*:/gi, "Ответственный:")
+      .replace(/\bdeadline\b\s*:/gi, "Срок:")
+      .replace(/\btopic\b\s*:/gi, "Тема:")
+      .replace(/\s+/g, " ")
+      .trim();
   if (raw && typeof raw === "object") {
     const out: string[] = [];
     const walk = (v: unknown) => {
@@ -558,7 +567,7 @@ function extractActionItems(raw: unknown): string[] {
         const deadline = String(o.deadline ?? o["срок"] ?? "").trim();
         if (action || topic || deadline) {
           const parts = [action, topic ? `Тема: ${topic}` : "", deadline ? `Срок: ${deadline}` : ""].filter(Boolean);
-          if (parts.length) out.push(parts.join(" · "));
+          if (parts.length) out.push(normalizeActionText(parts.join(" · ")));
         }
         Object.values(o).forEach(walk);
       }
@@ -577,7 +586,7 @@ function extractActionItems(raw: unknown): string[] {
   }
   return text
     .split(/\n|;|•|-/)
-    .map((line) => line.trim())
+    .map((line) => normalizeActionText(line))
     .filter((line) => line.length > 5)
     .slice(0, 4);
 }
@@ -1954,95 +1963,122 @@ export function DealDetailPage() {
 
       {/* MAIN AREA */}
       <div className="grid grid-cols-12 gap-4">
-        <div className="col-span-12 min-w-0 xl:col-span-8 grid gap-4">
+        <div className="col-span-12 min-w-0 xl:col-span-9 grid gap-4">
           {tab === "overview" ? (
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <div className="text-sm font-semibold">Карточка сделки</div>
-                  <span className="neon-pill">Основной блок</span>
+                  <span className="neon-pill">AI + менеджер в центре</span>
                 </div>
-                <div className="text-xs text-text2 mt-1">Полностью настраивается в Админ → Поля (разделы + поля).</div>
+                <div className="text-xs text-text2 mt-1">Основной фокус: аналитика AI и работа менеджера. Базовая справка вынесена вправо.</div>
                 <div className="mt-2 neon-divider" />
               </CardHeader>
               <CardContent>
                 <div className="grid gap-3">
-                  <div className="grid grid-cols-12 gap-2 text-sm">
-                    <div className="col-span-12 md:col-span-6 xl:col-span-3 rounded-card border border-border bg-white p-2">
-                      <div className="text-xs text-text2">Компания</div>
-                      <div className="mt-1 font-semibold">{deal?.expand?.company_id?.name || "—"}</div>
-                    </div>
-                    <div className="col-span-12 md:col-span-6 xl:col-span-3 rounded-card border border-border bg-white p-2">
-                      <div className="text-xs text-text2">Ответственный</div>
-                      <div className="mt-1 font-semibold">{deal?.expand?.responsible_id?.full_name || deal?.expand?.responsible_id?.email || "—"}</div>
-                    </div>
-                    <div className="col-span-12 md:col-span-6 xl:col-span-3 rounded-card border border-border bg-white p-2">
-                      <div className="text-xs text-text2">Бюджет / Оборот</div>
-                      <div className="mt-1 font-semibold">
-                        {budget ? `${formatMoney(Number(budget))} ₽` : "—"} / {turnover ? `${formatMoney(Number(turnover))} ₽` : "—"}
+                  <div className="grid grid-cols-12 gap-3">
+                    <div className="col-span-12 xl:col-span-6 rounded-card border border-[rgba(51,215,255,0.35)] bg-[rgba(45,123,255,0.16)] p-3">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-text2 mb-2">AI в центре внимания</div>
+                      <div className="grid gap-2">
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs text-text2">Текущий score</div>
+                          <Badge>{sb.label}</Badge>
+                        </div>
+                        <div className="text-2xl font-extrabold">{typeof score === "number" ? `${score}/100` : "—"}</div>
+                        <div className="text-sm text-text2">
+                          {humanizeSummaryForDisplay(String(latestAi?.summary || "").trim()) || "Запусти AI-анализ, чтобы получить управленческое резюме."}
+                        </div>
+                        {!!nextActions.length ? (
+                          <div className="text-xs text-text2">
+                            Приоритет: {nextActions[0]}
+                          </div>
+                        ) : null}
+                        <div className="flex gap-2 flex-wrap pt-1">
+                          <Button
+                            small
+                            onClick={() => {
+                              setAnalysisMode("full");
+                              setAnalysisSelection(selectedProductIds);
+                              setAnalysisPickerOpen(true);
+                            }}
+                            disabled={aiRunLoading || !deal?.id}
+                          >
+                            Запустить AI-анализ
+                          </Button>
+                          <Button
+                            small
+                            variant="secondary"
+                            onClick={() => {
+                              setAnalysisMode("update");
+                              setAnalysisSelection(selectedProductIds);
+                              setAnalysisPickerOpen(true);
+                            }}
+                            disabled={aiRunLoading || !deal?.id}
+                          >
+                            Обновить AI
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                    <div className="col-span-12 md:col-span-6 xl:col-span-3 rounded-card border border-border bg-white p-2">
-                      <div className="text-xs text-text2">Основное: продукты сделки</div>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {selectedProducts.length ? selectedProducts.map((p) => (
-                          <Badge key={p.id}>{p.name}</Badge>
-                        )) : <span className="text-sm text-text2">Не выбраны</span>}
-                      </div>
-                      <div className="mt-2">
-                        <Button
-                          small
-                          variant="secondary"
-                          onClick={() => {
-                            setAnalysisSelection(selectedProductIds);
-                            setProductPickerOpen(true);
-                          }}
-                        >
-                          Выбрать продукты
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="col-span-12 md:col-span-6 xl:col-span-3 rounded-card border border-border bg-white p-2">
-                      <div className="text-xs text-text2">Ключевые даты</div>
-                      <div className="mt-1 text-xs text-text2">
-                        Рег.: {registrationDeadline || "—"}<br />
-                        Тест: {testStart || "—"} → {testEnd || "—"}<br />
-                        Оплата: {expectedPaymentDate || "—"}
+
+                    <div className="col-span-12 xl:col-span-6 rounded-card border border-border bg-white p-3">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-text2 mb-2">Работа менеджера: комментарии и задачи</div>
+                      <div className="grid gap-2">
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={composerType}
+                            onChange={(e) => setComposerType(e.target.value as "comment" | "note" | "task")}
+                            className="ui-input max-w-[170px]"
+                            title="Тип записи"
+                          >
+                            <option value="comment">Комментарий</option>
+                            <option value="note">Заметка</option>
+                            <option value="task">Задача</option>
+                          </select>
+                          {composerType === "task" ? (
+                            <DateTimePicker value={taskDueAt} onChange={setTaskDueAt} className="w-full" />
+                          ) : null}
+                        </div>
+                        <div className="flex gap-2">
+                          <Input
+                            value={comment}
+                            onChange={(e) => setComment(e.target.value)}
+                            placeholder={composerType === "task" ? "Текст задачи" : "Введите комментарий или заметку"}
+                          />
+                          <Button
+                            onClick={submitComposer}
+                            disabled={composerType === "task" ? !(comment.trim() && taskDueAt) : !comment.trim()}
+                          >
+                            {composerType === "task" ? "Создать задачу" : "Добавить"}
+                          </Button>
+                        </div>
+                        <div className="grid gap-2 max-h-[190px] overflow-y-auto pr-1 crm-scrollbar">
+                          {tlAll
+                            .filter((t) => String(t.action) === "comment" || String(t.action) === "note")
+                            .slice(0, 4)
+                            .map((t) => (
+                              <div key={t.id} className="rounded-card border border-border bg-rowHover p-2">
+                                <div className="text-xs text-text2">{dayjs(t.timestamp || t.created).format("DD.MM HH:mm")}</div>
+                                <div className="text-sm mt-1 whitespace-pre-wrap">{String(t.comment || "").slice(0, 220)}</div>
+                              </div>
+                            ))}
+                          {!tlAll.some((t) => String(t.action) === "comment" || String(t.action) === "note") ? (
+                            <div className="text-sm text-text2">Последних комментариев пока нет.</div>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-12 gap-3">
-                    <div className="col-span-12 xl:col-span-7 max-w-[640px]">
-                      <DynamicEntityFormWithRef
-                        ref={formRef}
-                        entity="deal"
-                        record={deal}
-                        onSaved={async () => {
-                          await dealQ.refetch();
-                          tlQ.refetch();
-                        }}
-                      />
-                    </div>
-                    <div className="col-span-12 xl:col-span-5 grid gap-2 self-start">
-                      <div className="board-panel p-3">
-                        <div className="text-xs text-text2">Статус</div>
-                        <div className="mt-1 text-sm font-semibold">{deal?.expand?.stage_id?.stage_name || "Без этапа"}</div>
-                      </div>
-                      <div className="board-panel p-3">
-                        <div className="text-xs text-text2">Канал / Партнер</div>
-                        <div className="mt-1 text-sm">{salesChannel || "—"} / {partner || "—"}</div>
-                      </div>
-                      <div className="board-panel p-3">
-                        <div className="text-xs text-text2">Контрольный чек-лист</div>
-                        <ul className="mt-1 grid gap-1 text-sm">
-                          <li>• Этап актуален</li>
-                          <li>• Данные по финансам заполнены</li>
-                          <li>• Контакты ЛПР/ЛВР добавлены</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
+                  <DynamicEntityFormWithRef
+                    ref={formRef}
+                    entity="deal"
+                    record={deal}
+                    onSaved={async () => {
+                      await dealQ.refetch();
+                      tlQ.refetch();
+                    }}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -2411,7 +2447,7 @@ export function DealDetailPage() {
               <CardContent>
                 <div className="grid gap-4">
                   <div className="grid grid-cols-12 gap-3">
-                    <div className="col-span-6">
+                    <div className="col-span-12 lg:col-span-6 min-w-0">
                       <div className="text-xs text-text2 mb-2">Ссылки</div>
                       <div className="flex gap-2">
                         <Input value={wsLinkTitle} onChange={(e) => setWsLinkTitle(e.target.value)} placeholder="Название (опционально)" />
@@ -2447,7 +2483,7 @@ export function DealDetailPage() {
                       </div>
                     </div>
 
-                    <div className="col-span-6">
+                    <div className="col-span-12 lg:col-span-6 min-w-0">
                       <div className="text-xs text-text2 mb-2">Документы</div>
                       <div className="grid gap-2">
                         <div className="text-xs text-text2 truncate">{wsUploadFile ? `Выбран файл: ${wsUploadFile.name}` : "Файл не выбран"}</div>
@@ -2471,8 +2507,8 @@ export function DealDetailPage() {
                           const url = normalizeExternalUrl(f?.path || "");
                           const fileProductId = parseProductIdFromTag(String(ef.tag || ""));
                           return (
-                            <div key={ef.id} className="rounded-card border border-border bg-white p-3">
-                              <div className="flex items-start justify-between gap-3">
+                            <div key={ef.id} className="rounded-card border border-border bg-white p-3 min-w-0">
+                              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
                                 <div className="min-w-0">
                                   <div className="text-sm font-semibold truncate">{f?.filename || "Файл"}</div>
                                   <div className="mt-2 flex items-center gap-2 flex-wrap">
@@ -2510,6 +2546,7 @@ export function DealDetailPage() {
                                 </div>
                                 <Button
                                   variant="ghost"
+                                  className="shrink-0 whitespace-nowrap self-start"
                                   onClick={async () => {
                                     await deleteEntityFileM
                                       .mutateAsync({ id: ef.id, entityType: "deal", entityId: id! })
@@ -2570,7 +2607,36 @@ export function DealDetailPage() {
         </div>
 
         {/* SIDEBAR: decision rail + комментарии */}
-        <div className="col-span-12 min-w-0 xl:col-span-4 grid gap-4 self-start">
+        <div className="col-span-12 min-w-0 xl:col-span-3 grid gap-4 self-start">
+          {tab === "overview" ? (
+            <Card>
+              <CardHeader>
+                <div className="text-sm font-semibold">Краткая информация</div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-2 text-sm">
+                  <div className="board-panel p-3">
+                    <div className="text-xs text-text2">Компания</div>
+                    <div className="mt-1 font-semibold">{deal?.expand?.company_id?.name || "—"}</div>
+                  </div>
+                  <div className="board-panel p-3">
+                    <div className="text-xs text-text2">Ответственный</div>
+                    <div className="mt-1 font-semibold">{deal?.expand?.responsible_id?.full_name || deal?.expand?.responsible_id?.email || "—"}</div>
+                  </div>
+                  <div className="board-panel p-3">
+                    <div className="text-xs text-text2">Канал / Presale</div>
+                    <div className="mt-1">{salesChannel || "—"} / {presale || "—"}</div>
+                  </div>
+                  <div className="board-panel p-3">
+                    <div className="text-xs text-text2">Endpoints / дедлайн</div>
+                    <div className="mt-1">{endpoints || "—"} / {registrationDeadline || "—"}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {tab !== "overview" ? (
           <Card className="neon-accent">
             <CardHeader>
               <div className="flex items-center justify-between gap-2">
@@ -2633,21 +2699,28 @@ export function DealDetailPage() {
                           <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary/80" />
                           <div className="flex-1 flex items-start justify-between gap-2">
                             <span className="leading-relaxed">{item}</span>
-                            <Button small variant="secondary" onClick={() => void createTaskFromAction(item)}>
-                              В задачу
+                            <Button
+                              small
+                              variant="secondary"
+                              className="h-9 min-w-[128px] shrink-0 whitespace-nowrap"
+                              onClick={() => void createTaskFromAction(item)}
+                            >
+                              Создать задачу
                             </Button>
                           </div>
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <div className="text-sm text-text2">Запусти AI, чтобы получить action list.</div>
+                    <div className="text-sm text-text2">Запусти AI, чтобы получить список следующих шагов.</div>
                   )}
                 </div>
               </div>
             </CardContent>
           </Card>
+          ) : null}
 
+          {tab !== "overview" ? (
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -2719,6 +2792,7 @@ export function DealDetailPage() {
               </div>
             </CardContent>
           </Card>
+          ) : null}
         </div>
 
       </div>

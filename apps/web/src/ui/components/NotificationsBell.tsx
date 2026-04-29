@@ -127,7 +127,7 @@ export function NotificationsBell() {
           ) : !tasks.length && !aiItems.length ? (
             <div className="text-sm muted">Нет новых уведомлений.</div>
           ) : (
-            <div className="grid gap-2 max-h-[420px] overflow-auto pr-1">
+            <div className="crm-scrollbar grid gap-2 max-h-[420px] overflow-y-auto overflow-x-hidden pr-1">
               {unseenAi.length ? (
                 <div className="text-xs font-bold text-info mt-1">AI завершено</div>
               ) : null}

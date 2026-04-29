@@ -1948,9 +1948,7 @@ export function DealDetailPage() {
               items={[
                 { key: "overview", label: "Обзор" },
                 { key: "ai", label: "AI-анализ" },
-                { key: "timeline", label: "Лента изменений" },
                 { key: "relationship", label: "Контакты" },
-                { key: "notes", label: "Заметки" },
                 { key: "kp", label: "КП" },
                 { key: "workspace", label: "Файлы" },
               ]}
@@ -1963,7 +1961,108 @@ export function DealDetailPage() {
 
       {/* MAIN AREA */}
       <div className="grid grid-cols-12 gap-4">
-        <div className="col-span-12 min-w-0 xl:col-span-9 grid gap-4">
+        <div className="col-span-12 min-w-0 xl:col-span-3 grid gap-4 self-start">
+          <Card>
+            <CardHeader>
+              <div className="text-sm font-semibold">Сделка: общая информация</div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-2 text-sm">
+                <div className="board-panel p-3">
+                  <div className="text-xs text-text2">Компания</div>
+                  <div className="mt-1 font-semibold">{deal?.expand?.company_id?.name || "—"}</div>
+                </div>
+                <div className="board-panel p-3">
+                  <div className="text-xs text-text2">Ответственный</div>
+                  <div className="mt-1 font-semibold">{deal?.expand?.responsible_id?.full_name || deal?.expand?.responsible_id?.email || "—"}</div>
+                </div>
+                <div className="board-panel p-3">
+                  <div className="text-xs text-text2">Бюджет / оборот</div>
+                  <div className="mt-1">{budget ? `${formatMoney(Number(budget))} ₽` : "—"} / {turnover ? `${formatMoney(Number(turnover))} ₽` : "—"}</div>
+                </div>
+                <div className="board-panel p-3">
+                  <div className="text-xs text-text2">Канал / Presale</div>
+                  <div className="mt-1">{salesChannel || "—"} / {presale || "—"}</div>
+                </div>
+                <div className="board-panel p-3">
+                  <div className="text-xs text-text2">Endpoints / дедлайн</div>
+                  <div className="mt-1">{endpoints || "—"} / {registrationDeadline || "—"}</div>
+                </div>
+                <div className="board-panel p-3">
+                  <div className="text-xs text-text2">Продукты</div>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {selectedProducts.length ? selectedProducts.map((p) => (
+                      <Badge key={p.id}>{p.name}</Badge>
+                    )) : <span className="text-sm text-text2">Не выбраны</span>}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="col-span-12 min-w-0 xl:col-span-6 grid gap-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold">Лента изменений и работа менеджера</div>
+                  <div className="text-xs text-text2 mt-1">События, заметки и задачи в одном центре управления.</div>
+                </div>
+                <div className="w-44">
+                  <Select value={timelineFilter} onChange={setTimelineFilter}>
+                    <option value="all">Все</option>
+                    <option value="comments">Комментарии</option>
+                    <option value="system">Системные</option>
+                    <option value="ai">AI</option>
+                  </Select>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3">
+                <div className="rounded-card border border-border bg-rowHover p-3">
+                  <div className="grid gap-2">
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={composerType}
+                        onChange={(e) => setComposerType(e.target.value as "comment" | "note" | "task")}
+                        className="ui-input max-w-[170px]"
+                        title="Тип записи"
+                      >
+                        <option value="comment">Комментарий</option>
+                        <option value="note">Заметка</option>
+                        <option value="task">Задача</option>
+                      </select>
+                      {composerType === "task" ? (
+                        <DateTimePicker value={taskDueAt} onChange={setTaskDueAt} className="w-full" />
+                      ) : null}
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        value={comment}
+                        onChange={(e) => setComment(e.target.value)}
+                        placeholder={composerType === "task" ? "Текст задачи" : "Введите комментарий или заметку"}
+                      />
+                      <Button
+                        onClick={submitComposer}
+                        disabled={composerType === "task" ? !(comment.trim() && taskDueAt) : !comment.trim()}
+                      >
+                        {composerType === "task" ? "Создать задачу" : "Добавить"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                <div className="crm-scrollbar grid gap-3 max-h-[460px] overflow-y-auto pr-1">
+                  {tlFiltered.map((t) => (
+                    <TimelineItemRow key={t.id} item={t} />
+                  ))}
+                  {!tlFiltered.length ? <div className="text-sm text-text2">Событий пока нет.</div> : null}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {tab === "overview" ? (
             <Card>
               <CardHeader>
@@ -2606,37 +2705,8 @@ export function DealDetailPage() {
           ) : null}
         </div>
 
-        {/* SIDEBAR: decision rail + комментарии */}
+        {/* RIGHT: AI rail */}
         <div className="col-span-12 min-w-0 xl:col-span-3 grid gap-4 self-start">
-          {tab === "overview" ? (
-            <Card>
-              <CardHeader>
-                <div className="text-sm font-semibold">Краткая информация</div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-2 text-sm">
-                  <div className="board-panel p-3">
-                    <div className="text-xs text-text2">Компания</div>
-                    <div className="mt-1 font-semibold">{deal?.expand?.company_id?.name || "—"}</div>
-                  </div>
-                  <div className="board-panel p-3">
-                    <div className="text-xs text-text2">Ответственный</div>
-                    <div className="mt-1 font-semibold">{deal?.expand?.responsible_id?.full_name || deal?.expand?.responsible_id?.email || "—"}</div>
-                  </div>
-                  <div className="board-panel p-3">
-                    <div className="text-xs text-text2">Канал / Presale</div>
-                    <div className="mt-1">{salesChannel || "—"} / {presale || "—"}</div>
-                  </div>
-                  <div className="board-panel p-3">
-                    <div className="text-xs text-text2">Endpoints / дедлайн</div>
-                    <div className="mt-1">{endpoints || "—"} / {registrationDeadline || "—"}</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ) : null}
-
-          {tab !== "overview" ? (
           <Card className="neon-accent">
             <CardHeader>
               <div className="flex items-center justify-between gap-2">
@@ -2718,80 +2788,45 @@ export function DealDetailPage() {
               </div>
             </CardContent>
           </Card>
-          ) : null}
 
-          {tab !== "overview" ? (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="text-sm font-semibold">Комментарии</div>
-                  <span className="neon-pill">Быстрые заметки</span>
-                </div>
-                <Badge>Все</Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-3">
-                <div className="grid gap-2">
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={composerType}
-                      onChange={(e) => setComposerType(e.target.value as "comment" | "note" | "task")}
-                      className="ui-input max-w-[140px]"
-                      title="Тип"
-                    >
-                      <option value="comment">Чат</option>
-                      <option value="note">Примечание</option>
-                      <option value="task">Задача</option>
-                    </select>
-
-                    {composerType === "task" ? (
-                      <DateTimePicker value={taskDueAt} onChange={setTaskDueAt} className="w-full" />
-                    ) : null}
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Input
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
-                      placeholder={composerType === "task" ? "Текст задачи (например: Связаться)" : "Напишите комментарий…"}
-                    />
-                    <Button
-                      onClick={submitComposer}
-                      disabled={composerType === "task" ? !(comment.trim() && taskDueAt) : !comment.trim()}
-                    >
-                      {composerType === "task" ? "Поставить" : "Добавить"}
-                    </Button>
-                  </div>
-
-                  {composerType === "task" ? (
-                    <div className="text-xs muted">
-                      Задача появится в колокольчике в нужное время и в календаре.
+          {tab === "overview" ? (
+            <Card>
+              <CardHeader>
+                <div className="text-sm font-semibold">AI: обоснование, риски, контекст</div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3">
+                  {aiScoring ? (
+                    <div className="rounded-card border border-border bg-white p-3">
+                      <div className="text-xs text-text2">Обоснование score</div>
+                      <div className="text-sm mt-1">
+                        Метод: <span className="font-semibold">{String(aiScoring.method || "—")}</span>
+                      </div>
+                      <div className="text-sm">
+                        Финальная вероятность: <span className="font-semibold">{String(aiScoring.final_probability ?? "—")}</span>
+                      </div>
                     </div>
                   ) : null}
+                  <div className="rounded-card border border-border bg-white p-3">
+                    <div className="text-xs text-text2 mb-2">Основные риски</div>
+                    <div className="text-sm whitespace-pre-wrap">{formatRisksForDisplay(latestAi?.risks || "").trim() || "Риски не выделены."}</div>
+                  </div>
                 </div>
-
-                <div className="crm-scrollbar grid gap-3 max-h-[420px] overflow-y-auto pr-1">
-                  {tlAll
-                    .filter((t) => String(t.action) === "comment")
-                    .slice(0, 20)
-                    .map((t) => (
-                      <div key={t.id} className="rounded-card border border-border bg-white p-3">
-                        <div className="text-xs text-text2">
-                          {dayjs(t.timestamp || t.created).format("DD.MM.YYYY HH:mm")}
-                          {t.expand?.user_id?.name ? ` · ${t.expand.user_id.name}` : ""}
-                        </div>
-                        <div className="text-sm mt-2 whitespace-pre-wrap">{t.comment}</div>
-                      </div>
-                    ))}
-                  {!tlAll.some((t) => String(t.action) === "comment") ? (
-                    <div className="text-sm text-text2">Комментариев пока нет.</div>
-                  ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
+          {tab !== "overview" ? (
+            <Card>
+              <CardHeader>
+                <div className="text-sm font-semibold">AI кратко</div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-sm text-text2">
+                  {humanizeSummaryForDisplay(String(latestAi?.summary || "").trim()) || "Запусти AI-анализ для обновления рекомендаций."}
                 </div>
               </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
           ) : null}
         </div>
 

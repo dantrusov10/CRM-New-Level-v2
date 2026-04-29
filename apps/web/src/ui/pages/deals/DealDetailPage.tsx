@@ -1181,6 +1181,7 @@ export function DealDetailPage() {
   const [decisionSupportProductId, setDecisionSupportProductId] = React.useState("");
   const [decisionSupportIntent, setDecisionSupportIntent] = React.useState("next_step");
   const [decisionSupportQuestion, setDecisionSupportQuestion] = React.useState("");
+  const [primaryResearchHintOpen, setPrimaryResearchHintOpen] = React.useState(false);
   const [productFiles, setProductFiles] = React.useState<Array<{ id: string; profileId: string; profileName: string; filename: string; url: string; tag?: string }>>([]);
   const formRef = React.useRef<DynamicEntityFormHandle | null>(null);
 
@@ -1955,67 +1956,69 @@ export function DealDetailPage() {
         <CardHeader className="py-3">
           <div className="grid gap-2">
             <div className="grid grid-cols-12 gap-2 items-end">
-              <div className="col-span-12 xl:col-span-5">
-                <div className="text-xs text-text2 mb-1">Название сделки</div>
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={titleDraft}
-                    onChange={(e) => setTitleDraft(e.target.value)}
-                    placeholder="Название сделки"
-                  />
-                  {titleDraft.trim() !== String(title || "").trim() ? (
-                    <>
-                      <Button small onClick={() => void saveDealTitleInline()} title="Подтвердить">
-                        <Check size={14} />
-                      </Button>
-                      <Button
-                        small
-                        variant="ghost"
-                        onClick={() => setTitleDraft(String(title || ""))}
-                        title="Отменить"
-                      >
-                        <X size={14} />
-                      </Button>
-                    </>
-                  ) : null}
+              <div className="col-span-12 xl:col-span-3 grid gap-2">
+                <div>
+                  <div className="text-xs text-text2 mb-1">Название сделки</div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={titleDraft}
+                      onChange={(e) => setTitleDraft(e.target.value)}
+                      placeholder="Название сделки"
+                    />
+                    {titleDraft.trim() !== String(title || "").trim() ? (
+                      <>
+                        <Button small onClick={() => void saveDealTitleInline()} title="Подтвердить">
+                          <Check size={14} />
+                        </Button>
+                        <Button
+                          small
+                          variant="ghost"
+                          onClick={() => setTitleDraft(String(title || ""))}
+                          title="Отменить"
+                        >
+                          <X size={14} />
+                        </Button>
+                      </>
+                    ) : null}
+                  </div>
                 </div>
+                <div>
+                  <div className="text-xs text-text2 mb-1">Этап сделки</div>
+                  <Select value={deal?.stage_id || ""} onChange={changeStage}>
+                    <option value="">Этап</option>
+                    {stages.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.stage_name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              </div>
+              <div className="col-span-12 xl:col-span-6 text-center">
+                <div className="text-xs text-text2 mb-1">Бюджет</div>
+                <div className="text-2xl font-semibold">{budget ? `${formatMoney(Number(budget))} ₽` : "—"}</div>
               </div>
               <div className="col-span-12 xl:col-span-3">
-                <div className="text-xs text-text2 mb-1">Этап сделки</div>
-                <Select value={deal?.stage_id || ""} onChange={changeStage}>
-                  <option value="">Этап</option>
-                  {stages.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.stage_name}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div className="col-span-12 xl:col-span-4">
-                <div className="flex justify-end">
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      setClientResearchProductId(selectedProductIds[0] || "");
-                      setClientResearchPickerOpen(true);
-                    }}
-                    disabled={aiRunLoading || !deal?.id}
-                    className="w-full xl:w-auto"
-                    title="Первичное исследование клиента: раз в 6 месяцев для связки клиент+продукт. Используется для подготовки к первым переговорам и первичной стратегии контактов."
-                  >
-                    Первичное исследование клиента
-                    <CircleHelp size={14} />
-                  </Button>
-                </div>
+                <div className="text-xs text-text2 mb-1">Компания</div>
+                <div className="text-lg font-semibold">{deal?.expand?.company_id?.name || "—"}</div>
               </div>
             </div>
 
             <div className="grid grid-cols-12 gap-2 items-end">
-              <div className="col-span-12 xl:col-span-3">
-                <div className="text-xs text-text2 mb-1">Бюджет</div>
-                <div className="text-lg font-semibold">{budget ? `${formatMoney(Number(budget))} ₽` : "—"}</div>
+              <div className="col-span-12 xl:col-span-6">
+                <Tabs
+                  items={[
+                    { key: "overview", label: "Обзор" },
+                    { key: "ai", label: "AI-анализ" },
+                    { key: "relationship", label: "Контакты" },
+                    { key: "kp", label: "КП" },
+                    { key: "workspace", label: "Файлы" },
+                  ]}
+                  activeKey={tab}
+                  onChange={setTab}
+                />
               </div>
-              <div className="col-span-12 xl:col-span-5">
+              <div className="col-span-12 xl:col-span-3">
                 <div className="text-xs text-text2 mb-1">Ответственный</div>
                 <Select
                   value={String(deal?.responsible_id || deal?.expand?.responsible_id?.id || "")}
@@ -2036,28 +2039,38 @@ export function DealDetailPage() {
                   ))}
                 </Select>
               </div>
-              <div className="col-span-12 xl:col-span-4">
-                <div className="text-xs text-text2 mb-1">Компания</div>
-                <div className="text-base font-semibold">{deal?.expand?.company_id?.name || "—"}</div>
+              <div className="col-span-12 xl:col-span-3">
+                <div className="flex items-center justify-end gap-2 relative">
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setClientResearchProductId(selectedProductIds[0] || "");
+                      setClientResearchPickerOpen(true);
+                    }}
+                    disabled={aiRunLoading || !deal?.id}
+                    className="w-full xl:w-auto"
+                  >
+                    Первичное исследование клиента
+                  </Button>
+                  <button
+                    className="ui-btn ui-icon-btn"
+                    aria-label="Подсказка по первичному исследованию"
+                    title="Правило первичного исследования"
+                    onClick={() => setPrimaryResearchHintOpen((v) => !v)}
+                  >
+                    <CircleHelp size={16} />
+                  </button>
+                  {primaryResearchHintOpen ? (
+                    <div className="absolute right-0 top-11 z-50 w-[360px] rounded-card border border-border bg-[rgba(15,23,42,0.98)] p-3 text-xs text-text2 shadow-2xl">
+                      Первичное исследование клиента запускается не чаще 1 раза в 6 месяцев для связки клиент+продукт.
+                      Нужен для подготовки к первым переговорам, ресерчинга клиента и формирования первичной стратегии первых контактов.
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="pt-2 pb-3">
-          <div>
-            <Tabs
-              items={[
-                { key: "overview", label: "Обзор" },
-                { key: "ai", label: "AI-анализ" },
-                { key: "relationship", label: "Контакты" },
-                { key: "kp", label: "КП" },
-                { key: "workspace", label: "Файлы" },
-              ]}
-              activeKey={tab}
-              onChange={setTab}
-            />
-          </div>
-        </CardContent>
       </Card>
 
       {/* MAIN AREA */}

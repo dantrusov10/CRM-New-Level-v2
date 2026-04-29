@@ -1050,11 +1050,13 @@ function TimelineText({ text }: { text: string }) {
 function TimelineItemRow({
   item,
   currentUserId,
-  onEditComment,
+  onSaveComment,
+  saving,
 }: {
   item: TimelineItem & { expand?: { user_id?: { name?: string; email?: string } } };
   currentUserId?: string;
-  onEditComment?: (item: TimelineItem) => void;
+  onSaveComment?: (item: TimelineItem, nextComment: string) => Promise<void> | void;
+  saving?: boolean;
 }) {
   const ts = item.timestamp || item.created;
   const when = ts ? dayjs(ts).format("DD.MM.YYYY HH:mm") : "";
@@ -1100,6 +1102,12 @@ function TimelineItemRow({
       })
     : [];
   const [expanded, setExpanded] = React.useState(isStage || isAI);
+  const [isInlineEditing, setIsInlineEditing] = React.useState(false);
+  const [editText, setEditText] = React.useState(String(item.comment || ""));
+  React.useEffect(() => {
+    setEditText(String(item.comment || ""));
+    setIsInlineEditing(false);
+  }, [item.id, item.comment]);
   const collapsedPreview = React.useMemo(() => {
     const firstMeaningfulLine = String(item.comment || item.action || "")
       .split("\n")
@@ -1115,10 +1123,19 @@ function TimelineItemRow({
         <div className="text-xs text-text2">{when}{by ? ` · ${by}` : ""}</div>
         <div className="flex items-center gap-2">
           <Badge>{title}</Badge>
-          {isEditable && onEditComment ? (
-            <Button small variant="ghost" onClick={() => onEditComment(item)} title="Редактировать">
+          {isEditable ? (
+            <button
+              type="button"
+              className="ui-btn inline-confirm-cancel h-9 w-9 px-0"
+              onClick={() => {
+                setExpanded(true);
+                setIsInlineEditing(true);
+                setEditText(String(item.comment || ""));
+              }}
+              title="Редактировать в карточке"
+            >
               <Pencil size={14} />
-            </Button>
+            </button>
           ) : null}
           <Button small variant="secondary" onClick={() => setExpanded((v) => !v)}>
             {expanded ? "Свернуть" : "Развернуть"}
@@ -1132,7 +1149,33 @@ function TimelineItemRow({
       ) : null}
       {expanded ? (
         <div className="mt-2 grid gap-2">
-          <TimelineText text={String(item.comment || item.action || "")} />
+          {isInlineEditing ? (
+            <div className="grid gap-2">
+              <textarea
+                className="ui-input min-h-[92px] h-auto py-2"
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                placeholder="Текст комментария"
+              />
+              <div className="flex justify-end">
+                <InlineConfirmActions
+                  onConfirm={() => {
+                    const next = editText.trim();
+                    if (!next || !onSaveComment || saving) return;
+                    void Promise.resolve(onSaveComment(item, next)).then(() => setIsInlineEditing(false));
+                  }}
+                  onCancel={() => {
+                    setEditText(String(item.comment || ""));
+                    setIsInlineEditing(false);
+                  }}
+                  disabled={Boolean(saving)}
+                  size="lg"
+                />
+              </div>
+            </div>
+          ) : (
+            <TimelineText text={String(item.comment || item.action || "")} />
+          )}
           {payload.length ? (
             <div className="grid gap-1.5">
               {payload.map(([k, v]) => (
@@ -1171,7 +1214,7 @@ export function DealDetailPage() {
   const [composerType, setComposerType] = React.useState<"comment" | "note" | "task">("comment");
   const [comment, setComment] = React.useState<string>("");
   const [noteText, setNoteText] = React.useState<string>("");
-  const [editingTimelineId, setEditingTimelineId] = React.useState<string | null>(null);
+  const [savingTimelineId, setSavingTimelineId] = React.useState<string | null>(null);
   const [taskDueAt, setTaskDueAt] = React.useState<string>("");
   const [timelineFilter, setTimelineFilter] = React.useState<string>("all");
   const [aiRunLoading, setAiRunLoading] = React.useState(false);
@@ -1448,14 +1491,13 @@ export function DealDetailPage() {
     tlQ.refetch();
   }
 
-  async function saveEditedTimelineComment() {
-    const idToEdit = String(editingTimelineId || "");
-    if (!idToEdit) return;
-    const text = comment.trim();
+  async function saveTimelineCommentInline(item: TimelineItem, nextComment: string) {
+    const idToEdit = String(item?.id || "");
+    const text = nextComment.trim();
     if (!text) return;
+    setSavingTimelineId(idToEdit);
     await pb.collection("timeline").update(idToEdit, { comment: text }).catch(() => null);
-    setEditingTimelineId(null);
-    setComment("");
+    setSavingTimelineId(null);
     tlQ.refetch();
   }
 
@@ -2158,32 +2200,12 @@ export function DealDetailPage() {
                         placeholder={composerType === "task" ? "Текст задачи" : "Введите комментарий или заметку"}
                       />
                       <Button
-                        onClick={() => {
-                          if (editingTimelineId) {
-                            void saveEditedTimelineComment();
-                            return;
-                          }
-                          void submitComposer();
-                        }}
+                        onClick={() => void submitComposer()}
                         disabled={composerType === "task" ? !(comment.trim() && taskDueAt) : !comment.trim()}
                       >
-                        {editingTimelineId ? "Сохранить" : composerType === "task" ? "Создать задачу" : "Добавить"}
+                        {composerType === "task" ? "Создать задачу" : "Добавить"}
                       </Button>
                     </div>
-                    {editingTimelineId ? (
-                      <div className="text-xs text-text2">
-                        Редактирование своей записи.
-                        <button
-                          className="ml-2 underline text-primary"
-                          onClick={() => {
-                            setEditingTimelineId(null);
-                            setComment("");
-                          }}
-                        >
-                          Отмена
-                        </button>
-                      </div>
-                    ) : null}
                   </div>
                 </div>
                 <div className="grid gap-3">
@@ -2192,11 +2214,8 @@ export function DealDetailPage() {
                       key={t.id}
                       item={t}
                       currentUserId={auth?.id}
-                      onEditComment={(row) => {
-                        setEditingTimelineId(String(row.id || ""));
-                        setComposerType(String(row.action) === "note" ? "note" : "comment");
-                        setComment(String(row.comment || ""));
-                      }}
+                      onSaveComment={saveTimelineCommentInline}
+                      saving={savingTimelineId === String(t.id || "")}
                     />
                   ))}
                   {!tlFiltered.length ? <div className="text-sm text-text2">Событий пока нет.</div> : null}
@@ -2389,11 +2408,8 @@ export function DealDetailPage() {
                         key={t.id}
                         item={t}
                         currentUserId={auth?.id}
-                        onEditComment={(row) => {
-                          setEditingTimelineId(String(row.id || ""));
-                          setComposerType(String(row.action) === "note" ? "note" : "comment");
-                          setComment(String(row.comment || ""));
-                        }}
+                        onSaveComment={saveTimelineCommentInline}
+                        saving={savingTimelineId === String(t.id || "")}
                       />
                     ))}
                     {!tlFiltered.length ? <div className="text-sm text-text2">Событий пока нет.</div> : null}

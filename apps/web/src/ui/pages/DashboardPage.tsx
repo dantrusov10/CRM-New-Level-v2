@@ -1,11 +1,12 @@
 import React from "react";
-import { TrendingUp, AlertTriangle, CircleDot, Percent, Clock, Users, Settings2, BarChart3 } from "lucide-react";
+import { TrendingUp, CircleDot, Percent, Clock, Settings2, BarChart3, Download, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useDeals, useFunnelStages, useUsers } from "../data/hooks";
 import type { Deal, FunnelStage, UserSummary } from "../../lib/types";
 import { Button } from "../components/Button";
 import { Modal } from "../components/Modal";
 import { pb } from "../../lib/pb";
+import { analyzeAdminDashboardWithAi } from "../../lib/aiGateway";
 
 function money(n: number) {
   if (!Number.isFinite(n)) return "0";
@@ -195,6 +196,19 @@ export function DashboardPage() {
   const [settingsTarget, setSettingsTarget] = React.useState<WidgetId | "dashboard">("dashboard");
   const [showScoringWelcome, setShowScoringWelcome] = React.useState(false);
   const [scoringRecordId, setScoringRecordId] = React.useState("");
+  const [aiSummaryLoading, setAiSummaryLoading] = React.useState(false);
+  const [aiSummaryError, setAiSummaryError] = React.useState("");
+  const [aiSummaryText, setAiSummaryText] = React.useState("");
+  const [globalFilters, setGlobalFilters] = React.useState<WidgetFilters>({
+    rangeDays: 30,
+    stageId: "",
+    ownerId: "",
+    channel: "",
+    budgetMin: undefined,
+    budgetMax: undefined,
+    scoreMin: undefined,
+    scoreMax: undefined,
+  });
 
   React.useEffect(() => {
     try {
@@ -206,6 +220,25 @@ export function DashboardPage() {
     let ignore = false;
     async function ensureScoringModel() {
       try {
+        const founderPromptList = await pb.collection("semantic_packs").getList(1, 1, {
+          filter: 'type="dashboard" && model="founder_dashboard_brief_v1"',
+          sort: "-created",
+        });
+        if (!founderPromptList.items[0]) {
+          await pb.collection("semantic_packs").create({
+            type: "dashboard",
+            model: "founder_dashboard_brief_v1",
+            language: "ru",
+            base_text:
+              "Ты стратегический AI-советник founder/admin CRM. На вход получаешь метрики воронки, дельты периода, узкие места и приоритетные сделки. Дай короткий управленческий вывод: 1) что просело, 2) почему, 3) что делать за 24 часа и за 72 часа, 4) какие риски квартала требуют решения. Пиши только на русском, без JSON и технических полей.",
+            variants: {
+              purpose: "founder_dashboard_brief",
+              version: "v1",
+              output_format: "executive_text",
+            },
+          });
+        }
+
         const list = await pb.collection("semantic_packs").getList(1, 1, {
           filter: 'type="deal_scoring_model" && model="deal_scoring_model_v1"',
           sort: "-created",
@@ -447,6 +480,79 @@ export function DashboardPage() {
     return items.slice(0, 3);
   }
 
+  function computeBottlenecks(list: Deal[]) {
+    const rows = stageTable(list);
+    return rows
+      .map((row) => {
+        const inStage = (list ?? []).filter((d) => String(d.stage_id ?? d.expand?.stage_id?.id ?? "") === String(row.id));
+        const staleDays = inStage
+          .map((d) => {
+            const u = d?.updated ? new Date(d.updated) : null;
+            if (!u) return null;
+            return daysBetween(now, u);
+          })
+          .filter((x): x is number => typeof x === "number");
+        const avgStale = staleDays.length ? Math.round(staleDays.reduce((a, b) => a + b, 0) / staleDays.length) : 0;
+        return { ...row, avgStale };
+      })
+      .filter((x) => x.count > 0)
+      .sort((a, b) => b.avgStale - a.avgStale)
+      .slice(0, 5);
+  }
+
+  function computePriorityActions(list: Deal[]) {
+    return (list ?? [])
+      .map((d) => {
+        const updated = d.updated ? new Date(d.updated) : null;
+        const staleDays = updated ? daysBetween(now, updated) : 0;
+        const score = Number(d.current_score ?? 0);
+        const amount = dealAmount(d);
+        const missingBudget = !Number(d?.budget ?? 0);
+        const missingCompany = !(d?.company_id ?? d?.expand?.company_id?.id);
+        const riskPoints =
+          staleDays * 1.5 +
+          (score > 0 ? Math.max(0, 60 - score) : 25) +
+          (missingBudget ? 18 : 0) +
+          (missingCompany ? 14 : 0) +
+          (amount > 0 ? Math.min(25, amount / 1_500_000) : 0);
+        return {
+          id: String(d.id || ""),
+          title: String(d.title || "Сделка"),
+          riskPoints: Math.round(riskPoints),
+          staleDays,
+          score,
+          amount,
+        };
+      })
+      .sort((a, b) => b.riskPoints - a.riskPoints)
+      .slice(0, 5);
+  }
+
+  function exportDealsCsv(list: Deal[]) {
+    const headers = ["deal_id", "title", "stage", "owner", "score", "budget", "turnover", "updated"];
+    const lines = [headers.join(";")];
+    for (const d of list ?? []) {
+      const row = [
+        String(d.id || ""),
+        String(d.title || "").replace(/;/g, ","),
+        String(d.expand?.stage_id?.stage_name || ""),
+        String(d.expand?.responsible_id?.full_name || d.expand?.responsible_id?.name || d.expand?.responsible_id?.email || ""),
+        String(Number(d.current_score ?? 0) || ""),
+        String(Number(d.budget ?? 0) || ""),
+        String(Number(d.turnover ?? 0) || ""),
+        String(d.updated || ""),
+      ];
+      lines.push(row.join(";"));
+    }
+    const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `dashboard-snapshot-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const loading = stagesQ.isLoading || dealsQ.isLoading || usersQ.isLoading;
 
   const pageWrapperClass = cfg.dashboardVisual === "classic" ? "rounded-card border border-border bg-white p-6" : "cockpit-panel p-6";
@@ -499,27 +605,114 @@ export function DashboardPage() {
   const dealsAll: Deal[] = deals ?? [];
 
   // Widget data (computed once per render; deals list is capped)
-  const wStat = applyWidgetFilters(dealsAll, cfg.widgets.statCards.filters);
-  const sStat = computeStats(wStat.arr);
+  const globalApplied = applyWidgetFilters(dealsAll, globalFilters);
+  const dealsGlobal = globalApplied.arr;
+  const compareFrom = new Date(globalApplied.from.getTime() - (Number(globalFilters.rangeDays) || 30) * 24 * 60 * 60 * 1000);
+  const dealsPrevPeriod = dealsAll.filter((d) => {
+    const c = d?.created ? new Date(d.created) : null;
+    if (!c) return false;
+    if (c < compareFrom || c >= globalApplied.from) return false;
+    if (globalFilters.stageId && (d.stage_id ?? d.expand?.stage_id?.id) !== globalFilters.stageId) return false;
+    if (globalFilters.ownerId && (d.responsible_id ?? d.expand?.responsible_id?.id) !== globalFilters.ownerId) return false;
+    if (globalFilters.channel && String(d.sales_channel ?? "") !== String(globalFilters.channel)) return false;
+    if (typeof globalFilters.budgetMin === "number" && Number(d?.budget ?? 0) < globalFilters.budgetMin) return false;
+    if (typeof globalFilters.budgetMax === "number" && Number(d?.budget ?? 0) > globalFilters.budgetMax) return false;
+    if (typeof globalFilters.scoreMin === "number" && Number(d?.current_score ?? 0) < globalFilters.scoreMin) return false;
+    if (typeof globalFilters.scoreMax === "number" && Number(d?.current_score ?? 0) > globalFilters.scoreMax) return false;
+    return true;
+  });
 
-  const wDyn = applyWidgetFilters(dealsAll, cfg.widgets.dynamics.filters);
+  const wStat = applyWidgetFilters(dealsGlobal, cfg.widgets.statCards.filters);
+  const sStat = computeStats(wStat.arr);
+  const sStatPrev = computeStats(applyWidgetFilters(dealsPrevPeriod, cfg.widgets.statCards.filters).arr);
+
+  const wDyn = applyWidgetFilters(dealsGlobal, cfg.widgets.dynamics.filters);
   const dynBars = computeDynamics(wDyn.arr);
 
-  const wWR = applyWidgetFilters(dealsAll, cfg.widgets.winRate.filters);
+  const wWR = applyWidgetFilters(dealsGlobal, cfg.widgets.winRate.filters);
   const wr2 = computeWinRateVariant2(wWR.arr, wWR.from);
 
-  const wFunnel = applyWidgetFilters(dealsAll, cfg.widgets.funnel.filters);
+  const wFunnel = applyWidgetFilters(dealsGlobal, cfg.widgets.funnel.filters);
   const funnelRows = stageTable(wFunnel.arr);
 
-  const wBudget = applyWidgetFilters(dealsAll, cfg.widgets.budgetByStage.filters);
+  const wBudget = applyWidgetFilters(dealsGlobal, cfg.widgets.budgetByStage.filters);
   const budgetRows = stageTable(wBudget.arr);
   const maxBudget = Math.max(1, ...budgetRows.map((r) => r.sum));
 
-  const wManagers = applyWidgetFilters(dealsAll, cfg.widgets.topManagers.filters);
+  const wManagers = applyWidgetFilters(dealsGlobal, cfg.widgets.topManagers.filters);
   const managers = topManagersTable(wManagers.arr);
 
-  const wInsights = applyWidgetFilters(dealsAll, cfg.widgets.insights.filters);
+  const wInsights = applyWidgetFilters(dealsGlobal, cfg.widgets.insights.filters);
   const ins = insightsFromStats(computeStats(wInsights.arr));
+  const bottlenecks = computeBottlenecks(dealsGlobal);
+  const priorityActions = computePriorityActions(dealsGlobal);
+
+  const deltaPipeline = sStatPrev.pipeline ? ((sStat.pipeline - sStatPrev.pipeline) / sStatPrev.pipeline) * 100 : 0;
+  const deltaWeighted = sStatPrev.weighted ? ((sStat.weighted - sStatPrev.weighted) / sStatPrev.weighted) * 100 : 0;
+  const deltaDeals = sStatPrev.dealsCount ? ((sStat.dealsCount - sStatPrev.dealsCount) / sStatPrev.dealsCount) * 100 : 0;
+  const deltaCycle = sStatPrev.cycle ? ((sStat.cycle - sStatPrev.cycle) / sStatPrev.cycle) * 100 : 0;
+
+  function localAdminSummary() {
+    const lines: string[] = [];
+    lines.push(`Период: ${globalFilters.rangeDays || 30} дней. Сделок в срезе: ${dealsGlobal.length}.`);
+    lines.push(`Pipeline ${money(sStat.pipeline)} ₽ (${deltaPipeline >= 0 ? "+" : ""}${deltaPipeline.toFixed(1)}% к прошлому периоду).`);
+    lines.push(`Взвешенный pipeline ${money(sStat.weighted)} ₽ (${deltaWeighted >= 0 ? "+" : ""}${deltaWeighted.toFixed(1)}%).`);
+    if (bottlenecks.length) lines.push(`Узкое место: этап "${bottlenecks[0].name}" (среднее зависание ${bottlenecks[0].avgStale} дн.).`);
+    if (priorityActions.length) lines.push(`Приоритет №1: "${priorityActions[0].title}" (риск ${priorityActions[0].riskPoints}).`);
+    lines.push("Рекомендации: обновить зависшие сделки 7+ дней, закрыть пустые бюджеты, сфокусироваться на 5 приоритетных сделках.");
+    return lines.join("\n");
+  }
+
+  async function refreshAdminAiSummary() {
+    setAiSummaryLoading(true);
+    setAiSummaryError("");
+    const context = {
+      filters: globalFilters,
+      metrics: {
+        pipeline: sStat.pipeline,
+        weighted_pipeline: sStat.weighted,
+        deals_count: sStat.dealsCount,
+        cycle_days: sStat.cycle,
+        delta_pipeline_pct: Number(deltaPipeline.toFixed(2)),
+        delta_weighted_pct: Number(deltaWeighted.toFixed(2)),
+        delta_deals_pct: Number(deltaDeals.toFixed(2)),
+        delta_cycle_pct: Number(deltaCycle.toFixed(2)),
+      },
+      bottlenecks: bottlenecks.map((x) => ({ stage: x.name, avg_stale_days: x.avgStale, deals: x.count })),
+      priorities: priorityActions,
+      output_contract: {
+        language: "ru",
+        style: "executive",
+        sections: ["Вывод", "Что просело", "Что делать за 24/72 часа", "Риски квартала"],
+      },
+      admin_prompt_code: "founder_dashboard_brief_v1",
+    };
+    try {
+      const resp = await analyzeAdminDashboardWithAi({
+        userId: String((pb.authStore.model as { id?: string } | null)?.id || ""),
+        promptCode: "founder_dashboard_brief_v1",
+        context,
+      });
+      const text = String(
+        (resp.summary as string) ||
+          (resp.text as string) ||
+          ((resp.result as Record<string, unknown> | undefined)?.summary as string) ||
+          "",
+      ).trim();
+      setAiSummaryText(text || localAdminSummary());
+      if (!text) setAiSummaryError("AI вернул пустой ответ, показан локальный executive summary.");
+    } catch (e) {
+      setAiSummaryError(e instanceof Error ? e.message : "Не удалось получить AI-вывод, показан локальный summary.");
+      setAiSummaryText(localAdminSummary());
+    } finally {
+      setAiSummaryLoading(false);
+    }
+  }
+
+  React.useEffect(() => {
+    if (loading) return;
+    void refreshAdminAiSummary();
+  }, [loading, JSON.stringify(globalFilters)]);
 
   return (
     <div className="grid gap-6">
@@ -537,16 +730,55 @@ export function DashboardPage() {
             <div className="mt-1 text-sm subtle">Каждый блок настраивается отдельно (период/фильтры) + есть проваливание в сделки</div>
           </div>
           <div className="flex items-center gap-2">
+            <Button small variant="secondary" onClick={() => exportDealsCsv(dealsGlobal)} className="h-9">
+              <span className="inline-flex items-center gap-2"><Download size={16} /> Экспорт среза</span>
+            </Button>
             <Button small variant="secondary" onClick={openDashboardSettings} className="h-9">
               <span className="inline-flex items-center gap-2"><BarChart3 size={16} /> Настройки дашборда</span>
             </Button>
           </div>
         </div>
 
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-4 xl:grid-cols-8 gap-2">
+          <select className="ui-input md:col-span-1 xl:col-span-2" value={String(globalFilters.rangeDays || 30)} onChange={(e) => setGlobalFilters((p) => ({ ...p, rangeDays: Number(e.target.value) || 30 }))}>
+            <option value="7">Глобально: 7 дней</option>
+            <option value="30">Глобально: 30 дней</option>
+            <option value="90">Глобально: 90 дней</option>
+            <option value="365">Глобально: 365 дней</option>
+          </select>
+          <select className="ui-input md:col-span-1 xl:col-span-2" value={globalFilters.stageId ?? ""} onChange={(e) => setGlobalFilters((p) => ({ ...p, stageId: e.target.value }))}>
+            <option value="">Все этапы</option>
+            {stages.map((s) => (
+              <option key={s.id} value={s.id}>{s.stage_name ?? "Этап"}</option>
+            ))}
+          </select>
+          <select className="ui-input md:col-span-1 xl:col-span-2" value={globalFilters.ownerId ?? ""} onChange={(e) => setGlobalFilters((p) => ({ ...p, ownerId: e.target.value }))}>
+            <option value="">Все ответственные</option>
+            {(usersQ.data ?? []).map((u: UserSummary) => (
+              <option key={u.id} value={u.id}>{u.full_name ?? u.name ?? u.email}</option>
+            ))}
+          </select>
+          <input className="ui-input md:col-span-1 xl:col-span-2" value={globalFilters.channel ?? ""} onChange={(e) => setGlobalFilters((p) => ({ ...p, channel: e.target.value }))} placeholder="Канал (глобально)" />
+        </div>
+
         {loading ? (
           <div className="mt-6 text-sm text-text2">Загрузка данных...</div>
         ) : (
           <>
+            <div className="mt-6 ui-card p-4 neon-accent">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-extrabold inline-flex items-center gap-2"><Sparkles size={16} /> AI executive summary (Founder)</div>
+                  <div className="text-xs text-text2 mt-1">Отдельный контур под админский ИИ и prompt `founder_dashboard_brief_v1`.</div>
+                </div>
+                <Button small variant="secondary" onClick={() => void refreshAdminAiSummary()} disabled={aiSummaryLoading}>
+                  {aiSummaryLoading ? "Обновление..." : "Обновить AI-вывод"}
+                </Button>
+              </div>
+              {aiSummaryError ? <div className="mt-2 text-xs text-danger">{aiSummaryError}</div> : null}
+              <div className="mt-3 whitespace-pre-wrap text-sm">{aiSummaryText || "Готовим вывод..."}</div>
+            </div>
+
             {/* INSIGHTS (TOP) */}
             {cfg.widgets.insights.enabled ? (
               <div className="mt-6">
@@ -579,9 +811,9 @@ export function DashboardPage() {
                 >
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                     <StatCard title="Pipeline" value={`${money(sStat.pipeline)} ₽`} icon={TrendingUp} hint="Сумма активных сделок (budget/turnover)" />
-                    <StatCard title="Взвешенный" value={`${money(sStat.weighted)} ₽`} icon={Percent} hint="С учётом current_score" />
-                    <StatCard title="Сделки" value={`${sStat.dealsCount}`} icon={CircleDot} hint="По фильтрам виджета" />
-                    <StatCard title="Цикл" value={`${sStat.cycle} д`} icon={Clock} hint="Средний (created→updated), MVP" />
+                    <StatCard title="Взвешенный" value={`${money(sStat.weighted)} ₽`} icon={Percent} hint={`Δ ${deltaWeighted >= 0 ? "+" : ""}${deltaWeighted.toFixed(1)}%`} />
+                    <StatCard title="Сделки" value={`${sStat.dealsCount}`} icon={CircleDot} hint={`Δ ${deltaDeals >= 0 ? "+" : ""}${deltaDeals.toFixed(1)}%`} />
+                    <StatCard title="Цикл" value={`${sStat.cycle} д`} icon={Clock} hint={`Δ ${deltaCycle >= 0 ? "+" : ""}${deltaCycle.toFixed(1)}%`} />
                   </div>
                 </WidgetFrame>
               </div>
@@ -729,6 +961,38 @@ export function DashboardPage() {
                   </div>
                 </WidgetFrame>
               ) : null}
+            </div>
+
+            <div className="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <WidgetFrame title="Узкие места воронки" subtitle="Этапы с максимальным средним зависанием" widgetId="funnel">
+                <div className="space-y-2">
+                  {bottlenecks.length ? bottlenecks.map((b) => (
+                    <div key={b.id} className="rounded-[14px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.06)] p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-semibold">{b.name}</div>
+                        <div className="text-xs text-text2">{b.count} сделок</div>
+                      </div>
+                      <div className="text-xs text-text2 mt-1">Среднее зависание: {b.avgStale} дн.</div>
+                    </div>
+                  )) : <div className="text-sm text-text2">Нет данных для анализа узких мест.</div>}
+                </div>
+              </WidgetFrame>
+
+              <WidgetFrame title="Top-5 приоритетных действий" subtitle="Сделки с максимальным риском просадки" widgetId="insights">
+                <div className="space-y-2">
+                  {priorityActions.length ? priorityActions.map((a) => (
+                    <button key={a.id} className="w-full text-left rounded-[14px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.06)] p-3 hover:bg-[rgba(255,255,255,0.1)]" onClick={() => nav(`/deals/${a.id}`)}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-semibold truncate">{a.title}</div>
+                        <div className="text-xs text-text2">Риск {a.riskPoints}</div>
+                      </div>
+                      <div className="mt-1 text-xs text-text2">
+                        Score: {a.score || "—"} · Зависание: {a.staleDays} дн. · Сумма: {money(a.amount)} ₽
+                      </div>
+                    </button>
+                  )) : <div className="text-sm text-text2">Нет приоритетных сделок в выбранном срезе.</div>}
+                </div>
+              </WidgetFrame>
             </div>
 
           </>

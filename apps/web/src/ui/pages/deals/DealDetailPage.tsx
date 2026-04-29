@@ -1182,6 +1182,7 @@ export function DealDetailPage() {
   const [decisionSupportIntent, setDecisionSupportIntent] = React.useState("next_step");
   const [decisionSupportQuestion, setDecisionSupportQuestion] = React.useState("");
   const [primaryResearchHintOpen, setPrimaryResearchHintOpen] = React.useState(false);
+  const primaryResearchHintRef = React.useRef<HTMLDivElement | null>(null);
   const [productFiles, setProductFiles] = React.useState<Array<{ id: string; profileId: string; profileName: string; filename: string; url: string; tag?: string }>>([]);
   const formRef = React.useRef<DynamicEntityFormHandle | null>(null);
 
@@ -1929,6 +1930,16 @@ export function DealDetailPage() {
     void loadProductFilesForDeal();
   }, [selectedProductIds.join(","), productProfiles.length]);
 
+  React.useEffect(() => {
+    if (!primaryResearchHintOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      const el = e.target as HTMLElement;
+      if (!el.closest?.("[data-primary-research-hint]")) setPrimaryResearchHintOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [primaryResearchHintOpen]);
+
   async function setFileAsPrimaryTz(fileLinkId: string, productId: string) {
     if (!productId) return;
     setLatestTzByProduct((prev) => {
@@ -1956,7 +1967,7 @@ export function DealDetailPage() {
         <CardHeader className="py-3">
           <div className="grid gap-2">
             <div className="grid grid-cols-12 gap-2 items-end">
-              <div className="col-span-12 xl:col-span-2">
+              <div className="col-span-12 xl:col-span-3">
                 <div className="text-xs text-text2 mb-1">Название сделки</div>
                 <div className="flex items-center gap-2">
                   <Input
@@ -1992,7 +2003,7 @@ export function DealDetailPage() {
                   ))}
                 </Select>
               </div>
-              <div className="col-span-12 xl:col-span-4 text-center">
+              <div className="col-span-12 xl:col-span-3 text-center rounded-card border border-border bg-rowHover/50 py-1">
                 <div className="text-xs text-text2 mb-1">Бюджет</div>
                 <div className="text-2xl font-semibold">{budget ? `${formatMoney(Number(budget))} ₽` : "—"}</div>
               </div>
@@ -2022,9 +2033,9 @@ export function DealDetailPage() {
             <div className="grid grid-cols-12 gap-2 items-end">
               <div className="col-span-12 xl:col-span-2">
                 <div className="text-xs text-text2 mb-1">Компания</div>
-                <div className="text-lg font-semibold">{deal?.expand?.company_id?.name || "—"}</div>
+                <div className="text-base font-semibold">{deal?.expand?.company_id?.name || "—"}</div>
               </div>
-              <div className="col-span-12 xl:col-span-6">
+              <div className="col-span-12 xl:col-span-7">
                 <Tabs
                   items={[
                     { key: "overview", label: "Обзор" },
@@ -2035,11 +2046,11 @@ export function DealDetailPage() {
                   ]}
                   activeKey={tab}
                   onChange={setTab}
-                  buttonClassName="h-10 px-4 text-base"
+                  buttonClassName="h-10 px-5 text-base font-semibold"
                 />
               </div>
               <div className="col-span-12 xl:col-span-3">
-                <div className="flex items-center justify-end gap-2 relative">
+                <div className="flex items-center justify-end gap-2 relative" data-primary-research-hint ref={primaryResearchHintRef}>
                   <Button
                     variant="secondary"
                     onClick={() => {
@@ -2049,7 +2060,7 @@ export function DealDetailPage() {
                     disabled={aiRunLoading || !deal?.id}
                     className="w-full xl:w-auto"
                   >
-                    Первичное исследование клиента
+                    Первичное исследование
                   </Button>
                   <button
                     className="ui-btn ui-icon-btn"

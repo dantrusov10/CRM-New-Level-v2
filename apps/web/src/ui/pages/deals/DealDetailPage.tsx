@@ -1782,6 +1782,33 @@ export function DealDetailPage() {
     const s = (ex as Record<string, unknown>)._scoring;
     return s && typeof s === "object" ? (s as Record<string, unknown>) : null;
   }, [latestAi?.explainability]);
+  const aiRiskLines = React.useMemo(() => {
+    const ex =
+      latestAi?.explainability && typeof latestAi.explainability === "object" && !Array.isArray(latestAi.explainability)
+        ? (latestAi.explainability as Record<string, unknown>)
+        : {};
+    const merged = [
+      ...researchFieldToReadableLines(ex.risks ?? latestAi?.risks ?? ""),
+      ...researchFieldToReadableLines(ex.data_gaps ?? ""),
+    ];
+    return Array.from(new Set(merged.map((x) => humanizeSummaryForDisplay(stripTimelineAiNoise(String(x || ""))).trim())))
+      .filter((x) => x.length > 6)
+      .slice(0, 6);
+  }, [latestAi]);
+  const aiContextLines = React.useMemo(() => {
+    const ex =
+      latestAi?.explainability && typeof latestAi.explainability === "object" && !Array.isArray(latestAi.explainability)
+        ? (latestAi.explainability as Record<string, unknown>)
+        : {};
+    const merged = [
+      ...researchFieldToReadableLines(ex.executive_summary ?? latestAi?.summary ?? ""),
+      ...researchFieldToReadableLines(ex.business_context ?? ""),
+      ...researchFieldToReadableLines(ex.it_landscape ?? ""),
+    ];
+    return Array.from(new Set(merged.map((x) => humanizeSummaryForDisplay(stripTimelineAiNoise(String(x || ""))).trim())))
+      .filter((x) => x.length > 10)
+      .slice(0, 5);
+  }, [latestAi]);
   const latestAiTimelineEvent = React.useMemo(
     () =>
       tlAll.find((t) => {
@@ -1967,36 +1994,15 @@ export function DealDetailPage() {
               <div className="text-sm font-semibold">Сделка: общая информация</div>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-2 text-sm">
-                <div className="board-panel p-3">
-                  <div className="text-xs text-text2">Компания</div>
-                  <div className="mt-1 font-semibold">{deal?.expand?.company_id?.name || "—"}</div>
-                </div>
-                <div className="board-panel p-3">
-                  <div className="text-xs text-text2">Ответственный</div>
-                  <div className="mt-1 font-semibold">{deal?.expand?.responsible_id?.full_name || deal?.expand?.responsible_id?.email || "—"}</div>
-                </div>
-                <div className="board-panel p-3">
-                  <div className="text-xs text-text2">Бюджет / оборот</div>
-                  <div className="mt-1">{budget ? `${formatMoney(Number(budget))} ₽` : "—"} / {turnover ? `${formatMoney(Number(turnover))} ₽` : "—"}</div>
-                </div>
-                <div className="board-panel p-3">
-                  <div className="text-xs text-text2">Канал / Presale</div>
-                  <div className="mt-1">{salesChannel || "—"} / {presale || "—"}</div>
-                </div>
-                <div className="board-panel p-3">
-                  <div className="text-xs text-text2">Endpoints / дедлайн</div>
-                  <div className="mt-1">{endpoints || "—"} / {registrationDeadline || "—"}</div>
-                </div>
-                <div className="board-panel p-3">
-                  <div className="text-xs text-text2">Продукты</div>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {selectedProducts.length ? selectedProducts.map((p) => (
-                      <Badge key={p.id}>{p.name}</Badge>
-                    )) : <span className="text-sm text-text2">Не выбраны</span>}
-                  </div>
-                </div>
-              </div>
+              <DynamicEntityFormWithRef
+                ref={formRef}
+                entity="deal"
+                record={deal}
+                onSaved={async () => {
+                  await dealQ.refetch();
+                  tlQ.refetch();
+                }}
+              />
             </CardContent>
           </Card>
         </div>
@@ -2062,126 +2068,6 @@ export function DealDetailPage() {
               </div>
             </CardContent>
           </Card>
-
-          {tab === "overview" ? (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <div className="text-sm font-semibold">Карточка сделки</div>
-                  <span className="neon-pill">AI + менеджер в центре</span>
-                </div>
-                <div className="text-xs text-text2 mt-1">Основной фокус: аналитика AI и работа менеджера. Базовая справка вынесена вправо.</div>
-                <div className="mt-2 neon-divider" />
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-3">
-                  <div className="grid grid-cols-12 gap-3">
-                    <div className="col-span-12 xl:col-span-6 rounded-card border border-[rgba(51,215,255,0.35)] bg-[rgba(45,123,255,0.16)] p-3">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-text2 mb-2">AI в центре внимания</div>
-                      <div className="grid gap-2">
-                        <div className="flex items-center justify-between">
-                          <div className="text-xs text-text2">Текущий score</div>
-                          <Badge>{sb.label}</Badge>
-                        </div>
-                        <div className="text-2xl font-extrabold">{typeof score === "number" ? `${score}/100` : "—"}</div>
-                        <div className="text-sm text-text2">
-                          {humanizeSummaryForDisplay(String(latestAi?.summary || "").trim()) || "Запусти AI-анализ, чтобы получить управленческое резюме."}
-                        </div>
-                        {!!nextActions.length ? (
-                          <div className="text-xs text-text2">
-                            Приоритет: {nextActions[0]}
-                          </div>
-                        ) : null}
-                        <div className="flex gap-2 flex-wrap pt-1">
-                          <Button
-                            small
-                            onClick={() => {
-                              setAnalysisMode("full");
-                              setAnalysisSelection(selectedProductIds);
-                              setAnalysisPickerOpen(true);
-                            }}
-                            disabled={aiRunLoading || !deal?.id}
-                          >
-                            Запустить AI-анализ
-                          </Button>
-                          <Button
-                            small
-                            variant="secondary"
-                            onClick={() => {
-                              setAnalysisMode("update");
-                              setAnalysisSelection(selectedProductIds);
-                              setAnalysisPickerOpen(true);
-                            }}
-                            disabled={aiRunLoading || !deal?.id}
-                          >
-                            Обновить AI
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="col-span-12 xl:col-span-6 rounded-card border border-border bg-white p-3">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-text2 mb-2">Работа менеджера: комментарии и задачи</div>
-                      <div className="grid gap-2">
-                        <div className="flex items-center gap-2">
-                          <select
-                            value={composerType}
-                            onChange={(e) => setComposerType(e.target.value as "comment" | "note" | "task")}
-                            className="ui-input max-w-[170px]"
-                            title="Тип записи"
-                          >
-                            <option value="comment">Комментарий</option>
-                            <option value="note">Заметка</option>
-                            <option value="task">Задача</option>
-                          </select>
-                          {composerType === "task" ? (
-                            <DateTimePicker value={taskDueAt} onChange={setTaskDueAt} className="w-full" />
-                          ) : null}
-                        </div>
-                        <div className="flex gap-2">
-                          <Input
-                            value={comment}
-                            onChange={(e) => setComment(e.target.value)}
-                            placeholder={composerType === "task" ? "Текст задачи" : "Введите комментарий или заметку"}
-                          />
-                          <Button
-                            onClick={submitComposer}
-                            disabled={composerType === "task" ? !(comment.trim() && taskDueAt) : !comment.trim()}
-                          >
-                            {composerType === "task" ? "Создать задачу" : "Добавить"}
-                          </Button>
-                        </div>
-                        <div className="grid gap-2 max-h-[190px] overflow-y-auto pr-1 crm-scrollbar">
-                          {tlAll
-                            .filter((t) => String(t.action) === "comment" || String(t.action) === "note")
-                            .slice(0, 4)
-                            .map((t) => (
-                              <div key={t.id} className="rounded-card border border-border bg-rowHover p-2">
-                                <div className="text-xs text-text2">{dayjs(t.timestamp || t.created).format("DD.MM HH:mm")}</div>
-                                <div className="text-sm mt-1 whitespace-pre-wrap">{String(t.comment || "").slice(0, 220)}</div>
-                              </div>
-                            ))}
-                          {!tlAll.some((t) => String(t.action) === "comment" || String(t.action) === "note") ? (
-                            <div className="text-sm text-text2">Последних комментариев пока нет.</div>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <DynamicEntityFormWithRef
-                    ref={formRef}
-                    entity="deal"
-                    record={deal}
-                    onSaved={async () => {
-                      await dealQ.refetch();
-                      tlQ.refetch();
-                    }}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          ) : null}
 
           {tab === "ai" ? (
             <Card className="border-infoBorder bg-infoBg neon-accent">
@@ -2799,17 +2685,36 @@ export function DealDetailPage() {
                   {aiScoring ? (
                     <div className="rounded-card border border-border bg-white p-3">
                       <div className="text-xs text-text2">Обоснование score</div>
-                      <div className="text-sm mt-1">
-                        Метод: <span className="font-semibold">{String(aiScoring.method || "—")}</span>
-                      </div>
-                      <div className="text-sm">
-                        Финальная вероятность: <span className="font-semibold">{String(aiScoring.final_probability ?? "—")}</span>
-                      </div>
+                      <ul className="mt-2 grid gap-1.5 text-sm">
+                        <li>Метод: <span className="font-semibold">{String(aiScoring.method || "—")}</span></li>
+                        <li>Финальная вероятность: <span className="font-semibold">{String(aiScoring.final_probability ?? "—")}</span></li>
+                        <li>Сырой сигнал модели: <span className="font-semibold">{String(aiScoring.llm_probability_raw ?? "—")}</span></li>
+                      </ul>
                     </div>
                   ) : null}
                   <div className="rounded-card border border-border bg-white p-3">
                     <div className="text-xs text-text2 mb-2">Основные риски</div>
-                    <div className="text-sm whitespace-pre-wrap">{formatRisksForDisplay(latestAi?.risks || "").trim() || "Риски не выделены."}</div>
+                    {aiRiskLines.length ? (
+                      <ul className="grid gap-1.5 text-sm">
+                        {aiRiskLines.map((line, idx) => (
+                          <li key={`${line}-${idx}`} className="leading-relaxed">• {line}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="text-sm">Риски не выделены.</div>
+                    )}
+                  </div>
+                  <div className="rounded-card border border-border bg-white p-3">
+                    <div className="text-xs text-text2 mb-2">Контекст сделки</div>
+                    {aiContextLines.length ? (
+                      <ul className="grid gap-1.5 text-sm">
+                        {aiContextLines.map((line, idx) => (
+                          <li key={`${line}-${idx}`} className="leading-relaxed">• {line}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="text-sm">Контекст пока не сформирован.</div>
+                    )}
                   </div>
                 </div>
               </CardContent>

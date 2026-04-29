@@ -2015,29 +2015,31 @@ export function DealDetailPage() {
               </div>
               <div className="col-span-12 xl:col-span-4">
                 <div className="text-xs text-text2 mb-1">Ответственный</div>
-                <Select
-                  value={String(deal?.responsible_id || deal?.expand?.responsible_id?.id || "")}
-                  onChange={(v) => void changeResponsible(v)}
-                  disabled={(() => {
-                    const authRole = String((auth as Record<string, unknown> | null)?.role || "").toLowerCase();
-                    const isAdmin = /admin|founder|owner/.test(authRole);
-                    const myId = String(auth?.id || "");
-                    const currentResponsible = String(deal?.responsible_id || deal?.expand?.responsible_id?.id || "");
-                    return !(isAdmin || (myId && currentResponsible === myId));
-                  })()}
-                >
-                  <option value="">Не назначен</option>
-                  {(usersQ.data || []).map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.full_name || u.name || u.email}
-                    </option>
-                  ))}
-                </Select>
+                <div className="rounded-card border border-border bg-rowHover/50 p-1">
+                  <Select
+                    value={String(deal?.responsible_id || deal?.expand?.responsible_id?.id || "")}
+                    onChange={(v) => void changeResponsible(v)}
+                    disabled={(() => {
+                      const authRole = String((auth as Record<string, unknown> | null)?.role || "").toLowerCase();
+                      const isAdmin = /admin|founder|owner/.test(authRole);
+                      const myId = String(auth?.id || "");
+                      const currentResponsible = String(deal?.responsible_id || deal?.expand?.responsible_id?.id || "");
+                      return !(isAdmin || (myId && currentResponsible === myId));
+                    })()}
+                  >
+                    <option value="">Не назначен</option>
+                    {(usersQ.data || []).map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.full_name || u.name || u.email}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
               </div>
             </div>
 
             <div className="grid grid-cols-12 gap-2 items-end">
-              <div className="col-span-12 xl:col-span-2">
+              <div className="col-span-12 xl:col-span-3">
                 <Tabs
                   items={[
                     { key: "overview", label: "Обзор" },
@@ -2051,9 +2053,11 @@ export function DealDetailPage() {
                   buttonClassName="h-10 px-5 text-base font-semibold"
                 />
               </div>
-              <div className="col-span-12 xl:col-span-7">
+              <div className="col-span-12 xl:col-span-6">
                 <div className="text-xs text-text2 mb-1">Компания</div>
-                <div className="text-base font-semibold">{deal?.expand?.company_id?.name || "—"}</div>
+                <div className="h-10 rounded-card border border-border bg-rowHover/50 px-3 flex items-center text-base font-semibold">
+                  {deal?.expand?.company_id?.name || "—"}
+                </div>
               </div>
               <div className="col-span-12 xl:col-span-3">
                 <div className="flex items-center justify-end gap-2 relative" data-primary-research-hint ref={primaryResearchHintRef}>

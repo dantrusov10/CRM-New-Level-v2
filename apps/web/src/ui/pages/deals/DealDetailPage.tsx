@@ -2824,7 +2824,6 @@ export function DealDetailPage() {
                 <div className="text-sm text-text2">
                   {humanizeSummaryForDisplay(String(latestAi?.summary || "").trim()) || "Запусти AI-анализ для обновления рекомендаций."}
                 </div>
-              </div>
               </CardContent>
             </Card>
           ) : null}

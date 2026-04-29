@@ -2099,12 +2099,12 @@ export function DealDetailPage() {
       {/* MAIN AREA */}
       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-12 min-w-0 xl:col-span-3 grid gap-4 self-start">
-          <Card className={tab === "overview" ? "h-[calc(100vh-170px)]" : ""}>
+          <Card className="h-[calc(100vh-170px)]">
             <CardHeader>
               <div className="text-sm font-semibold">Сделка: общая информация</div>
             </CardHeader>
-            <CardContent className={tab === "overview" ? "h-[calc(100vh-230px)]" : ""}>
-              <div className={`crm-scrollbar pr-1 ${tab === "overview" ? "h-full overflow-y-auto" : ""}`}>
+            <CardContent className="h-[calc(100vh-230px)]">
+              <div className="crm-scrollbar pr-1 h-full overflow-y-auto">
                 <DynamicEntityFormWithRef
                   ref={formRef}
                   entity="deal"
@@ -2213,7 +2213,7 @@ export function DealDetailPage() {
           ) : null}
 
           {tab === "ai" ? (
-            <Card className="border-infoBorder bg-infoBg neon-accent">
+            <Card className="border-infoBorder bg-infoBg neon-accent h-[calc(100vh-170px)]">
               <CardHeader className="border-infoBorder">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -2252,7 +2252,7 @@ export function DealDetailPage() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="crm-scrollbar h-[calc(100vh-230px)] overflow-y-auto pr-1">
                 {aiRunError ? <div className="text-sm text-danger mb-3">{aiRunError}</div> : null}
                 {aiQ.isLoading ? (
                   <div className="text-sm text-text2">Загрузка...</div>
@@ -2406,12 +2406,12 @@ export function DealDetailPage() {
           ) : null}
 
           {tab === "relationship" ? (
-            <Card>
+            <Card className="h-[calc(100vh-170px)]">
               <CardHeader>
                 <div className="text-sm font-semibold">Карточки контактов</div>
                 <div className="text-xs text-text2 mt-1">Полноценные карточки: должность, роль, каналы связи, редактирование и удаление</div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="crm-scrollbar h-[calc(100vh-230px)] overflow-y-auto pr-1">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-xs text-text2">
                     Контакты по сделке (ручные + из парсера). Можно добавлять вручную.
@@ -2547,11 +2547,15 @@ export function DealDetailPage() {
           ) : null}
 
           {tab === "kp" ? (
-            <DealKpModule deal={deal} onTimeline={createTimelineEvent} />
+            <div className="h-[calc(100vh-170px)]">
+              <div className="crm-scrollbar h-full overflow-y-auto pr-1">
+                <DealKpModule deal={deal} onTimeline={createTimelineEvent} />
+              </div>
+            </div>
           ) : null}
 
           {tab === "workspace" ? (
-            <Card>
+            <Card className="h-[calc(100vh-170px)]">
               <CardHeader>
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -2581,7 +2585,7 @@ export function DealDetailPage() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="crm-scrollbar h-[calc(100vh-230px)] overflow-y-auto pr-1">
                 <div className="grid gap-4">
                   <div className="grid grid-cols-12 gap-3">
                     <div className="col-span-12 lg:col-span-6 min-w-0">

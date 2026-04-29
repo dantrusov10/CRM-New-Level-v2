@@ -22,12 +22,13 @@ type DynamicEntityFormProps = {
   entity: EntityType;
   record: Partial<Company & Deal> & RecordLike;
   onSaved?: () => void;
+  excludeFieldNames?: string[];
 };
 
 type InputType = 'text' | 'number' | 'email' | 'date';
 
 export function DynamicEntityForm(
-  { entity, record, onSaved }: DynamicEntityFormProps,
+  { entity, record, onSaved, excludeFieldNames }: DynamicEntityFormProps,
   ref: React.Ref<DynamicEntityFormHandle>
 ) {
   const recordId = record?.id;
@@ -52,7 +53,13 @@ export function DynamicEntityForm(
     ]);
 
     const secList = sec.map((item) => ({ ...item }));
-    const fieldList = flds.filter((item) => item.visible !== false);
+    const exclude = new Set((excludeFieldNames ?? []).map((x) => String(x || "").trim().toLowerCase()));
+    const fieldList = flds.filter((item) => {
+      if (item.visible === false) return false;
+      const fieldName = String(item.field_name || "").trim().toLowerCase();
+      if (fieldName && exclude.has(fieldName)) return false;
+      return true;
+    });
 
     if (!secList.length) {
       secList.push({ id: '__default__', entity_type: entity, key: 'default', title: 'Основное' });
@@ -104,7 +111,7 @@ export function DynamicEntityForm(
   React.useEffect(() => {
     if (!recordId) return;
     void loadAll();
-  }, [recordId, entity]);
+  }, [recordId, entity, JSON.stringify(excludeFieldNames ?? [])]);
 
   function setFieldValue(fieldId: string, next: unknown) {
     setValues((prev) => ({ ...prev, [fieldId]: next }));

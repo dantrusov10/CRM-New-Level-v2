@@ -37,6 +37,7 @@ type TimelinePayload = Record<string, unknown>;
 type AiSection = { key: string; title: string; raw: unknown };
 type ResearchSection = { title: string; items: string[] };
 type TimelineWithAuthor = TimelineItem & { expand?: { user_id?: { name?: string; email?: string } } };
+type TimelineCategory = "comment" | "note" | "task" | "stage" | "ai" | "system";
 type AiScenario = "deal_analysis" | "decision_support" | "client_research" | "semantic_enrichment" | "tender_tz_analysis";
 
 function normalizeAiText(input: string): string {
@@ -1047,6 +1048,16 @@ function TimelineText({ text }: { text: string }) {
   return <div className="text-sm whitespace-pre-wrap">{raw}</div>;
 }
 
+function resolveTimelineCategory(actionRaw: string): TimelineCategory {
+  const action = String(actionRaw || "").toLowerCase();
+  if (action === "comment") return "comment";
+  if (action === "note") return "note";
+  if (action === "task_created") return "task";
+  if (action === "stage_change") return "stage";
+  if (action.startsWith("ai")) return "ai";
+  return "system";
+}
+
 function TimelineItemRow({
   item,
   currentUserId,
@@ -1232,7 +1243,14 @@ export function DealDetailPage() {
   const [timelineSearch, setTimelineSearch] = React.useState<string>("");
   const [savingTimelineId, setSavingTimelineId] = React.useState<string | null>(null);
   const [taskDueAt, setTaskDueAt] = React.useState<string>("");
-  const [timelineFilter, setTimelineFilter] = React.useState<string>("all");
+  const [timelineCategories, setTimelineCategories] = React.useState<TimelineCategory[]>([
+    "comment",
+    "note",
+    "task",
+    "stage",
+    "ai",
+    "system",
+  ]);
   const [aiRunLoading, setAiRunLoading] = React.useState(false);
   const [aiRunError, setAiRunError] = React.useState<string>("");
   const [selectedProductIds, setSelectedProductIds] = React.useState<string[]>([]);
@@ -1946,14 +1964,17 @@ export function DealDetailPage() {
   }, [latestAiTimelineEvent]);
 
   const tlFiltered = tlAll.filter((t) => {
-    if (timelineFilter === "comments") return String(t.action) === "comment";
-    if (timelineFilter === "ai") return String(t.action).startsWith("ai") || String(t.action) === "ai";
-    if (timelineFilter === "system") return String(t.action) !== "comment";
+    const category = resolveTimelineCategory(String(t.action || ""));
+    if (!timelineCategories.includes(category)) return false;
     return true;
   }).filter((t) => {
     const q = timelineSearch.trim().toLowerCase();
     if (!q) return true;
-    const hay = `${String(t.comment || "")}\n${String(t.action || "")}`.toLowerCase();
+    const payloadText =
+      t.payload && typeof t.payload === "object"
+        ? JSON.stringify(t.payload)
+        : "";
+    const hay = `${String(t.comment || "")}\n${String(t.action || "")}\n${payloadText}`.toLowerCase();
     return hay.includes(q);
   });
 
@@ -2171,6 +2192,7 @@ export function DealDetailPage() {
                   ref={formRef}
                   entity="deal"
                   record={deal}
+                  excludeFieldNames={["title", "budget", "company_id"]}
                   onSaved={async () => {
                     await dealQ.refetch();
                     tlQ.refetch();
@@ -2191,14 +2213,6 @@ export function DealDetailPage() {
                   <div className="text-xs text-text2 mt-1">События, заметки и задачи в одном центре управления.</div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-44">
-                    <Select value={timelineFilter} onChange={setTimelineFilter}>
-                      <option value="all">Все</option>
-                      <option value="comments">Комментарии</option>
-                      <option value="system">Системные</option>
-                      <option value="ai">События ИИ</option>
-                    </Select>
-                  </div>
                   <div className="w-56">
                     <Input
                       value={timelineSearch}
@@ -2206,6 +2220,33 @@ export function DealDetailPage() {
                       placeholder="Поиск по ленте"
                     />
                   </div>
+                </div>
+                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                  {([
+                    ["comment", "Комментарий"],
+                    ["note", "Заметка"],
+                    ["task", "Задача"],
+                    ["stage", "Этап"],
+                    ["ai", "ИИ"],
+                    ["system", "Системное"],
+                  ] as Array<[TimelineCategory, string]>).map(([key, label]) => {
+                    const active = timelineCategories.includes(key);
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        className={`ui-btn h-8 px-2.5 text-xs ${active ? "ui-btn-secondary" : ""}`}
+                        onClick={() =>
+                          setTimelineCategories((prev) => {
+                            if (prev.includes(key)) return prev.filter((x) => x !== key);
+                            return [...prev, key];
+                          })
+                        }
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </CardHeader>
@@ -2424,21 +2465,40 @@ export function DealDetailPage() {
                     </div>
                     <div className="text-xs text-text2 mt-1">Явные модули по времени: что поменялось, кто автор, какие поля затронуты</div>
                   </div>
-                  <div className="w-56">
-                    <div className="grid gap-2">
-                      <Select value={timelineFilter} onChange={setTimelineFilter}>
-                        <option value="all">Все</option>
-                        <option value="comments">Комментарии</option>
-                        <option value="system">Системные</option>
-                        <option value="ai">События ИИ</option>
-                      </Select>
-                      <Input
-                        value={timelineSearch}
-                        onChange={(e) => setTimelineSearch(e.target.value)}
-                        placeholder="Поиск по ленте"
-                      />
-                    </div>
+                  <div className="w-72">
+                    <Input
+                      value={timelineSearch}
+                      onChange={(e) => setTimelineSearch(e.target.value)}
+                      placeholder="Поиск по ленте"
+                    />
                   </div>
+                </div>
+                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                  {([
+                    ["comment", "Комментарий"],
+                    ["note", "Заметка"],
+                    ["task", "Задача"],
+                    ["stage", "Этап"],
+                    ["ai", "ИИ"],
+                    ["system", "Системное"],
+                  ] as Array<[TimelineCategory, string]>).map(([key, label]) => {
+                    const active = timelineCategories.includes(key);
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        className={`ui-btn h-8 px-2.5 text-xs ${active ? "ui-btn-secondary" : ""}`}
+                        onClick={() =>
+                          setTimelineCategories((prev) => {
+                            if (prev.includes(key)) return prev.filter((x) => x !== key);
+                            return [...prev, key];
+                          })
+                        }
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
               </CardHeader>
               <CardContent>

@@ -37,6 +37,7 @@ export function DealsKanbanPage() {
   const kanbanScrollRef = React.useRef<HTMLDivElement | null>(null);
   const miniTrackRef = React.useRef<HTMLDivElement | null>(null);
   const [miniViewport, setMiniViewport] = React.useState({ left: 0, width: 40 });
+  const miniDragRef = React.useRef<{ dragging: boolean; offsetX: number }>({ dragging: false, offsetX: 0 });
 
   // Space + drag to pan horizontally (like Figma). This avoids relying only on Shift+wheel
   // and is more discoverable than middle-mouse (which can trigger browser auto-scroll).
@@ -55,6 +56,28 @@ export function DealsKanbanPage() {
       window.removeEventListener("keyup", onKeyUp);
     };
   }, []);
+  React.useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!miniDragRef.current.dragging) return;
+      const track = miniTrackRef.current;
+      const scroll = kanbanScrollRef.current;
+      if (!track || !scroll) return;
+      const rect = track.getBoundingClientRect();
+      const maxLeft = Math.max(0, rect.width - miniViewport.width);
+      const nextLeft = Math.max(0, Math.min(maxLeft, e.clientX - rect.left - miniDragRef.current.offsetX));
+      const ratio = nextLeft / Math.max(1, maxLeft);
+      scroll.scrollLeft = ratio * Math.max(1, scroll.scrollWidth - scroll.clientWidth);
+    };
+    const onUp = () => {
+      miniDragRef.current.dragging = false;
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [miniViewport.width]);
   React.useEffect(() => {
     const el = kanbanScrollRef.current;
     if (!el) return;
@@ -467,8 +490,16 @@ export function DealsKanbanPage() {
                   }}
                 >
                   <div
-                    className="absolute top-0 h-5 rounded-md border border-[rgba(51,215,255,0.65)] bg-[rgba(51,215,255,0.35)]"
+                    className="absolute top-0 h-5 rounded-md border border-[rgba(51,215,255,0.65)] bg-[rgba(51,215,255,0.35)] cursor-grab active:cursor-grabbing"
                     style={{ left: miniViewport.left, width: miniViewport.width }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      miniDragRef.current.dragging = true;
+                      const track = miniTrackRef.current;
+                      if (!track) return;
+                      const rect = track.getBoundingClientRect();
+                      miniDragRef.current.offsetX = e.clientX - rect.left - miniViewport.left;
+                    }}
                   />
                 </div>
               </div>

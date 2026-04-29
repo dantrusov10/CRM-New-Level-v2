@@ -1,7 +1,7 @@
 import React from "react";
 import { useParams } from "react-router-dom";
 import dayjs from "dayjs";
-import { AlertTriangle, Check, CheckCircle2, CircleHelp, Lightbulb, Sparkles, X } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, CircleHelp, Lightbulb, Pencil, Sparkles, X } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
@@ -1099,6 +1099,14 @@ function TimelineItemRow({
       })
     : [];
   const [expanded, setExpanded] = React.useState(isStage || isAI);
+  const collapsedPreview = React.useMemo(() => {
+    const firstMeaningfulLine = String(item.comment || item.action || "")
+      .split("\n")
+      .map((x) => x.trim())
+      .filter(Boolean)
+      .find((x) => !/^(analysis_mode|company_id|product_id|requested_task_code|source|due_at)\s*:/i.test(x));
+    return String(firstMeaningfulLine || String(item.comment || item.action || "").trim()).slice(0, 110);
+  }, [item.comment, item.action]);
 
   return (
     <div className={`rounded-lg border p-3 ${tone}`}>
@@ -1106,6 +1114,11 @@ function TimelineItemRow({
         <div className="text-xs text-text2">{when}{by ? ` · ${by}` : ""}</div>
         <div className="flex items-center gap-2">
           <Badge>{title}</Badge>
+          {isEditable && onEditComment ? (
+            <Button small variant="ghost" onClick={() => onEditComment(item)} title="Редактировать">
+              <Pencil size={14} />
+            </Button>
+          ) : null}
           <Button small variant="secondary" onClick={() => setExpanded((v) => !v)}>
             {expanded ? "Свернуть" : "Развернуть"}
           </Button>
@@ -1113,18 +1126,11 @@ function TimelineItemRow({
       </div>
       {!expanded ? (
         <div className="mt-2 text-sm font-medium">
-          {String(item.comment || item.action || "").slice(0, 160) || "Событие"}
+          {collapsedPreview || "Событие"}
         </div>
       ) : null}
       {expanded ? (
         <div className="mt-2 grid gap-2">
-          {isEditable && onEditComment ? (
-            <div>
-              <Button small variant="secondary" onClick={() => onEditComment(item)}>
-                Редактировать
-              </Button>
-            </div>
-          ) : null}
           <TimelineText text={String(item.comment || item.action || "")} />
           {payload.length ? (
             <div className="grid gap-1.5">
@@ -2032,10 +2038,6 @@ export function DealDetailPage() {
 
             <div className="grid grid-cols-12 gap-2 items-end">
               <div className="col-span-12 xl:col-span-2">
-                <div className="text-xs text-text2 mb-1">Компания</div>
-                <div className="text-base font-semibold">{deal?.expand?.company_id?.name || "—"}</div>
-              </div>
-              <div className="col-span-12 xl:col-span-7">
                 <Tabs
                   items={[
                     { key: "overview", label: "Обзор" },
@@ -2048,6 +2050,10 @@ export function DealDetailPage() {
                   onChange={setTab}
                   buttonClassName="h-10 px-5 text-base font-semibold"
                 />
+              </div>
+              <div className="col-span-12 xl:col-span-7">
+                <div className="text-xs text-text2 mb-1">Компания</div>
+                <div className="text-base font-semibold">{deal?.expand?.company_id?.name || "—"}</div>
               </div>
               <div className="col-span-12 xl:col-span-3">
                 <div className="flex items-center justify-end gap-2 relative" data-primary-research-hint ref={primaryResearchHintRef}>
@@ -2086,12 +2092,12 @@ export function DealDetailPage() {
       {/* MAIN AREA */}
       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-12 min-w-0 xl:col-span-3 grid gap-4 self-start">
-          <Card>
+          <Card className={tab === "overview" ? "h-[calc(100vh-170px)]" : ""}>
             <CardHeader>
               <div className="text-sm font-semibold">Сделка: общая информация</div>
             </CardHeader>
-            <CardContent>
-              <div className={`crm-scrollbar pr-1 ${tab === "overview" ? "max-h-[calc(100vh-170px)] overflow-y-auto" : ""}`}>
+            <CardContent className={tab === "overview" ? "h-[calc(100vh-230px)]" : ""}>
+              <div className={`crm-scrollbar pr-1 ${tab === "overview" ? "h-full overflow-y-auto" : ""}`}>
                 <DynamicEntityFormWithRef
                   ref={formRef}
                   entity="deal"
@@ -2108,7 +2114,7 @@ export function DealDetailPage() {
 
         <div className={`col-span-12 min-w-0 grid gap-4 ${tab === "overview" ? "xl:col-span-6" : "xl:col-span-9"}`}>
           {tab === "overview" ? (
-          <Card>
+          <Card className="h-[calc(100vh-170px)]">
             <CardHeader>
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -2125,7 +2131,7 @@ export function DealDetailPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="crm-scrollbar max-h-[calc(100vh-170px)] overflow-y-auto pr-1">
+            <CardContent className="crm-scrollbar h-[calc(100vh-230px)] overflow-y-auto pr-1">
               <div className="grid gap-3">
                 <div className="rounded-card border border-border bg-rowHover p-3">
                   <div className="grid gap-2">
@@ -2733,7 +2739,7 @@ export function DealDetailPage() {
         {/* RIGHT: AI rail (overview only) */}
         {tab === "overview" ? (
         <div className="col-span-12 min-w-0 xl:col-span-3 grid gap-4 self-start">
-          <Card className="neon-accent">
+          <Card className="neon-accent h-[calc(100vh-170px)]">
             <CardHeader>
               <div className="flex items-center justify-between gap-2">
                 <div>
@@ -2743,7 +2749,7 @@ export function DealDetailPage() {
                 <span className="neon-pill">Приоритет</span>
               </div>
             </CardHeader>
-            <CardContent className="crm-scrollbar max-h-[calc(100vh-170px)] overflow-y-auto pr-1">
+            <CardContent className="crm-scrollbar h-[calc(100vh-230px)] overflow-y-auto pr-1">
               <div className="grid gap-3">
                 <div className="rounded-card border border-[rgba(51,215,255,0.35)] bg-[rgba(45,123,255,0.16)] p-3">
                   <div className="flex items-center justify-between">
@@ -2811,18 +2817,10 @@ export function DealDetailPage() {
                     <div className="text-sm text-text2">Запусти AI, чтобы получить список следующих шагов.</div>
                   )}
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-              <CardHeader>
-                <div className="text-sm font-semibold">Почему изменился score</div>
-              </CardHeader>
-              <CardContent className="crm-scrollbar max-h-[calc(100vh-170px)] overflow-y-auto pr-1">
-                <div className="grid gap-3">
+                <div className="rounded-card border border-border bg-white p-3">
+                  <div className="text-sm font-semibold mb-2">Почему изменился score</div>
                   {aiScoring ? (
-                    <div className="rounded-card border border-border bg-white p-3">
+                    <div className="rounded-card border border-border bg-rowHover p-3">
                       <div className="text-xs text-text2">Сводка</div>
                       <ul className="mt-2 grid gap-1.5 text-sm">
                         <li>Метод: <span className="font-semibold">{String(aiScoring.method || "—")}</span></li>
@@ -2849,7 +2847,7 @@ export function DealDetailPage() {
                       ))}
                     </div>
                   ) : null}
-                  <div className="rounded-card border border-border bg-white p-3">
+                  <div className="rounded-card border border-border bg-rowHover p-3">
                     <div className="text-xs text-text2 mb-2">Основные риски</div>
                     {aiRiskLines.length ? (
                       <ul className="grid gap-1.5 text-sm">
@@ -2860,9 +2858,9 @@ export function DealDetailPage() {
                     ) : (
                       <div className="text-sm">Риски не выделены.</div>
                     )}
-                  </div>
                 </div>
-              </CardContent>
+              </div>
+            </CardContent>
             </Card>
         </div>
         ) : null}

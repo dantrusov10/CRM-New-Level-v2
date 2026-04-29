@@ -1179,6 +1179,192 @@ def _extract_json_value(text):
     return None
 
 
+def _clean_llm_display_text(text):
+    """Strip fenced JSON / nested JSON dumps from fields shown in CRM UI and timeline."""
+    s = str(text or "").strip()
+    if not s:
+        return ""
+    if "```" in s or s.startswith("{") or s.startswith("["):
+        parsed = _extract_json_value(s)
+        if isinstance(parsed, dict):
+            inner = parsed.get("executive_summary") or parsed.get("summary") or parsed.get("research_summary")
+            if isinstance(inner, str) and inner.strip():
+                return inner.strip()
+            if inner is not None and not isinstance(inner, (dict, list)):
+                return str(inner).strip()
+        if isinstance(parsed, list) and parsed:
+            return _value_to_text(parsed).strip()
+    m = re.search(r"```(?:json)?\s*([\s\S]*?)```", s, flags=re.I)
+    if m:
+        inner = m.group(1).strip()
+        parsed2 = _extract_json_value(inner)
+        if isinstance(parsed2, dict):
+            es = parsed2.get("executive_summary") or parsed2.get("summary")
+            if isinstance(es, str) and es.strip():
+                return es.strip()
+        return inner[:12000]
+    return s
+
+
+def _client_research_actions_to_text(explainability):
+    if not isinstance(explainability, dict):
+        return ""
+    for key in ("action_plan_7_14_30", "action_plan", "next_best_actions", "recommendations", "entry_strategy"):
+        block = explainability.get(key)
+        if block is None:
+            continue
+        if isinstance(block, str) and block.strip():
+            return block.strip()
+        if isinstance(block, list):
+            lines = []
+            for i, item in enumerate(block):
+                if isinstance(item, dict):
+                    act = str(item.get("action") or item.get("step") or item.get("title") or "").strip()
+                    own = str(item.get("owner") or item.get("role") or "").strip()
+                    due = str(item.get("due_window") or item.get("deadline") or item.get("due") or "").strip()
+                    outc = str(item.get("expected_outcome") or item.get("outcome") or "").strip()
+                    parts = [f"{i + 1}. {act}".strip()] if act else [f"{i + 1}."]
+                    if own:
+                        parts.append(f"Ответственный: {own}")
+                    if due:
+                        parts.append(f"Срок: {due}")
+                    if outc:
+                        parts.append(f"Ожидаемый результат: {outc}")
+                    lines.append(" · ".join([p for p in parts if p and p != f"{i + 1}."]))
+                else:
+                    lines.append(f"{i + 1}. {str(item).strip()}")
+            if lines:
+                return "\n".join(lines)
+        if isinstance(block, dict):
+            try:
+                return json.dumps(block, ensure_ascii=False, indent=2)
+            except Exception:
+                return str(block)
+    return ""
+
+
+def _markdown_section_title_ru(key):
+    aliases = {
+        "executive_summary": "Краткий вывод",
+        "business_context": "Контекст бизнеса и сделки",
+        "it_landscape": "ИТ-ландшафт и стек",
+        "stakeholders_map": "Стейкхолдеры и влияние",
+        "pains_confirmed": "Подтверждённые боли",
+        "pains_hypotheses": "Гипотезы по потребностям",
+        "risks": "Риски",
+        "entry_strategy": "Стратегия входа",
+        "action_plan_7_14_30": "План действий (7 / 14 / 30 дней)",
+        "data_gaps": "Пробелы в данных",
+        "sources": "Источники и ссылки",
+        "public_web_signals": "Публичные сигналы (web)",
+    }
+    if key in aliases:
+        return aliases[key]
+    return key.replace("_", " ").strip().title()
+
+
+def _markdown_format_stakeholders(val):
+    if isinstance(val, list):
+        chunks = []
+        for item in val:
+            if isinstance(item, dict):
+                name = str(item.get("name") or item.get("title") or "—").strip()
+                role = str(item.get("role") or item.get("position") or "").strip()
+                inf = str(item.get("influence") or item.get("влияние") or "").strip()
+                foc = str(item.get("focus") or item.get("фокус") or "").strip()
+                line = f"**{name}**"
+                if role:
+                    line += f" — {role}."
+                if inf:
+                    line += f" Влияние: {inf}."
+                if foc:
+                    line += f" Фокус: {foc}"
+                chunks.append(line)
+            else:
+                chunks.append(f"- {str(item).strip()}")
+        return "\n\n".join(chunks) if chunks else ""
+    if isinstance(val, dict):
+        lines = []
+        for k, v in val.items():
+            if v is None or v == "":
+                continue
+            vtxt = _clean_llm_display_text(v) if isinstance(v, str) else _value_to_text(v)
+            lines.append(f"**{_markdown_section_title_ru(k)}**: {vtxt}")
+        return "\n\n".join(lines)
+    return _value_to_text(val).strip()
+
+
+def _markdown_format_generic_block(val):
+    if isinstance(val, str):
+        return _clean_llm_display_text(val)
+    if isinstance(val, list):
+        if all(isinstance(x, str) for x in val):
+            return "\n".join(f"- {x}" for x in val if str(x).strip())
+        return "\n\n".join(f"- {_value_to_text(x)}" for x in val if x is not None)
+    if isinstance(val, dict):
+        parts = []
+        for k, v in val.items():
+            if v is None or v == "":
+                continue
+            if isinstance(v, (dict, list)):
+                parts.append(f"### {_markdown_section_title_ru(k)}\n\n{_markdown_format_generic_block(v)}")
+            else:
+                parts.append(f"**{_markdown_section_title_ru(k)}**: {str(v).strip()}")
+        return "\n\n".join(parts)
+    return _value_to_text(val).strip()
+
+
+def _markdown_from_client_research_explainability(explainability):
+    """Human-readable Markdown for deal files (no raw JSON dump)."""
+    if not isinstance(explainability, dict):
+        return ""
+    priority = [
+        "executive_summary",
+        "business_context",
+        "it_landscape",
+        "stakeholders_map",
+        "pains_confirmed",
+        "pains_hypotheses",
+        "risks",
+        "entry_strategy",
+        "action_plan_7_14_30",
+        "data_gaps",
+        "sources",
+        "public_web_signals",
+    ]
+    seen = set()
+    parts = ["# Исследование клиента\n"]
+    for key in priority:
+        if key not in explainability:
+            continue
+        val = explainability.get(key)
+        if val is None or val == "":
+            continue
+        title = _markdown_section_title_ru(key)
+        parts.append(f"\n## {title}\n")
+        if key == "stakeholders_map":
+            body = _markdown_format_stakeholders(val)
+        elif isinstance(val, str):
+            body = _clean_llm_display_text(val)
+        else:
+            body = _markdown_format_generic_block(val)
+        if body:
+            parts.append("\n" + body + "\n")
+        seen.add(key)
+    for key, val in explainability.items():
+        if key in seen or str(key).startswith("_"):
+            continue
+        if key in ("score", "summary", "suggestions", "recommendations", "model", "usage", "token_usage"):
+            continue
+        if val is None or val == "":
+            continue
+        title = _markdown_section_title_ru(key)
+        parts.append(f"\n## {title}\n")
+        body_extra = _clean_llm_display_text(val) if isinstance(val, str) else _markdown_format_generic_block(val)
+        parts.append("\n" + body_extra + "\n")
+    return "".join(parts).strip()
+
+
 def _value_to_text(value):
     if value is None:
         return ""
@@ -1360,7 +1546,10 @@ AI_CLIENT_RESEARCH_OUTPUT_RULES = (
     "верни глубокое исследование в JSON с разделами executive_summary, business_context, it_landscape, "
     "stakeholders_map, pains_confirmed, pains_hypotheses, risks, entry_strategy, action_plan_7_14_30, data_gaps, sources. "
     "Для каждого ключевого вывода укажи evidence/source_ref, а гипотезы явно пометь как hypothesis. "
-    "В action_plan дай конкретные шаги с owner, due_window и expected_outcome."
+    "В action_plan дай конкретные шаги с owner, due_window и expected_outcome. "
+    "Текстовые поля (executive_summary, business_context, summary если используешь) — только связный русский текст "
+    "без markdown-ограждений, без тройных кавычек кода и без вложенного JSON внутри строк. "
+    "Поле summary (если присутствует) — короткое управленческое резюме на 3–8 предложений, без дублирования executive_summary."
 )
 
 
@@ -1397,8 +1586,22 @@ def _run_openai_compatible(provider, engine, prompt, task_code="", max_output_to
     if str(task_code or "").strip() == "client_research" and ("kimi" in provider_low or "kimi" in engine_low):
         # Explicit deep-research hint for Kimi/OpenRouter-compatible backends.
         payload["reasoning"] = {"effort": "high"}
+    http_timeout = 60
+    if str(task_code or "").strip() == "client_research":
+        try:
+            http_timeout = int(os.getenv("AI_CLIENT_RESEARCH_HTTP_TIMEOUT", "900") or 900)
+        except Exception:
+            http_timeout = 900
+        http_timeout = max(120, min(http_timeout, 1200))
+    req_headers = {"Authorization": f"Bearer {api_key}"}
+    if "openrouter.ai" in base_url.lower():
+        ref = str(os.getenv("OPENROUTER_HTTP_REFERER", "") or os.getenv("VITE_PUBLIC_APP_URL", "") or "").strip()
+        if ref:
+            req_headers["HTTP-Referer"] = ref
+        title = str(os.getenv("OPENROUTER_APP_TITLE", "CRM-New-Level-AI") or "").strip() or "CRM-New-Level-AI"
+        req_headers["X-Title"] = title
     try:
-        res = _http_json("POST", url, payload, headers={"Authorization": f"Bearer {api_key}"}, timeout=60)
+        res = _http_json("POST", url, payload, headers=req_headers, timeout=http_timeout)
         choices = res.get("choices", []) if isinstance(res, dict) else []
         content = ""
         if choices and isinstance(choices[0], dict):
@@ -2542,8 +2745,8 @@ def run_ai_deal_analysis(payload):
             fallback_provider = "or_qwen"
         if not fallback_engine:
             fallback_engine = "qwen/qwen3-235b-a22b"
-        if max_output_tokens < 3200:
-            max_output_tokens = 3200
+        if max_output_tokens < 12000:
+            max_output_tokens = 12000
 
     if not primary_provider or not primary_engine:
         return {"ok": False, "error": f"routing for '{task_code}' is not configured"}
@@ -2794,6 +2997,12 @@ def run_ai_deal_analysis(payload):
         anchor_line = f"Последнее изменение: {latest_update_text[:220]}"
         if anchor_line.lower() not in summary.lower():
             summary = f"{anchor_line}. {summary}".strip()
+    if task_code == "client_research" and isinstance(explainability, dict):
+        summary = _clean_llm_display_text(summary)
+        suggestions = _clean_llm_display_text(suggestions)
+        if not suggestions:
+            suggestions = (_client_research_actions_to_text(explainability) or "").strip()
+        explainability["_crm_narrative_md"] = _markdown_from_client_research_explainability(explainability)
     total_tokens = usage.get("total_tokens", 0) if isinstance(usage, dict) else 0
     try:
         total_tokens = float(total_tokens or 0)
@@ -2830,10 +3039,24 @@ def run_ai_deal_analysis(payload):
     }
     timeline_text = f"AI-анализ обновлен ({mode_label}). Score: {score}/100.\nРезюме: {summary}\nРекомендации: {suggestions}"
     if task_code == "client_research":
-        timeline_text = (
-            f"AI-исследование клиента завершено ({mode_label}). Score: {score}/100.\n"
-            f"Кратко: {summary[:700] if summary else 'См. полный отчет в файлах сделки.'}"
+        summ_line = (
+            (summary[:900] if summary else "").strip()
+            or "Полный отчёт на вкладке AI и в файлах сделки (Markdown)."
         )
+        timeline_text = (
+            f"AI-исследование клиента завершено ({mode_label}). Оценка модели: {score}%.\n"
+            f"{summ_line}"
+        )
+    timeline_payload = {
+        "provider": used_provider,
+        "engine": used_engine,
+        "insight_id": ai_record.get("id", ""),
+    }
+    if task_code != "client_research":
+        timeline_payload["analysis_mode"] = "update" if is_update_mode else "full"
+        timeline_payload["requested_task_code"] = task_code
+        timeline_payload["company_id"] = company_id
+        timeline_payload["product_id"] = product_id
     _tenant_api_create(
         tenant_pb_url,
         "timeline",
@@ -2842,15 +3065,7 @@ def run_ai_deal_analysis(payload):
             "user_id": user_id or None,
             "action": action_by_task.get(task_code, "ai_analysis"),
             "comment": timeline_text,
-            "payload": {
-                "provider": used_provider,
-                "engine": used_engine,
-                "insight_id": ai_record.get("id", ""),
-                "analysis_mode": "update" if is_update_mode else "full",
-                "requested_task_code": task_code,
-                "company_id": company_id,
-                "product_id": product_id,
-            },
+            "payload": timeline_payload,
             "timestamp": datetime.utcnow().isoformat() + "Z",
         },
         admin_token,

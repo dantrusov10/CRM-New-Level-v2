@@ -44,6 +44,66 @@ function normalizeAiText(input: string): string {
     .replace(/data\s*gaps?/gi, "Пробелы в данных");
 }
 
+/** Убирает вложенный JSON / ```json из полей, которые модель иногда «вкладывает» в summary. */
+function humanizeSummaryForDisplay(raw: string | undefined | null): string {
+  let t = String(raw || "").trim();
+  if (!t) return "";
+  t = t.replace(/```(?:json)?\s*([\s\S]*?)```/gi, (_, inner: string) => {
+    const parsed = parseJsonLoose(String(inner || "").trim());
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const o = parsed as Record<string, unknown>;
+      const innerSummary = String(o.executive_summary || o.summary || "").trim();
+      if (innerSummary) return innerSummary;
+    }
+    return String(inner || "").trim().slice(0, 4000);
+  });
+  const linesDedup = t.split("\n").map((l) => l.trim()).filter(Boolean);
+  if (linesDedup.length >= 2 && linesDedup[0] === linesDedup[1]) {
+    t = linesDedup.slice(1).join("\n");
+  }
+  t = t.replace(/^Кратко:\s*/i, "").trim();
+  return t;
+}
+
+function isClientResearchInsight(insight: AiInsight | null): boolean {
+  if (!insight) return false;
+  const m = String(insight.model || "").toLowerCase();
+  if (m.includes("client_research")) return true;
+  const ex = insight.explainability;
+  if (ex && typeof ex === "object" && !Array.isArray(ex)) {
+    const o = ex as Record<string, unknown>;
+    if (o._crm_narrative_md != null) return true;
+    if (o.executive_summary != null || o.stakeholders_map != null || o.action_plan_7_14_30 != null) return true;
+  }
+  return false;
+}
+
+function stripTimelineAiNoise(text: string): string {
+  return humanizeSummaryForDisplay(text);
+}
+
+function InlineMdBold({ text }: { text: string }) {
+  const parts = String(text || "").split(/(\*\*[^*]+\*\*)/g);
+  return (
+    <>
+      {parts.map((p, i) => {
+        if (p.startsWith("**") && p.endsWith("**") && p.length > 4) {
+          return (
+            <strong key={i} className="font-semibold text-text">
+              {p.slice(2, -2)}
+            </strong>
+          );
+        }
+        return (
+          <span key={i}>
+            {p}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
 function extractScoreFromExplainability(ex: unknown): number | null {
   if (!ex || typeof ex !== "object" || Array.isArray(ex)) return null;
   const o = ex as Record<string, unknown>;
@@ -539,6 +599,8 @@ function buildDynamicSections(insight: AiInsight | null): AiSection[] {
     "_scoring",
     "scoring",
     "raw_model_output",
+    "_crm_narrative_md",
+    "_update_penalty",
   ]);
   const seenTitles = new Set<string>();
   const seenSigs = new Set<string>();
@@ -585,6 +647,89 @@ function collectItemsByKeywords(sections: AiSection[], keywords: RegExp): string
   return Array.from(new Set(out)).slice(0, 6);
 }
 
+function researchFieldToReadableLines(val: unknown): string[] {
+  if (val == null) return [];
+  if (typeof val === "string") {
+    return humanizeSummaryForDisplay(val)
+      .split(/\n+|(?<=[.!?])\s+/)
+      .map((s) => s.replace(/^[-•*]\s*/, "").trim())
+      .filter((s) => s.length > 6)
+      .slice(0, 14);
+  }
+  if (Array.isArray(val)) {
+    const out: string[] = [];
+    for (const item of val) {
+      if (item && typeof item === "object" && !Array.isArray(item)) {
+        const o = item as Record<string, unknown>;
+        const name = String(o.name ?? o.title ?? "").trim();
+        const role = String(o.role ?? o.position ?? "").trim();
+        const inf = String(o.influence ?? "").trim();
+        const foc = String(o.focus ?? "").trim();
+        if (name) {
+          const bits = [
+            role ? `${name} — ${role}` : name,
+            inf ? `Влияние: ${inf}` : "",
+            foc ? `Фокус: ${foc}` : "",
+          ].filter(Boolean);
+          out.push(bits.join(". "));
+        } else {
+          out.push(humanizeSummaryForDisplay(valueToText(item)));
+        }
+      } else {
+        out.push(humanizeSummaryForDisplay(String(item)));
+      }
+    }
+    return out.filter((x) => x.length > 3).slice(0, 14);
+  }
+  if (typeof val === "object") {
+    const t = humanizeSummaryForDisplay(valueToText(val));
+    return t ? [t.slice(0, 1200)] : [];
+  }
+  return [];
+}
+
+function buildClientResearchTemplate(latestAi: AiInsight | null, planLines: string[]): ResearchSection[] {
+  const ex = (
+    latestAi?.explainability && typeof latestAi.explainability === "object" && !Array.isArray(latestAi.explainability)
+      ? latestAi.explainability
+      : {}
+  ) as Record<string, unknown>;
+  const summary = humanizeSummaryForDisplay(String(latestAi?.summary || ""));
+  const score = resolveDisplayScore(latestAi);
+  const sections: ResearchSection[] = [];
+  sections.push({
+    title: "Краткое резюме",
+    items: summary ? [summary] : ["Резюме пока пустое — см. детализацию источника ниже."],
+  });
+  const ctx = researchFieldToReadableLines(ex.business_context);
+  if (ctx.length) sections.push({ title: "Контекст клиента и сделки", items: ctx });
+  const stake = researchFieldToReadableLines(ex.stakeholders_map);
+  if (stake.length) sections.push({ title: "Стейкхолдеры и блокеры", items: stake });
+  const pains = [...researchFieldToReadableLines(ex.pains_confirmed), ...researchFieldToReadableLines(ex.pains_hypotheses)].slice(0, 12);
+  if (pains.length) sections.push({ title: "Потребности: факты и гипотезы", items: pains });
+  const risks = researchFieldToReadableLines(ex.risks);
+  if (risks.length) sections.push({ title: "Риски", items: risks });
+  if (typeof score === "number") {
+    sections.push({
+      title: "Оценка вероятности (модель)",
+      items: [
+        `Текущая оценка закрытия: ${score}%.`,
+        "Для исследования клиента это ориентир по данным CRM и сигналам, а не замена глубокой внешней проверки.",
+      ],
+    });
+  }
+  const plan =
+    planLines.length > 0
+      ? planLines.slice(0, 8)
+      : researchFieldToReadableLines(ex.action_plan_7_14_30 ?? ex.entry_strategy);
+  if (plan.length) sections.push({ title: "План действий", items: plan });
+  const gaps = researchFieldToReadableLines(ex.data_gaps);
+  if (gaps.length) sections.push({ title: "Пробелы в данных", items: gaps });
+  const src = researchFieldToReadableLines(ex.sources);
+  if (src.length) sections.push({ title: "Источники и ссылки", items: src.slice(0, 10) });
+  return sections.length ? sections : [{ title: "Исследование", items: [summary || "Структурированный ответ модели отсутствует."] }];
+}
+
 function buildResearchTemplate(
   latestAi: AiInsight | null,
   aiHistory: AiInsight[],
@@ -593,10 +738,18 @@ function buildResearchTemplate(
   nextActions: string[],
   score: number | null,
 ): ResearchSection[] {
+  if (isClientResearchInsight(latestAi)) {
+    const sugLines = humanizeSummaryForDisplay(String(latestAi?.suggestions || ""))
+      .split(/\n+/)
+      .map((l) => l.replace(/^\d+\.\s*/, "").trim())
+      .filter((l) => l.length > 10);
+    const plan = sugLines.length ? sugLines : nextActions;
+    return buildClientResearchTemplate(latestAi, plan);
+  }
   const improvements = collectItemsByKeywords(sections, /(рост|улучш|upside|потенциал|сильн)/i);
   const deteriorations = collectItemsByKeywords(sections, /(риск|ухудш|проблем|gap|нехват|блокер)/i);
   const causes = collectItemsByKeywords(sections, /(причин|контекст|коммер|потреб|конкур|данн)/i);
-  const summaryText = valueToText(latestAi?.summary || "");
+  const summaryText = humanizeSummaryForDisplay(String(latestAi?.summary || ""));
   const prevAi = aiHistory.length > 1 ? aiHistory[1] : null;
   const prevScore = prevAi ? resolveDisplayScore(prevAi) : null;
   const delta = typeof score === "number" && typeof prevScore === "number" ? score - prevScore : null;
@@ -687,7 +840,7 @@ function Select({
 }
 
 function TimelineText({ text }: { text: string }) {
-  const raw = String(text || "").trim();
+  const raw = stripTimelineAiNoise(String(text || "").trim());
   if (!raw) return <span>—</span>;
   const recommendationJson = raw.match(/Рекомендации:\s*([\s\S]+)$/i);
   if (recommendationJson?.[1]) {
@@ -752,8 +905,14 @@ function TimelineItemRow({ item }: { item: TimelineItem & { expand?: { user_id?:
         : "border-border bg-rowHover/60";
   const title = isComment ? "Комментарий" : isStage ? "Изменение этапа" : isAI ? "AI событие" : "Системное событие";
   const payloadRaw = item.payload && typeof item.payload === "object" ? (item.payload as Record<string, unknown>) : null;
+  const isClientResearchAi = action === "ai_client_research";
   const payload = payloadRaw
-    ? Object.entries(payloadRaw).filter(([k]) => !["engine", "provider", "insight_id", "model"].includes(k.toLowerCase()))
+    ? Object.entries(payloadRaw).filter(([k]) => {
+        const kl = k.toLowerCase();
+        if (["engine", "provider", "insight_id", "model"].includes(kl)) return false;
+        if (isClientResearchAi && ["analysis_mode", "company_id", "product_id", "requested_task_code"].includes(kl)) return false;
+        return true;
+      })
     : [];
   const [expanded, setExpanded] = React.useState(isStage || isAI);
 
@@ -1300,11 +1459,12 @@ export function DealDetailPage() {
         const createdAt = dayjs().format("YYYY-MM-DD HH:mm");
         const productName = effectiveProduct?.name || "Продукт";
         const title = `AI client research ${deal.title || deal.id} ${dayjs().format("YYYY-MM-DD HH-mm")}.md`;
-        const explainabilityText =
+        const exObj =
           insight?.explainability && typeof insight.explainability === "object"
-            ? JSON.stringify(insight.explainability, null, 2)
-            : String(insight?.explainability || "");
-        const md = [
+            ? (insight.explainability as Record<string, unknown>)
+            : {};
+        const narrative = String(exObj._crm_narrative_md || "").trim();
+        const header = [
           `# Исследование клиента`,
           ``,
           `- Сделка: ${deal.title || deal.id}`,
@@ -1312,18 +1472,42 @@ export function DealDetailPage() {
           `- Продукт: ${productName}`,
           `- Время: ${createdAt}`,
           ``,
-          `## Executive summary`,
-          `${String(insight?.summary || "").trim() || "-"}`,
-          ``,
-          `## Recommendations`,
-          `${String(insight?.suggestions || "").trim() || "-"}`,
-          ``,
-          `## Raw explainability JSON`,
-          "```json",
-          explainabilityText || "{}",
-          "```",
-          ``,
         ].join("\n");
+        const md = narrative.length
+          ? [
+              header,
+              narrative,
+              ``,
+              `## Краткое резюме (для карточки CRM)`,
+              `${humanizeSummaryForDisplay(String(insight?.summary || "").trim()) || "-"}`,
+              ``,
+              `## План и рекомендации`,
+              `${String(insight?.suggestions || "").trim() || "-"}`,
+              ``,
+            ].join("\n")
+          : [
+              header,
+              `## Краткое резюме`,
+              `${humanizeSummaryForDisplay(String(insight?.summary || "").trim()) || "-"}`,
+              ``,
+              `## План и рекомендации`,
+              `${String(insight?.suggestions || "").trim() || "-"}`,
+              ``,
+              `## Структурированные данные (сокращённо)`,
+              "```json",
+              (() => {
+                const copy = { ...exObj };
+                delete copy._scoring;
+                delete copy._update_penalty;
+                try {
+                  return JSON.stringify(copy, null, 2).slice(0, 14000);
+                } catch {
+                  return "{}";
+                }
+              })(),
+              "```",
+              ``,
+            ].join("\n");
         const bytes = new TextEncoder().encode(md);
         let binary = "";
         bytes.forEach((b) => {
@@ -1696,7 +1880,11 @@ export function DealDetailPage() {
                       <div className="text-sm font-semibold">AI-отчёт по сделке</div>
                       <span className="neon-pill">AI режим</span>
                     </div>
-                    <div className="text-xs text-text2 mt-1">Формат управленческого исследования: изменения, риски, причины, план</div>
+                    <div className="text-xs text-text2 mt-1">
+                      {isClientResearchInsight(latestAi)
+                        ? "Исследование клиента: резюме, контекст, стейкхолдеры, риски и план. Развёрнутый отчёт — в Markdown-файле в разделе «Файлы» (без сырого JSON в интерфейсе)."
+                        : "Формат управленческого исследования: изменения, риски, причины, план"}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap justify-end">
                     <Button
@@ -1754,7 +1942,9 @@ export function DealDetailPage() {
                               {section.items.map((item, i) => (
                                 <li key={`${item}-${i}`} className="flex items-start gap-2">
                                   <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary/80" />
-                                  <span>{item}</span>
+                                  <span className="leading-relaxed">
+                                    <InlineMdBold text={item} />
+                                  </span>
                                 </li>
                               ))}
                             </ul>

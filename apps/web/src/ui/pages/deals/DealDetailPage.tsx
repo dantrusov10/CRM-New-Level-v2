@@ -1,7 +1,7 @@
 import React from "react";
 import { useParams } from "react-router-dom";
 import dayjs from "dayjs";
-import { AlertTriangle, CheckCircle2, Lightbulb, Sparkles } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, CircleHelp, Lightbulb, Sparkles, X } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
@@ -21,9 +21,9 @@ import {
   useDeleteEntityFileLink,
   useFunnelStages,
   useTimeline,
-  useUpdateDeal,
   useCreateTask,
   useProductProfiles,
+  useUsers,
 } from "../../data/hooks";
 import { DealKpModule } from "../../modules/kp/DealKpModule";
 import { DynamicEntityFormWithRef, DynamicEntityFormHandle } from "../../components/DynamicEntityForm";
@@ -1075,12 +1075,25 @@ function TimelineItemRow({
         : "border-border bg-rowHover/60";
   const title = isComment ? "Комментарий" : isStage ? "Изменение этапа" : isAI ? "AI событие" : "Системное событие";
   const payloadRaw = item.payload && typeof item.payload === "object" ? (item.payload as Record<string, unknown>) : null;
-  const isClientResearchAi = action === "ai_client_research";
   const payload = payloadRaw
     ? Object.entries(payloadRaw).filter(([k]) => {
         const kl = k.toLowerCase();
-        if (["engine", "provider", "insight_id", "model"].includes(kl)) return false;
-        if (isClientResearchAi && ["analysis_mode", "company_id", "product_id", "requested_task_code"].includes(kl)) return false;
+        if ([
+          "engine",
+          "provider",
+          "insight_id",
+          "model",
+          "analysis_mode",
+          "company_id",
+          "deal_id",
+          "product_id",
+          "product_ids",
+          "requested_task_code",
+          "tenant_pb_url",
+          "tenant_user_token",
+          "user_id",
+          "quick_actions_1_7_days",
+        ].includes(kl)) return false;
         if (["due_at", "source"].includes(kl)) return false;
         return true;
       })
@@ -1141,7 +1154,7 @@ export function DealDetailPage() {
   const entityFilesQ = useEntityFiles("deal", id!);
   const addWorkspaceFileM = useAddWorkspaceFile();
   const deleteEntityFileM = useDeleteEntityFileLink();
-  const upd = useUpdateDeal();
+  const usersQ = useUsers();
   const productProfilesQ = useProductProfiles();
 
   const deal = (dealQ.data ?? null) as Deal | null;
@@ -1195,6 +1208,7 @@ export function DealDetailPage() {
 
   // form state
   const [title, setTitle] = React.useState<string>("");
+  const [titleDraft, setTitleDraft] = React.useState<string>("");
   const [budget, setBudget] = React.useState<string>("");
   const [turnover, setTurnover] = React.useState<string>("");
   const [margin, setMargin] = React.useState<string>("");
@@ -1222,6 +1236,7 @@ export function DealDetailPage() {
     if (!deal?.id) return;
     // PocketBase schema: title + company_id + stage_id ...
     setTitle(deal.title ?? "");
+    setTitleDraft(deal.title ?? "");
     setBudget(typeof deal.budget === "number" ? String(deal.budget) : "");
     setTurnover(typeof deal.turnover === "number" ? String(deal.turnover) : "");
     setMargin(typeof deal.margin_percent === "number" ? String(deal.margin_percent) : "");
@@ -1328,16 +1343,31 @@ export function DealDetailPage() {
     tlQ.refetch();
   }
 
-  async function saveDealHeader() {
+  async function saveDealTitleInline() {
     if (!id) return;
-    await pb
-      .collection("deals")
-      .update(id, {
-        title: title.trim(),
-        stage_id: deal?.stage_id || null,
-      })
-      .catch(() => null);
-    await createTimelineEvent("deal_header_updated", "Обновлены название/этап сделки");
+    const next = titleDraft.trim();
+    if (!next || next === String(title || "").trim()) return;
+    await pb.collection("deals").update(id, { title: next }).catch(() => null);
+    setTitle(next);
+    setTitleDraft(next);
+    await createTimelineEvent("deal_header_updated", "Обновлено название сделки");
+    await dealQ.refetch();
+    tlQ.refetch();
+  }
+
+  async function changeResponsible(nextUserId: string) {
+    if (!id || !nextUserId) return;
+    const authRole = String((auth as Record<string, unknown> | null)?.role || "").toLowerCase();
+    const isAdmin = /admin|founder|owner/.test(authRole);
+    const myId = String(auth?.id || "");
+    const currentResponsible = String(deal?.responsible_id || deal?.expand?.responsible_id?.id || "");
+    if (!isAdmin && (!myId || currentResponsible !== myId)) return;
+    await pb.collection("deals").update(id, { responsible_id: nextUserId }).catch(() => null);
+    const toName =
+      usersQ.data?.find((u) => String(u.id) === String(nextUserId))?.full_name ||
+      usersQ.data?.find((u) => String(u.id) === String(nextUserId))?.email ||
+      "Новый ответственный";
+    await createTimelineEvent("responsible_changed", `Ответственный изменён: ${toName}`);
     await dealQ.refetch();
     tlQ.refetch();
   }
@@ -1924,26 +1954,33 @@ export function DealDetailPage() {
       <Card className="neon-accent sticky top-0 z-30">
         <CardHeader className="py-3">
           <div className="grid gap-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="text-sm font-semibold">Сделка</div>
-              <span className="neon-pill">Карточка</span>
-              <Badge>{deal?.expand?.company_id?.name ? "Компания: " + deal.expand.company_id.name : "Компания: —"}</Badge>
-              <Badge>Бюджет: {budget ? `${formatMoney(Number(budget))} ₽` : "—"}</Badge>
-              <Badge>
-                Ответственный: {deal?.expand?.responsible_id?.full_name || deal?.expand?.responsible_id?.email || "—"}
-              </Badge>
-            </div>
-
             <div className="grid grid-cols-12 gap-2 items-end">
-              <div className="col-span-12 xl:col-span-4">
-                <div className="text-xs text-text2 mb-1">Название сделки</div>
-                <Input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Название сделки"
-                />
-              </div>
               <div className="col-span-12 xl:col-span-5">
+                <div className="text-xs text-text2 mb-1">Название сделки</div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={titleDraft}
+                    onChange={(e) => setTitleDraft(e.target.value)}
+                    placeholder="Название сделки"
+                  />
+                  {titleDraft.trim() !== String(title || "").trim() ? (
+                    <>
+                      <Button small onClick={() => void saveDealTitleInline()} title="Подтвердить">
+                        <Check size={14} />
+                      </Button>
+                      <Button
+                        small
+                        variant="ghost"
+                        onClick={() => setTitleDraft(String(title || ""))}
+                        title="Отменить"
+                      >
+                        <X size={14} />
+                      </Button>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+              <div className="col-span-12 xl:col-span-3">
                 <div className="text-xs text-text2 mb-1">Этап сделки</div>
                 <Select value={deal?.stage_id || ""} onChange={changeStage}>
                   <option value="">Этап</option>
@@ -1954,22 +1991,54 @@ export function DealDetailPage() {
                   ))}
                 </Select>
               </div>
-              <div className="col-span-12 xl:col-span-3 grid gap-2">
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setClientResearchProductId(selectedProductIds[0] || "");
-                    setClientResearchPickerOpen(true);
-                  }}
-                  disabled={aiRunLoading || !deal?.id}
-                >
-                  Исследовать клиента
-                </Button>
+              <div className="col-span-12 xl:col-span-4">
+                <div className="flex justify-end">
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setClientResearchProductId(selectedProductIds[0] || "");
+                      setClientResearchPickerOpen(true);
+                    }}
+                    disabled={aiRunLoading || !deal?.id}
+                    className="w-full xl:w-auto"
+                    title="Первичное исследование клиента: раз в 6 месяцев для связки клиент+продукт. Используется для подготовки к первым переговорам и первичной стратегии контактов."
+                  >
+                    Первичное исследование клиента
+                    <CircleHelp size={14} />
+                  </Button>
+                </div>
               </div>
-              <div className="col-span-12 xl:col-span-2">
-                <Button className="w-full" onClick={saveDealHeader} disabled={upd.isPending || !title.trim()}>
-                  Сохранить
-                </Button>
+            </div>
+
+            <div className="grid grid-cols-12 gap-2 items-end">
+              <div className="col-span-12 xl:col-span-3">
+                <div className="text-xs text-text2 mb-1">Бюджет</div>
+                <div className="text-lg font-semibold">{budget ? `${formatMoney(Number(budget))} ₽` : "—"}</div>
+              </div>
+              <div className="col-span-12 xl:col-span-5">
+                <div className="text-xs text-text2 mb-1">Ответственный</div>
+                <Select
+                  value={String(deal?.responsible_id || deal?.expand?.responsible_id?.id || "")}
+                  onChange={(v) => void changeResponsible(v)}
+                  disabled={(() => {
+                    const authRole = String((auth as Record<string, unknown> | null)?.role || "").toLowerCase();
+                    const isAdmin = /admin|founder|owner/.test(authRole);
+                    const myId = String(auth?.id || "");
+                    const currentResponsible = String(deal?.responsible_id || deal?.expand?.responsible_id?.id || "");
+                    return !(isAdmin || (myId && currentResponsible === myId));
+                  })()}
+                >
+                  <option value="">Не назначен</option>
+                  {(usersQ.data || []).map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.full_name || u.name || u.email}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="col-span-12 xl:col-span-4">
+                <div className="text-xs text-text2 mb-1">Компания</div>
+                <div className="text-base font-semibold">{deal?.expand?.company_id?.name || "—"}</div>
               </div>
             </div>
           </div>
@@ -1999,7 +2068,7 @@ export function DealDetailPage() {
               <div className="text-sm font-semibold">Сделка: общая информация</div>
             </CardHeader>
             <CardContent>
-              <div className={`crm-scrollbar pr-1 ${tab === "overview" ? "max-h-[calc(100vh-250px)] overflow-y-auto" : ""}`}>
+              <div className={`crm-scrollbar pr-1 ${tab === "overview" ? "max-h-[calc(100vh-170px)] overflow-y-auto" : ""}`}>
                 <DynamicEntityFormWithRef
                   ref={formRef}
                   entity="deal"
@@ -2033,7 +2102,7 @@ export function DealDetailPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="crm-scrollbar max-h-[calc(100vh-250px)] overflow-y-auto pr-1">
+            <CardContent className="crm-scrollbar max-h-[calc(100vh-170px)] overflow-y-auto pr-1">
               <div className="grid gap-3">
                 <div className="rounded-card border border-border bg-rowHover p-3">
                   <div className="grid gap-2">
@@ -2651,7 +2720,7 @@ export function DealDetailPage() {
                 <span className="neon-pill">Приоритет</span>
               </div>
             </CardHeader>
-            <CardContent className="crm-scrollbar max-h-[calc(100vh-250px)] overflow-y-auto pr-1">
+            <CardContent className="crm-scrollbar max-h-[calc(100vh-170px)] overflow-y-auto pr-1">
               <div className="grid gap-3">
                 <div className="rounded-card border border-[rgba(51,215,255,0.35)] bg-[rgba(45,123,255,0.16)] p-3">
                   <div className="flex items-center justify-between">
@@ -2727,7 +2796,7 @@ export function DealDetailPage() {
               <CardHeader>
                 <div className="text-sm font-semibold">Почему изменился score</div>
               </CardHeader>
-              <CardContent className="crm-scrollbar max-h-[calc(100vh-250px)] overflow-y-auto pr-1">
+              <CardContent className="crm-scrollbar max-h-[calc(100vh-170px)] overflow-y-auto pr-1">
                 <div className="grid gap-3">
                   {aiScoring ? (
                     <div className="rounded-card border border-border bg-white p-3">

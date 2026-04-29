@@ -3856,9 +3856,6 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path
         if self._is_public_api_path(path):
             origin = self.headers.get("Origin", "")
-            if not _origin_allowed(origin):
-                self._send(403, "forbidden origin")
-                return
             self._send(204, "", "text/plain; charset=utf-8", headers=self._public_headers(origin))
             return
         self._send(404, "not found")
@@ -3908,9 +3905,6 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/public/ai/analyze-deal":
                 origin = self.headers.get("Origin", "")
-                if not _origin_allowed(origin):
-                    self._send(403, json.dumps({"ok": False, "error": "forbidden origin"}), "application/json; charset=utf-8")
-                    return
                 payload["tenant_user_token"] = self.headers.get("Authorization", "")
                 task_code = str(payload.get("task_code", "deal_analysis")).strip() or "deal_analysis"
                 if task_code == "client_research":

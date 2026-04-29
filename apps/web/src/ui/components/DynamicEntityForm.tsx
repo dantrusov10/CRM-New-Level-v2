@@ -12,7 +12,7 @@ import {
   saveEntityFormData,
 } from '../../lib/entityForm';
 import { Input } from './Input';
-import { Button } from './Button';
+import { Check, X } from 'lucide-react';
 
 export type DynamicEntityFormHandle = {
   save: () => Promise<void>;
@@ -37,6 +37,7 @@ export function DynamicEntityForm(
   const [sections, setSections] = React.useState<SettingsSection[]>([]);
   const [fields, setFields] = React.useState<SettingsField[]>([]);
   const [values, setValues] = React.useState<Record<string, unknown>>({});
+  const [initialValues, setInitialValues] = React.useState<Record<string, unknown>>({});
   const [valueRowByField, setValueRowByField] = React.useState<Record<string, FieldValueRow>>({});
   const [relationOptions, setRelationOptions] = React.useState<Record<string, RelationOption[]>>({});
 
@@ -80,6 +81,7 @@ export function DynamicEntityForm(
 
     setValueRowByField(nextRowsByField);
     setValues(nextValues);
+    setInitialValues(nextValues);
 
     const relFields = fieldList.filter((field) => field.field_type === 'relation');
     const nextRelationOptions: Record<string, RelationOption[]> = {};
@@ -130,6 +132,64 @@ export function DynamicEntityForm(
     }
   }
 
+  function isFieldDirty(fieldId: string) {
+    const current = values[fieldId];
+    const initial = initialValues[fieldId];
+    return String(current ?? '') !== String(initial ?? '');
+  }
+
+  async function saveField(field: SettingsField) {
+    if (!recordId || saving) return;
+    setSaving(true);
+    try {
+      const result = await saveEntityFormData({
+        entity,
+        recordId,
+        record,
+        fields: [field],
+        values: { [field.id]: values[field.id] ?? '' },
+        valueRowByField,
+      });
+      if (Object.keys(result.createdRowsByField).length > 0) {
+        setValueRowByField((prev) => ({ ...prev, ...result.createdRowsByField }));
+      }
+      setInitialValues((prev) => ({ ...prev, [field.id]: values[field.id] ?? '' }));
+      onSaved?.();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function resetField(fieldId: string) {
+    setValues((prev) => ({ ...prev, [fieldId]: initialValues[fieldId] ?? '' }));
+  }
+
+  function FieldActions({ field }: { field: SettingsField }) {
+    if (!isFieldDirty(field.id)) return null;
+    return (
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          className="ui-btn h-9 w-9 px-0"
+          title="Подтвердить изменение"
+          onClick={() => void saveField(field)}
+          disabled={saving}
+        >
+          <Check size={14} />
+        </button>
+        <button
+          type="button"
+          className="ui-btn ui-btn-ghost h-9 w-9 px-0"
+          title="Отменить изменение"
+          onClick={() => resetField(field.id)}
+          disabled={saving}
+        >
+          <X size={14} />
+        </button>
+      </div>
+    );
+  }
+
   React.useImperativeHandle(ref, () => ({ save }), [entity, recordId, fields, values, valueRowByField, record, onSaved]);
 
   const fieldsBySection = React.useMemo(() => {
@@ -178,18 +238,21 @@ export function DynamicEntityForm(
                       {required ? ' *' : ''}
                     </div>
                     <div className="col-span-12 md:col-span-8 xl:col-span-9">
-                      <select
-                        className="h-10 w-full rounded-card border border-border bg-white px-3 text-sm"
-                        value={String(value ?? '')}
-                        onChange={(event) => setFieldValue(field.id, event.target.value)}
-                      >
-                        <option value="">—</option>
-                        {list.map((item) => (
-                          <option key={item} value={item}>
-                            {item}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex items-center gap-2">
+                        <select
+                          className="h-10 w-full rounded-card border border-border bg-white px-3 text-sm"
+                          value={String(value ?? '')}
+                          onChange={(event) => setFieldValue(field.id, event.target.value)}
+                        >
+                          <option value="">—</option>
+                          {list.map((item) => (
+                            <option key={item} value={item}>
+                              {item}
+                            </option>
+                          ))}
+                        </select>
+                        <FieldActions field={field} />
+                      </div>
                     </div>
                   </div>
                 );
@@ -205,18 +268,21 @@ export function DynamicEntityForm(
                       {required ? ' *' : ''}
                     </div>
                     <div className="col-span-12 md:col-span-8 xl:col-span-9">
-                      <select
-                        className="h-10 w-full rounded-card border border-border bg-white px-3 text-sm"
-                        value={String(value ?? '')}
-                        onChange={(event) => setFieldValue(field.id, event.target.value)}
-                      >
-                        <option value="">—</option>
-                        {list.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {String(item[labelField] ?? item.name ?? item.title ?? item.email ?? item.id)}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex items-center gap-2">
+                        <select
+                          className="h-10 w-full rounded-card border border-border bg-white px-3 text-sm"
+                          value={String(value ?? '')}
+                          onChange={(event) => setFieldValue(field.id, event.target.value)}
+                        >
+                          <option value="">—</option>
+                          {list.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {String(item[labelField] ?? item.name ?? item.title ?? item.email ?? item.id)}
+                            </option>
+                          ))}
+                        </select>
+                        <FieldActions field={field} />
+                      </div>
                     </div>
                   </div>
                 );
@@ -230,12 +296,15 @@ export function DynamicEntityForm(
                     {required ? ' *' : ''}
                   </div>
                   <div className="col-span-12 md:col-span-8 xl:col-span-9">
-                    <Input
-                      type={inputType}
-                      value={String(value ?? '')}
-                      onChange={(event) => setFieldValue(field.id, event.target.value)}
-                      placeholder={field.help_text || ''}
-                    />
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type={inputType}
+                        value={String(value ?? '')}
+                        onChange={(event) => setFieldValue(field.id, event.target.value)}
+                        placeholder={field.help_text || ''}
+                      />
+                      <FieldActions field={field} />
+                    </div>
                   </div>
                 </div>
               );
@@ -243,12 +312,6 @@ export function DynamicEntityForm(
           </div>
         </section>
       ))}
-
-      <div className="flex justify-end">
-        <Button onClick={save} disabled={saving}>
-          {saving ? 'Сохранение...' : 'Сохранить'}
-        </Button>
-      </div>
     </div>
   );
 }

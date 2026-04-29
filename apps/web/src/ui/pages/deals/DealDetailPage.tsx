@@ -229,6 +229,7 @@ export function DealDetailPage() {
   const [tab, setTab] = React.useState<string>("overview");
   const [composerType, setComposerType] = React.useState<"comment" | "note" | "task">("comment");
   const [comment, setComment] = React.useState<string>("");
+  const [noteText, setNoteText] = React.useState<string>("");
   const [taskDueAt, setTaskDueAt] = React.useState<string>("");
   const [timelineFilter, setTimelineFilter] = React.useState<string>("all");
   const formRef = React.useRef<DynamicEntityFormHandle | null>(null);
@@ -398,6 +399,14 @@ export function DealDetailPage() {
     tlQ.refetch();
   }
 
+  async function submitNoteFromNotesTab() {
+    const text = noteText.trim();
+    if (!text || !id) return;
+    await createTimelineEvent("note", text);
+    setNoteText("");
+    tlQ.refetch();
+  }
+
   async function addContact() {
     if (!id) return;
     const full_name = cFullName.trim();
@@ -545,14 +554,110 @@ export function DealDetailPage() {
 
       {/* MAIN AREA */}
       <div className="grid grid-cols-12 gap-4">
-        <div className="col-span-8 grid gap-4">
+        <div className="col-span-9 grid gap-4">
           {tab === "overview" ? (
             <Card>
               <CardHeader>
                 <div className="text-sm font-semibold">Карточка сделки</div>
-                <div className="text-xs text-text2 mt-1">Полностью настраивается в Админ → Поля (разделы + поля).</div>
+                <div className="text-xs text-text2 mt-1">Фокус: AI и работа менеджера. Базовые поля сделки собраны в правой панели.</div>
               </CardHeader>
               <CardContent>
+                <div className="grid grid-cols-12 gap-4 mb-4">
+                  <div className="col-span-6">
+                    <Card className="border-infoBorder bg-infoBg">
+                      <CardHeader className="border-infoBorder">
+                        <div className="text-sm font-semibold">AI в центре внимания</div>
+                        <div className="text-xs text-text2 mt-1">Вероятность, риски, выводы и рекомендации по сделке</div>
+                      </CardHeader>
+                      <CardContent>
+                        {aiQ.isLoading ? (
+                          <div className="text-sm text-text2">Загрузка...</div>
+                        ) : latestAi ? (
+                          <div className="grid gap-3">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge>{sb.label}</Badge>
+                              <Badge>Score: {typeof score === "number" ? `${score}/100` : "—"}</Badge>
+                            </div>
+                            {latestAi.summary ? (
+                              <div className="rounded-card border border-infoBorder bg-white p-3">
+                                <div className="text-xs text-text2">Резюме</div>
+                                <div className="text-sm mt-2 whitespace-pre-wrap">{latestAi.summary}</div>
+                              </div>
+                            ) : null}
+                            {latestAi.suggestions || latestAi.recommendations ? (
+                              <div className="rounded-card border border-infoBorder bg-white p-3">
+                                <div className="text-xs text-text2">Что делать менеджеру</div>
+                                <div className="text-sm mt-2 whitespace-pre-wrap">{latestAi.suggestions || latestAi.recommendations}</div>
+                              </div>
+                            ) : null}
+                            {risksDisplay ? (
+                              <div className="rounded-card border border-infoBorder bg-white p-3">
+                                <div className="text-xs text-text2">Риски</div>
+                                <div className="text-sm mt-2 whitespace-pre-wrap">{risksDisplay}</div>
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-text2">AI-анализ еще не создан для этой сделки.</div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                  <div className="col-span-6">
+                    <Card>
+                      <CardHeader>
+                        <div className="text-sm font-semibold">Работа менеджера: комментарии и задачи</div>
+                        <div className="text-xs text-text2 mt-1">Фиксируй каждый шаг и ставь задачи сразу из карточки</div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid gap-3">
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={composerType}
+                              onChange={(e) => setComposerType(e.target.value as "comment" | "note" | "task")}
+                              className="ui-input max-w-[140px]"
+                              title="Тип"
+                            >
+                              <option value="comment">Комментарий</option>
+                              <option value="note">Заметка</option>
+                              <option value="task">Задача</option>
+                            </select>
+                            {composerType === "task" ? (
+                              <DateTimePicker value={taskDueAt} onChange={setTaskDueAt} className="w-full" />
+                            ) : null}
+                          </div>
+                          <div className="flex gap-2">
+                            <Input
+                              value={comment}
+                              onChange={(e) => setComment(e.target.value)}
+                              placeholder={composerType === "task" ? "Текст задачи" : "Новый комментарий / заметка"}
+                            />
+                            <Button
+                              onClick={submitComposer}
+                              disabled={composerType === "task" ? !(comment.trim() && taskDueAt) : !comment.trim()}
+                            >
+                              {composerType === "task" ? "Поставить" : "Добавить"}
+                            </Button>
+                          </div>
+                          <div className="grid gap-2 max-h-[220px] overflow-auto pr-1">
+                            {tlAll
+                              .filter((t) => String(t.action) === "comment" || String(t.action) === "note")
+                              .slice(0, 8)
+                              .map((t) => (
+                                <div key={t.id} className="rounded-card border border-border bg-white p-2.5">
+                                  <div className="text-xs text-text2">
+                                    {dayjs(t.timestamp || t.created).format("DD.MM.YYYY HH:mm")}
+                                    {t.expand?.user_id?.name ? ` · ${t.expand.user_id.name}` : ""}
+                                  </div>
+                                  <div className="text-sm mt-1 whitespace-pre-wrap">{t.comment}</div>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
                 <DynamicEntityFormWithRef
                   ref={formRef}
                   entity="deal"
@@ -668,10 +773,23 @@ export function DealDetailPage() {
             <Card>
               <CardHeader>
                 <div className="text-sm font-semibold">Заметки</div>
-                <div className="text-xs text-text2 mt-1">Здесь отображаются заметки и комментарии из правого блока.</div>
+                <div className="text-xs text-text2 mt-1">Отдельный ввод заметок + история заметок/комментариев.</div>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-3">
+                  <div className="rounded-card border border-border bg-rowHover p-3">
+                    <div className="text-xs text-text2 mb-2">Новая заметка</div>
+                    <div className="flex gap-2">
+                      <Input
+                        value={noteText}
+                        onChange={(e) => setNoteText(e.target.value)}
+                        placeholder="Напишите заметку по сделке..."
+                      />
+                      <Button onClick={submitNoteFromNotesTab} disabled={!noteText.trim()}>
+                        Добавить
+                      </Button>
+                    </div>
+                  </div>
                   {tlAll
                     .filter((t) => {
                       const a = String(t.action || "");
@@ -793,125 +911,26 @@ export function DealDetailPage() {
         </div>
 
         {/* SIDEBAR */}
-        <div className="col-span-4 grid gap-4">
+        <div className="col-span-3 grid gap-4">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold">Комментарии</div>
-                <Badge>Все</Badge>
-              </div>
+              <div className="text-sm font-semibold">Краткая информация</div>
             </CardHeader>
             <CardContent>
               <div className="grid gap-3">
-                <div className="grid gap-2">
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={composerType}
-                      onChange={(e) => setComposerType(e.target.value as "comment" | "note" | "task")}
-                      className="ui-input max-w-[140px]"
-                      title="Тип"
-                    >
-                      <option value="comment">Чат</option>
-                      <option value="note">Примечание</option>
-                      <option value="task">Задача</option>
-                    </select>
-
-                    {composerType === "task" ? (
-                      <DateTimePicker value={taskDueAt} onChange={setTaskDueAt} className="w-full" />
-                    ) : null}
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Input
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
-                      placeholder={composerType === "task" ? "Текст задачи (например: Связаться)" : "Напишите комментарий…"}
-                    />
-                    <Button
-                      onClick={submitComposer}
-                      disabled={composerType === "task" ? !(comment.trim() && taskDueAt) : !comment.trim()}
-                    >
-                      {composerType === "task" ? "Поставить" : "Добавить"}
-                    </Button>
-                  </div>
-
-                  {composerType === "task" ? (
-                    <div className="text-xs muted">
-                      Задача появится в колокольчике в нужное время и в календаре.
-                    </div>
-                  ) : null}
-                </div>
-
                 <div className="grid gap-3">
-                  {tlAll
-                    .filter((t) => String(t.action) === "comment")
-                    .slice(0, 20)
-                    .map((t) => (
-                      <div key={t.id} className="rounded-card border border-border bg-white p-3">
-                        <div className="text-xs text-text2">
-                          {dayjs(t.timestamp || t.created).format("DD.MM.YYYY HH:mm")}
-                          {t.expand?.user_id?.name ? ` · ${t.expand.user_id.name}` : ""}
-                        </div>
-                        <div className="text-sm mt-2 whitespace-pre-wrap">{t.comment}</div>
-                      </div>
-                    ))}
-                  {!tlAll.some((t) => String(t.action) === "comment") ? (
-                    <div className="text-sm text-text2">Комментариев пока нет.</div>
-                  ) : null}
+                  <div className="text-xs text-text2">Ответственный</div>
+                  <div className="text-sm">{deal?.expand?.responsible_id?.name || deal?.expand?.responsible_id?.email || "—"}</div>
+                  <div className="text-xs text-text2">Канал продаж</div>
+                  <div className="text-sm">{deal?.sales_channel || "—"}</div>
+                  <div className="text-xs text-text2">Presale</div>
+                  <div className="text-sm">{deal?.presale || "—"}</div>
+                  <div className="text-xs text-text2">Endpoints</div>
+                  <div className="text-sm">{typeof deal?.endpoints === "number" ? deal.endpoints : "—"}</div>
+                  <div className="text-xs text-text2">Ближайший дедлайн</div>
+                  <div className="text-sm">{deal?.registration_deadline ? dayjs(deal.registration_deadline).format("DD.MM.YYYY") : "—"}</div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-infoBorder bg-infoBg">
-            <CardHeader className="border-infoBorder">
-              <div className="text-sm font-semibold">Сигналы и риски</div>
-              <div className="text-xs text-text2 mt-1">AI-отчёт: базовые поля + дополнительные секции из ответа модели</div>
-            </CardHeader>
-            <CardContent>
-              {aiQ.isLoading ? (
-                <div className="text-sm text-text2">Загрузка...</div>
-              ) : latestAi ? (
-                <div className="grid gap-3">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge>{sb.label}</Badge>
-                    <Badge>Compliance: Balanced</Badge>
-                  </div>
-                  <div className="text-sm">
-                    <div className="text-xs text-text2">Score</div>
-                    <div className="text-[26px] font-semibold">{typeof score === "number" ? `${score}/100` : "—"}</div>
-                    <div className="text-xs text-text2 mt-1">Версия: {latestAi.created ? dayjs(latestAi.created).format("DD.MM.YYYY") : "—"}</div>
-                  </div>
-                  {latestAi.summary ? (
-                    <div className="rounded-card border border-infoBorder bg-white p-3">
-                      <div className="text-xs text-text2">Резюме</div>
-                      <div className="text-sm mt-2 whitespace-pre-wrap">{latestAi.summary}</div>
-                    </div>
-                  ) : null}
-                  {latestAi.suggestions || latestAi.recommendations ? (
-                    <div className="rounded-card border border-infoBorder bg-white p-3">
-                      <div className="text-xs text-text2">Рекомендации</div>
-                      <div className="text-sm mt-2 whitespace-pre-wrap">{latestAi.suggestions || latestAi.recommendations}</div>
-                    </div>
-                  ) : null}
-                  {risksDisplay ? (
-                    <div className="rounded-card border border-infoBorder bg-white p-3">
-                      <div className="text-xs text-text2">Риски</div>
-                      <div className="text-sm mt-2 whitespace-pre-wrap">{risksDisplay}</div>
-                    </div>
-                  ) : null}
-                  {dynamicSections.map((section, idx) => (
-                    <div key={`${section.title}-${idx}`} className="rounded-card border border-infoBorder bg-white p-3">
-                      <div className="text-xs text-text2">{section.title}</div>
-                      <div className="text-sm mt-2 whitespace-pre-wrap">{section.content}</div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-sm text-text2">
-                  AI ещё не запускался. Интеграция агента делается через создание записей <code>ai_insights</code> и событий в <code>timeline</code>.
-                </div>
-              )}
             </CardContent>
           </Card>
         </div>

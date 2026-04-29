@@ -12,7 +12,7 @@ import {
   saveEntityFormData,
 } from '../../lib/entityForm';
 import { Input } from './Input';
-import { Check, X } from 'lucide-react';
+import { InlineConfirmActions } from './InlineConfirmActions';
 
 export type DynamicEntityFormHandle = {
   save: () => Promise<void>;
@@ -167,26 +167,12 @@ export function DynamicEntityForm(
   function FieldActions({ field }: { field: SettingsField }) {
     if (!isFieldDirty(field.id)) return null;
     return (
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          className="ui-btn h-9 w-9 px-0"
-          title="Подтвердить изменение"
-          onClick={() => void saveField(field)}
-          disabled={saving}
-        >
-          <Check size={14} />
-        </button>
-        <button
-          type="button"
-          className="ui-btn ui-btn-ghost h-9 w-9 px-0"
-          title="Отменить изменение"
-          onClick={() => resetField(field.id)}
-          disabled={saving}
-        >
-          <X size={14} />
-        </button>
-      </div>
+      <InlineConfirmActions
+        onConfirm={() => void saveField(field)}
+        onCancel={() => resetField(field.id)}
+        disabled={saving}
+        size="lg"
+      />
     );
   }
 
@@ -238,7 +224,7 @@ export function DynamicEntityForm(
                       {required ? ' *' : ''}
                     </div>
                     <div className="col-span-12 md:col-span-8 xl:col-span-9">
-                      <div className="flex items-center gap-2">
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
                         <select
                           className="h-10 w-full rounded-card border border-border bg-white px-3 text-sm"
                           value={String(value ?? '')}
@@ -268,7 +254,7 @@ export function DynamicEntityForm(
                       {required ? ' *' : ''}
                     </div>
                     <div className="col-span-12 md:col-span-8 xl:col-span-9">
-                      <div className="flex items-center gap-2">
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
                         <select
                           className="h-10 w-full rounded-card border border-border bg-white px-3 text-sm"
                           value={String(value ?? '')}
@@ -296,7 +282,7 @@ export function DynamicEntityForm(
                     {required ? ' *' : ''}
                   </div>
                   <div className="col-span-12 md:col-span-8 xl:col-span-9">
-                    <div className="flex items-center gap-2">
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
                       <Input
                         type={inputType}
                         value={String(value ?? '')}

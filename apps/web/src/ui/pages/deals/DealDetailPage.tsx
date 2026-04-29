@@ -1,7 +1,7 @@
 import React from "react";
 import { useParams } from "react-router-dom";
 import dayjs from "dayjs";
-import { AlertTriangle, Check, CheckCircle2, CircleHelp, Lightbulb, Pencil, Sparkles, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleHelp, Lightbulb, Pencil, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
@@ -27,6 +27,7 @@ import {
 } from "../../data/hooks";
 import { DealKpModule } from "../../modules/kp/DealKpModule";
 import { DynamicEntityFormWithRef, DynamicEntityFormHandle } from "../../components/DynamicEntityForm";
+import { InlineConfirmActions } from "../../components/InlineConfirmActions";
 import type { AiInsight, Deal, TimelineItem } from "../../../lib/types";
 import type { ContactFound, EntityFileLink } from "../../data/hooks";
 import { analyzeDealWithAi } from "../../../lib/aiGateway";
@@ -1975,8 +1976,8 @@ export function DealDetailPage() {
             <div className="grid grid-cols-12 gap-2 items-end">
               <div className="col-span-12 xl:col-span-3">
                 <div className="text-xs text-text2 mb-1">Название сделки</div>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                  <div className="min-w-0">
                     <Input
                       value={titleDraft}
                       onChange={(e) => setTitleDraft(e.target.value)}
@@ -1984,19 +1985,11 @@ export function DealDetailPage() {
                     />
                   </div>
                   {titleDraft.trim() !== String(title || "").trim() ? (
-                    <>
-                      <Button small onClick={() => void saveDealTitleInline()} title="Подтвердить">
-                        <Check size={14} />
-                      </Button>
-                      <Button
-                        small
-                        variant="ghost"
-                        onClick={() => setTitleDraft(String(title || ""))}
-                        title="Отменить"
-                      >
-                        <X size={14} />
-                      </Button>
-                    </>
+                    <InlineConfirmActions
+                      onConfirm={() => void saveDealTitleInline()}
+                      onCancel={() => setTitleDraft(String(title || ""))}
+                      size="lg"
+                    />
                   ) : null}
                 </div>
               </div>
@@ -2099,11 +2092,11 @@ export function DealDetailPage() {
       {/* MAIN AREA */}
       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-12 min-w-0 xl:col-span-3 grid gap-4 self-start">
-          <Card className="h-[calc(100vh-170px)] overflow-hidden">
+          <Card className="h-[calc(100vh-170px)] overflow-hidden flex flex-col">
             <CardHeader>
               <div className="text-sm font-semibold">Сделка: общая информация</div>
             </CardHeader>
-            <CardContent className="h-[calc(100vh-230px)]">
+            <CardContent className="flex-1 min-h-0">
               <div className="crm-scrollbar pr-1 h-full overflow-y-auto">
                 <DynamicEntityFormWithRef
                   ref={formRef}
@@ -2121,7 +2114,7 @@ export function DealDetailPage() {
 
         <div className={`col-span-12 min-w-0 grid gap-4 ${tab === "overview" ? "xl:col-span-6" : "xl:col-span-9"}`}>
           {tab === "overview" ? (
-          <Card className="h-[calc(100vh-170px)]">
+          <Card className="h-[calc(100vh-170px)] overflow-hidden flex flex-col">
             <CardHeader>
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -2138,7 +2131,7 @@ export function DealDetailPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="h-[calc(100vh-230px)] min-h-0 overflow-hidden">
+            <CardContent className="flex-1 min-h-0 overflow-hidden">
               <div className="crm-scrollbar h-full overflow-y-auto pr-1">
               <div className="grid gap-3">
                 <div className="rounded-card border border-border bg-rowHover p-3">
@@ -2215,7 +2208,7 @@ export function DealDetailPage() {
           ) : null}
 
           {tab === "ai" ? (
-            <Card className="border-infoBorder bg-infoBg neon-accent h-[calc(100vh-170px)] overflow-hidden">
+            <Card className="border-infoBorder bg-infoBg neon-accent h-[calc(100vh-170px)] overflow-hidden flex flex-col">
               <CardHeader className="border-infoBorder">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -2254,7 +2247,7 @@ export function DealDetailPage() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="h-[calc(100vh-230px)] min-h-0 overflow-hidden">
+              <CardContent className="flex-1 min-h-0 overflow-hidden">
                 <div className="crm-scrollbar h-full overflow-y-auto pr-1">
                 {aiRunError ? <div className="text-sm text-danger mb-3">{aiRunError}</div> : null}
                 {aiQ.isLoading ? (
@@ -2411,12 +2404,13 @@ export function DealDetailPage() {
           ) : null}
 
           {tab === "relationship" ? (
-            <Card className="h-[calc(100vh-170px)]">
+            <Card className="h-[calc(100vh-170px)] overflow-hidden flex flex-col">
               <CardHeader>
                 <div className="text-sm font-semibold">Карточки контактов</div>
                 <div className="text-xs text-text2 mt-1">Полноценные карточки: должность, роль, каналы связи, редактирование и удаление</div>
               </CardHeader>
-              <CardContent className="crm-scrollbar h-[calc(100vh-230px)] overflow-y-auto pr-1">
+              <CardContent className="flex-1 min-h-0 overflow-hidden">
+                <div className="crm-scrollbar h-full overflow-y-auto pr-1">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-xs text-text2">
                     Контакты по сделке (ручные + из парсера). Можно добавлять вручную.
@@ -2503,6 +2497,7 @@ export function DealDetailPage() {
                     <div className="text-sm text-text2">Контактов пока нет. Нажми “+ Контакт”.</div>
                   ) : null}
                 </div>
+                </div>
               </CardContent>
             </Card>
           ) : null}
@@ -2560,7 +2555,7 @@ export function DealDetailPage() {
           ) : null}
 
           {tab === "workspace" ? (
-            <Card className="h-[calc(100vh-170px)]">
+            <Card className="h-[calc(100vh-170px)] overflow-hidden flex flex-col">
               <CardHeader>
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -2590,7 +2585,8 @@ export function DealDetailPage() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="crm-scrollbar h-[calc(100vh-230px)] overflow-y-auto pr-1">
+              <CardContent className="flex-1 min-h-0 overflow-hidden">
+                <div className="crm-scrollbar h-full overflow-y-auto pr-1">
                 <div className="grid gap-4">
                   <div className="grid grid-cols-12 gap-3">
                     <div className="col-span-12 lg:col-span-6 min-w-0">
@@ -2747,6 +2743,7 @@ export function DealDetailPage() {
                     </div>
                   </div>
                 </div>
+                </div>
               </CardContent>
             </Card>
           ) : null}
@@ -2755,7 +2752,7 @@ export function DealDetailPage() {
         {/* RIGHT: AI rail (overview only) */}
         {tab === "overview" ? (
         <div className="col-span-12 min-w-0 xl:col-span-3 grid gap-4 self-start">
-          <Card className="neon-accent h-[calc(100vh-170px)] overflow-hidden">
+          <Card className="neon-accent h-[calc(100vh-170px)] overflow-hidden flex flex-col">
             <CardHeader>
               <div className="flex items-center justify-between gap-2">
                 <div>
@@ -2765,7 +2762,7 @@ export function DealDetailPage() {
                 <span className="neon-pill">Приоритет</span>
               </div>
             </CardHeader>
-            <CardContent className="h-[calc(100vh-230px)] min-h-0 overflow-hidden">
+            <CardContent className="flex-1 min-h-0 overflow-hidden">
               <div className="crm-scrollbar h-full overflow-y-auto pr-1">
               <div className="grid gap-3">
                 <div className="rounded-card border border-[rgba(51,215,255,0.35)] bg-[rgba(45,123,255,0.16)] p-3">

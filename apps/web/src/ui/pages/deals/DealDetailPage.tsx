@@ -2011,7 +2011,7 @@ export function DealDetailPage() {
                   ))}
                 </Select>
               </div>
-              <div className="col-span-12 xl:col-span-3 text-center rounded-card border border-border bg-rowHover/50 py-1">
+              <div className="col-span-12 xl:col-span-3 text-center">
                 <div className="text-xs text-text2 mb-1">Бюджет</div>
                 <div className="ui-input h-10 flex items-center justify-center text-2xl font-semibold">
                   {budget ? `${formatMoney(Number(budget))} ₽` : "—"}
@@ -2052,17 +2052,18 @@ export function DealDetailPage() {
                   ]}
                   activeKey={tab}
                   onChange={setTab}
-                  buttonClassName="h-10 px-5 text-base font-semibold"
+                  className="w-full max-w-full overflow-x-auto no-scrollbar"
+                  buttonClassName="h-10 px-3 text-sm font-semibold whitespace-nowrap"
                 />
               </div>
               <div className="col-span-12 xl:col-span-2">
                 <div className="text-xs text-text2 mb-1">Компания</div>
-                <div className="h-10 rounded-card border border-border bg-rowHover/50 px-3 flex items-center text-base font-semibold">
+                <div className="ui-input h-10 px-3 flex items-center text-base font-semibold">
                   {deal?.expand?.company_id?.name || "—"}
                 </div>
               </div>
               <div className="col-span-12 xl:col-span-7">
-                <div className="flex items-center justify-end gap-2 relative" data-primary-research-hint ref={primaryResearchHintRef}>
+                <div className="flex items-center justify-end gap-2 flex-wrap relative" data-primary-research-hint ref={primaryResearchHintRef}>
                   <Button
                     variant="secondary"
                     onClick={() => {
@@ -2070,7 +2071,7 @@ export function DealDetailPage() {
                       setClientResearchPickerOpen(true);
                     }}
                     disabled={aiRunLoading || !deal?.id}
-                    className="w-full xl:w-auto"
+                    className="w-full xl:w-auto whitespace-nowrap"
                   >
                     Первичное исследование
                   </Button>

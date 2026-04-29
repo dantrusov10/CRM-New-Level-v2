@@ -331,7 +331,7 @@ function toSectionTitle(key: string) {
     probability: "Вероятность",
     criticality: "Критичность",
     description: "Описание",
-    current_score: "Текущий score",
+    current_score: "Текущая вероятность",
   };
   const normalized = String(key || "").trim().toLowerCase();
   if (aliases[normalized]) return aliases[normalized];
@@ -1065,18 +1065,33 @@ function TimelineItemRow({
   const action = String(item.action || "");
   const isComment = action === "comment";
   const isNote = action === "note";
+  const isTask = action === "task_created";
   const isStage = action === "stage_change";
   const isAI = action.startsWith("ai");
   const isEditable = Boolean((isComment || isNote) && currentUserId && String(item.user_id || "") === String(currentUserId || ""));
 
   const tone = isComment
-    ? "border-primary/35 bg-[rgba(51,215,255,0.08)]"
-    : isStage
-      ? "border-[rgba(45,123,255,0.35)] bg-[rgba(45,123,255,0.08)]"
-      : isAI
-        ? "border-infoBorder bg-infoBg"
-        : "border-border bg-rowHover/60";
-  const title = isComment ? "Комментарий" : isStage ? "Изменение этапа" : isAI ? "AI событие" : "Системное событие";
+    ? "border-[rgba(51,215,255,0.45)] bg-[rgba(51,215,255,0.10)]"
+    : isNote
+      ? "border-[rgba(168,85,247,0.45)] bg-[rgba(168,85,247,0.12)]"
+      : isTask
+        ? "border-[rgba(250,204,21,0.45)] bg-[rgba(250,204,21,0.12)]"
+        : isStage
+          ? "border-[rgba(45,123,255,0.40)] bg-[rgba(45,123,255,0.11)]"
+          : isAI
+            ? "border-[rgba(34,197,94,0.45)] bg-[rgba(34,197,94,0.10)]"
+            : "border-[rgba(148,163,184,0.45)] bg-[rgba(148,163,184,0.10)]";
+  const title = isComment
+    ? "Комментарий менеджера"
+    : isNote
+      ? "Заметка"
+      : isTask
+        ? "Поставлена задача"
+        : isStage
+          ? "Изменение этапа"
+          : isAI
+            ? "Событие ИИ"
+            : "Системное событие";
   const payloadRaw = item.payload && typeof item.payload === "object" ? (item.payload as Record<string, unknown>) : null;
   const payload = payloadRaw
     ? Object.entries(payloadRaw).filter(([k]) => {
@@ -1214,6 +1229,7 @@ export function DealDetailPage() {
   const [composerType, setComposerType] = React.useState<"comment" | "note" | "task">("comment");
   const [comment, setComment] = React.useState<string>("");
   const [noteText, setNoteText] = React.useState<string>("");
+  const [timelineSearch, setTimelineSearch] = React.useState<string>("");
   const [savingTimelineId, setSavingTimelineId] = React.useState<string | null>(null);
   const [taskDueAt, setTaskDueAt] = React.useState<string>("");
   const [timelineFilter, setTimelineFilter] = React.useState<string>("all");
@@ -1934,6 +1950,11 @@ export function DealDetailPage() {
     if (timelineFilter === "ai") return String(t.action).startsWith("ai") || String(t.action) === "ai";
     if (timelineFilter === "system") return String(t.action) !== "comment";
     return true;
+  }).filter((t) => {
+    const q = timelineSearch.trim().toLowerCase();
+    if (!q) return true;
+    const hay = `${String(t.comment || "")}\n${String(t.action || "")}`.toLowerCase();
+    return hay.includes(q);
   });
 
   async function createTaskFromAction(actionText: string) {
@@ -2014,117 +2035,49 @@ export function DealDetailPage() {
     <div className="grid gap-4">
       <Card className="neon-accent sticky top-0 z-30">
         <CardHeader className="py-3">
-          <div className="grid gap-2">
-            <div className="grid grid-cols-12 gap-2 items-end">
-              <div className="col-span-12 xl:col-span-3">
-                <div className="text-xs text-text2 mb-1">Название сделки</div>
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-                  <div className="min-w-0">
-                    <Input
-                      value={titleDraft}
-                      onChange={(e) => setTitleDraft(e.target.value)}
-                      placeholder="Название сделки"
-                    />
-                  </div>
-                  {titleDraft.trim() !== String(title || "").trim() ? (
-                    <InlineConfirmActions
-                      onConfirm={() => void saveDealTitleInline()}
-                      onCancel={() => setTitleDraft(String(title || ""))}
-                      size="lg"
-                    />
-                  ) : null}
-                </div>
-              </div>
-              <div className="col-span-12 xl:col-span-2">
-                <div className="text-xs text-text2 mb-1">Этап сделки</div>
-                <Select value={deal?.stage_id || ""} onChange={changeStage}>
-                  <option value="">Этап</option>
-                  {stages.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.stage_name}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div className="col-span-12 xl:col-span-3 text-center">
-                <div className="text-xs text-text2 mb-1">Бюджет</div>
-                <div className="ui-input h-10 flex items-center justify-center text-2xl font-semibold">
-                  {budget ? `${formatMoney(Number(budget))} ₽` : "—"}
-                </div>
-              </div>
-              <div className="col-span-12 xl:col-span-4">
-                <div className="text-xs text-text2 mb-1">Ответственный</div>
-                <Select
-                  value={String(deal?.responsible_id || deal?.expand?.responsible_id?.id || "")}
-                  onChange={(v) => void changeResponsible(v)}
-                  disabled={(() => {
-                    const authRole = String((auth as Record<string, unknown> | null)?.role || "").toLowerCase();
-                    const isAdmin = /admin|founder|owner/.test(authRole);
-                    const myId = String(auth?.id || "");
-                    const currentResponsible = String(deal?.responsible_id || deal?.expand?.responsible_id?.id || "");
-                    return !(isAdmin || (myId && currentResponsible === myId));
-                  })()}
-                >
-                  <option value="">Не назначен</option>
-                  {(usersQ.data || []).map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.full_name || u.name || u.email}
-                    </option>
-                  ))}
-                </Select>
-              </div>
+          <div className="grid grid-cols-12 gap-2 items-center">
+            <div className="col-span-12 xl:col-span-8">
+              <Tabs
+                items={[
+                  { key: "overview", label: "Обзор" },
+                  { key: "ai", label: "Анализ ИИ" },
+                  { key: "relationship", label: "Контакты" },
+                  { key: "kp", label: "КП" },
+                  { key: "workspace", label: "Файлы" },
+                ]}
+                activeKey={tab}
+                onChange={setTab}
+                className="w-full max-w-full overflow-x-auto no-scrollbar"
+                buttonClassName="h-10 px-3 text-sm font-semibold whitespace-nowrap"
+              />
             </div>
-
-            <div className="grid grid-cols-12 gap-2 items-end">
-              <div className="col-span-12 xl:col-span-3">
-                <Tabs
-                  items={[
-                    { key: "overview", label: "Обзор" },
-                    { key: "ai", label: "AI-анализ" },
-                    { key: "relationship", label: "Контакты" },
-                    { key: "kp", label: "КП" },
-                    { key: "workspace", label: "Файлы" },
-                  ]}
-                  activeKey={tab}
-                  onChange={setTab}
-                  className="w-full max-w-full overflow-x-auto no-scrollbar"
-                  buttonClassName="h-10 px-3 text-sm font-semibold whitespace-nowrap"
-                />
-              </div>
-              <div className="col-span-12 xl:col-span-2">
-                <div className="text-xs text-text2 mb-1">Компания</div>
-                <div className="ui-input h-10 px-3 flex items-center text-base font-semibold">
-                  {deal?.expand?.company_id?.name || "—"}
-                </div>
-              </div>
-              <div className="col-span-12 xl:col-span-7">
-                <div className="flex items-center justify-end gap-2 flex-wrap relative" data-primary-research-hint ref={primaryResearchHintRef}>
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      setClientResearchProductId(selectedProductIds[0] || "");
-                      setClientResearchPickerOpen(true);
-                    }}
-                    disabled={aiRunLoading || !deal?.id}
-                    className="w-full xl:w-auto whitespace-nowrap"
-                  >
-                    Первичное исследование
-                  </Button>
-                  <button
-                    className="ui-btn ui-icon-btn"
-                    aria-label="Подсказка по первичному исследованию"
-                    title="Правило первичного исследования"
-                    onClick={() => setPrimaryResearchHintOpen((v) => !v)}
-                  >
-                    <CircleHelp size={16} />
-                  </button>
-                  {primaryResearchHintOpen ? (
-                    <div className="absolute right-0 top-11 z-50 w-[360px] rounded-card border border-border bg-[rgba(15,23,42,0.98)] p-3 text-xs text-text2 shadow-2xl">
-                      Первичное исследование клиента запускается не чаще 1 раза в 6 месяцев для связки клиент+продукт.
-                      Нужен для подготовки к первым переговорам, ресерчинга клиента и формирования первичной стратегии первых контактов.
-                    </div>
-                  ) : null}
-                </div>
+            <div className="col-span-12 xl:col-span-4">
+              <div className="flex items-center justify-end gap-2 flex-wrap relative" data-primary-research-hint ref={primaryResearchHintRef}>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setClientResearchProductId(selectedProductIds[0] || "");
+                    setClientResearchPickerOpen(true);
+                  }}
+                  disabled={aiRunLoading || !deal?.id}
+                  className="w-full xl:w-auto whitespace-nowrap"
+                >
+                  Первичное исследование
+                </Button>
+                <button
+                  className="ui-btn ui-icon-btn"
+                  aria-label="Подсказка по первичному исследованию"
+                  title="Правило первичного исследования"
+                  onClick={() => setPrimaryResearchHintOpen((v) => !v)}
+                >
+                  <CircleHelp size={16} />
+                </button>
+                {primaryResearchHintOpen ? (
+                  <div className="absolute right-0 top-11 z-50 w-[360px] rounded-card border border-border bg-[rgba(15,23,42,0.98)] p-3 text-xs text-text2 shadow-2xl">
+                    Первичное исследование клиента запускается не чаще 1 раза в 6 месяцев для связки клиент+продукт.
+                    Нужен для подготовки к первым переговорам, ресерчинга клиента и формирования первичной стратегии первых контактов.
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
@@ -2140,6 +2093,80 @@ export function DealDetailPage() {
             </CardHeader>
             <CardContent className="flex-1 min-h-0">
               <div className="crm-scrollbar pr-1 h-full overflow-y-auto">
+                <section className="board-shell neon-accent p-2.5 mb-3">
+                  <div className="mb-2 flex items-center gap-2 border-b border-border/70 pb-2">
+                    <span className="neon-pill">Сделка</span>
+                  </div>
+                  <div className="grid gap-2">
+                    <div className="grid grid-cols-12 gap-2 items-center rounded-md bg-[rgba(255,255,255,0.03)] p-1.5">
+                      <div className="col-span-12 md:col-span-4 xl:col-span-3 text-xs text-text2">Название</div>
+                      <div className="col-span-12 md:col-span-8 xl:col-span-9">
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                          <Input
+                            value={titleDraft}
+                            onChange={(e) => setTitleDraft(e.target.value)}
+                            placeholder="Название сделки"
+                          />
+                          {titleDraft.trim() !== String(title || "").trim() ? (
+                            <InlineConfirmActions
+                              onConfirm={() => void saveDealTitleInline()}
+                              onCancel={() => setTitleDraft(String(title || ""))}
+                              size="lg"
+                            />
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-12 gap-2 items-center rounded-md bg-[rgba(255,255,255,0.03)] p-1.5">
+                      <div className="col-span-12 md:col-span-4 xl:col-span-3 text-xs text-text2">Компания</div>
+                      <div className="col-span-12 md:col-span-8 xl:col-span-9">
+                        <div className="ui-input h-10 px-3 flex items-center text-sm font-semibold">{deal?.expand?.company_id?.name || "—"}</div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-12 gap-2 items-center rounded-md bg-[rgba(255,255,255,0.03)] p-1.5">
+                      <div className="col-span-12 md:col-span-4 xl:col-span-3 text-xs text-text2">Этап</div>
+                      <div className="col-span-12 md:col-span-8 xl:col-span-9">
+                        <Select value={deal?.stage_id || ""} onChange={changeStage}>
+                          <option value="">Этап</option>
+                          {stages.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.stage_name}
+                            </option>
+                          ))}
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-12 gap-2 items-center rounded-md bg-[rgba(255,255,255,0.03)] p-1.5">
+                      <div className="col-span-12 md:col-span-4 xl:col-span-3 text-xs text-text2">Бюджет</div>
+                      <div className="col-span-12 md:col-span-8 xl:col-span-9">
+                        <div className="ui-input h-10 px-3 flex items-center text-base font-semibold">{budget ? `${formatMoney(Number(budget))} ₽` : "—"}</div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-12 gap-2 items-center rounded-md bg-[rgba(255,255,255,0.03)] p-1.5">
+                      <div className="col-span-12 md:col-span-4 xl:col-span-3 text-xs text-text2">Ответственный</div>
+                      <div className="col-span-12 md:col-span-8 xl:col-span-9">
+                        <Select
+                          value={String(deal?.responsible_id || deal?.expand?.responsible_id?.id || "")}
+                          onChange={(v) => void changeResponsible(v)}
+                          disabled={(() => {
+                            const authRole = String((auth as Record<string, unknown> | null)?.role || "").toLowerCase();
+                            const isAdmin = /admin|founder|owner/.test(authRole);
+                            const myId = String(auth?.id || "");
+                            const currentResponsible = String(deal?.responsible_id || deal?.expand?.responsible_id?.id || "");
+                            return !(isAdmin || (myId && currentResponsible === myId));
+                          })()}
+                        >
+                          <option value="">Не назначен</option>
+                          {(usersQ.data || []).map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.full_name || u.name || u.email}
+                            </option>
+                          ))}
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                </section>
                 <DynamicEntityFormWithRef
                   ref={formRef}
                   entity="deal"
@@ -2163,13 +2190,22 @@ export function DealDetailPage() {
                   <div className="text-sm font-semibold">Лента изменений и работа менеджера</div>
                   <div className="text-xs text-text2 mt-1">События, заметки и задачи в одном центре управления.</div>
                 </div>
-                <div className="w-44">
-                  <Select value={timelineFilter} onChange={setTimelineFilter}>
-                    <option value="all">Все</option>
-                    <option value="comments">Комментарии</option>
-                    <option value="system">Системные</option>
-                    <option value="ai">AI</option>
-                  </Select>
+                <div className="flex items-center gap-2">
+                  <div className="w-44">
+                    <Select value={timelineFilter} onChange={setTimelineFilter}>
+                      <option value="all">Все</option>
+                      <option value="comments">Комментарии</option>
+                      <option value="system">Системные</option>
+                      <option value="ai">События ИИ</option>
+                    </Select>
+                  </div>
+                  <div className="w-56">
+                    <Input
+                      value={timelineSearch}
+                      onChange={(e) => setTimelineSearch(e.target.value)}
+                      placeholder="Поиск по ленте"
+                    />
+                  </div>
                 </div>
               </div>
             </CardHeader>
@@ -2232,8 +2268,8 @@ export function DealDetailPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <div className="text-sm font-semibold">AI-отчёт по сделке</div>
-                      <span className="neon-pill">AI режим</span>
+                      <div className="text-sm font-semibold">Отчет ИИ по сделке</div>
+                      <span className="neon-pill">Режим ИИ</span>
                     </div>
                     <div className="text-xs text-text2 mt-1">
                       {isClientResearchInsight(latestAi)
@@ -2332,7 +2368,7 @@ export function DealDetailPage() {
                     </div>
                     {aiScoring ? (
                       <div className="rounded-xl border border-border bg-card/90 p-4">
-                        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-text2">Почему изменился score</div>
+                        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-text2">Почему изменилась вероятность</div>
                         <div className="grid gap-2">
                           <div className="text-sm">
                             Метод: <span className="font-semibold">{String(aiScoring.method || "—")}</span> ·
@@ -2389,12 +2425,19 @@ export function DealDetailPage() {
                     <div className="text-xs text-text2 mt-1">Явные модули по времени: что поменялось, кто автор, какие поля затронуты</div>
                   </div>
                   <div className="w-56">
-                    <Select value={timelineFilter} onChange={setTimelineFilter}>
-                      <option value="all">Все</option>
-                      <option value="comments">Комментарии</option>
-                      <option value="system">Системные</option>
-                      <option value="ai">AI</option>
-                    </Select>
+                    <div className="grid gap-2">
+                      <Select value={timelineFilter} onChange={setTimelineFilter}>
+                        <option value="all">Все</option>
+                        <option value="comments">Комментарии</option>
+                        <option value="system">Системные</option>
+                        <option value="ai">События ИИ</option>
+                      </Select>
+                      <Input
+                        value={timelineSearch}
+                        onChange={(e) => setTimelineSearch(e.target.value)}
+                        placeholder="Поиск по ленте"
+                      />
+                    </div>
                   </div>
                 </div>
               </CardHeader>
@@ -2783,10 +2826,10 @@ export function DealDetailPage() {
               <div className="grid gap-3">
                 <div className="rounded-card border border-[rgba(51,215,255,0.35)] bg-[rgba(45,123,255,0.16)] p-3">
                   <div className="flex items-center justify-between">
-                    <div className="text-xs text-text2">Текущий score</div>
+                  <div className="text-xs text-text2">Текущая вероятность</div>
                     <Badge>{sb.label}</Badge>
                   </div>
-                  <div className="mt-2 text-2xl font-extrabold">{typeof score === "number" ? `${score}/100` : "—"}</div>
+                  <div className="mt-2 text-2xl font-extrabold">{typeof score === "number" ? `${score}%` : "—"}</div>
                 </div>
 
                 <Button
@@ -2848,7 +2891,7 @@ export function DealDetailPage() {
                   )}
                 </div>
                 <div className="rounded-card border border-border bg-white p-3">
-                  <div className="text-sm font-semibold mb-2">Почему изменился score</div>
+                  <div className="text-sm font-semibold mb-2">Почему изменилась вероятность</div>
                   {aiScoring ? (
                     <div className="rounded-card border border-border bg-rowHover p-3">
                       <div className="text-xs text-text2">Сводка</div>

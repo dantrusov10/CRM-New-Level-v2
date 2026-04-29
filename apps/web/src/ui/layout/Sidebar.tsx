@@ -36,12 +36,12 @@ export function Sidebar({
             type="button"
             onClick={() => nav("/dashboard")}
             className="flex min-w-0 flex-1 items-center gap-2.5 text-left hover:opacity-95 active:opacity-90"
-            title="На главную (Dashboard)"
+            title="На главную (Дашборд)"
           >
             <img src={logo} alt="NewLevel CRM" className="w-9 h-9 rounded-xl border border-[rgba(51,215,255,0.35)] shadow-[0_0_20px_rgba(51,215,255,0.2)]" />
             {!collapsed ? <div className="min-w-0">
               <div className="text-sm font-extrabold leading-none truncate">NewLevel CRM</div>
-              <div className="text-[11px] mt-1 muted font-semibold">Command center</div>
+              <div className="text-[11px] mt-1 muted font-semibold">Центр управления</div>
             </div> : null}
           </button>
           <button
@@ -56,9 +56,9 @@ export function Sidebar({
       </div>
 
       <div className="space-y-1">
-        {can(perms, "deals", "read") ? <Item to="/dashboard" icon={LayoutDashboard} label="Dashboard" collapsed={collapsed} /> : null}
-        {can(perms, "deals", "read") ? <Item to="/deals" icon={LayoutGrid} label="Сделки" collapsed={collapsed} /> : null}
+        {can(perms, "deals", "read") ? <Item to="/dashboard" icon={LayoutDashboard} label="Дашборд" collapsed={collapsed} /> : null}
         {can(perms, "deals", "read") ? <Item to="/kanban" icon={KanbanSquare} label="Канбан" collapsed={collapsed} /> : null}
+        {can(perms, "deals", "read") ? <Item to="/deals" icon={LayoutGrid} label="Сделки" collapsed={collapsed} /> : null}
         {can(perms, "deals", "read") ? <Item to="/calendar" icon={CalendarDays} label="Календарь" collapsed={collapsed} /> : null}
         {can(perms, "companies", "read") ? <Item to="/companies" icon={Building2} label="Компании" collapsed={collapsed} /> : null}
         {can(perms, "import_export", "read") ? <Item to="/import-export" icon={Upload} label="Импорт/Экспорт" collapsed={collapsed} /> : null}

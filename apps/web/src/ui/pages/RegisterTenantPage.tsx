@@ -84,13 +84,14 @@ export function RegisterTenantPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6 theme-cockpit">
-      <Card className="w-full max-w-xl">
+      <div className="w-full max-w-xl rounded-[22px] border border-[rgba(51,215,255,0.35)] bg-[rgba(15,23,42,0.55)] p-2 shadow-[0_0_38px_rgba(51,215,255,0.22)]">
+      <Card className="w-full">
         <CardHeader>
           <div className="flex items-center gap-3">
             <img src={logo} alt="NewLevel CRM" className="w-14 h-14 rounded-2xl border border-[rgba(255,255,255,0.12)]" />
             <div>
               <div className="text-xl font-extrabold">NewLevel CRM</div>
-              <div className="text-xs text-text2 mt-1">Регистрация кабинета</div>
+              <div className="text-xs text-text2 mt-1">Регистрация нового кабинета</div>
             </div>
           </div>
         </CardHeader>
@@ -143,6 +144,7 @@ export function RegisterTenantPage() {
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

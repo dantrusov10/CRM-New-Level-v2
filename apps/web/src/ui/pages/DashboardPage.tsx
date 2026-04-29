@@ -720,13 +720,13 @@ export function DashboardPage() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(51,215,255,0.35)] bg-[rgba(51,215,255,0.12)] px-3 py-1 text-xs font-semibold mb-2">
-              Executive control panel
+              Управленческая панель
             </div>
             <div className="inline-flex items-center gap-2 text-[11px] font-semibold mb-2">
-              <span className="neon-pill">Live analytics</span>
-              <span className="neon-pill">Revenue focus</span>
+              <span className="neon-pill">Живая аналитика</span>
+              <span className="neon-pill">Фокус на выручке</span>
             </div>
-            <div className="text-xl font-extrabold tracking-wide">Dashboard</div>
+            <div className="text-xl font-extrabold tracking-wide">Дашборд</div>
             <div className="mt-1 text-sm subtle">Каждый блок настраивается отдельно (период/фильтры) + есть проваливание в сделки</div>
           </div>
           <div className="flex items-center gap-2">
@@ -768,7 +768,7 @@ export function DashboardPage() {
             <div className="mt-6 ui-card p-4 neon-accent">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-sm font-extrabold inline-flex items-center gap-2"><Sparkles size={16} /> AI executive summary (Founder)</div>
+                  <div className="text-sm font-extrabold inline-flex items-center gap-2"><Sparkles size={16} /> ИИ-вывод для руководителя</div>
                   <div className="text-xs text-text2 mt-1">Отдельный контур под админский ИИ и prompt `founder_dashboard_brief_v1`.</div>
                 </div>
                 <Button small variant="secondary" onClick={() => void refreshAdminAiSummary()} disabled={aiSummaryLoading}>
@@ -783,7 +783,7 @@ export function DashboardPage() {
             {cfg.widgets.insights.enabled ? (
               <div className="mt-6">
                 <WidgetFrame
-                  title="Insights"
+                  title="Ключевые сигналы"
                   subtitle="Быстрые сигналы по данным"
                   widgetId="insights"
                   onDrill={() => drillToDeals(cfg.widgets.insights.filters)}
@@ -834,8 +834,8 @@ export function DashboardPage() {
 
               {cfg.widgets.winRate.enabled ? (
                 <WidgetFrame
-                  title="Win rate"
-                  subtitle={`Вариант 2: won/(won+lost) за ${cfg.widgets.winRate.filters.rangeDays || 30} дней`}
+                  title="Доля побед"
+                  subtitle={`Вариант 2: победы/(победы+потери) за ${cfg.widgets.winRate.filters.rangeDays || 30} дней`}
                   widgetId="winRate"
                   onDrill={() => drillToDeals(cfg.widgets.winRate.filters)}
                 >

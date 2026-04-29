@@ -35,6 +35,8 @@ function dealAmount(d: Deal) {
 
 export function DealsKanbanPage() {
   const kanbanScrollRef = React.useRef<HTMLDivElement | null>(null);
+  const miniTrackRef = React.useRef<HTMLDivElement | null>(null);
+  const [miniViewport, setMiniViewport] = React.useState({ left: 0, width: 40 });
 
   // Space + drag to pan horizontally (like Figma). This avoids relying only on Shift+wheel
   // and is more discoverable than middle-mouse (which can trigger browser auto-scroll).
@@ -51,6 +53,26 @@ export function DealsKanbanPage() {
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
+    };
+  }, []);
+  React.useEffect(() => {
+    const el = kanbanScrollRef.current;
+    if (!el) return;
+    const syncMini = () => {
+      const scrollWidth = Math.max(1, el.scrollWidth);
+      const clientWidth = Math.max(1, el.clientWidth);
+      const trackW = miniTrackRef.current?.clientWidth || 200;
+      const thumbW = Math.max(28, Math.round((clientWidth / scrollWidth) * trackW));
+      const maxLeft = Math.max(0, trackW - thumbW);
+      const left = Math.round((el.scrollLeft / Math.max(1, scrollWidth - clientWidth)) * maxLeft);
+      setMiniViewport({ left: Number.isFinite(left) ? left : 0, width: thumbW });
+    };
+    syncMini();
+    el.addEventListener("scroll", syncMini, { passive: true });
+    window.addEventListener("resize", syncMini);
+    return () => {
+      el.removeEventListener("scroll", syncMini);
+      window.removeEventListener("resize", syncMini);
     };
   }, []);
 
@@ -355,8 +377,8 @@ export function DealsKanbanPage() {
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-base font-extrabold tracking-wide">Pipeline board</div>
-            <div className="text-xs text-text2 mt-1">Deep-focus канбан: быстрый обзор этапов, суммы и приоритетов</div>
+            <div className="text-base font-extrabold tracking-wide">Канбан по воронке</div>
+            <div className="text-xs text-text2 mt-1">Быстрый обзор этапов, сумм и приоритетов.</div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <button
@@ -394,7 +416,7 @@ export function DealsKanbanPage() {
               Сброс вида
             </button>
             <div className="rounded-md border border-[rgba(87,183,255,0.35)] bg-[rgba(45,123,255,0.18)] px-3 py-1 text-xs font-semibold text-text">
-              Live board
+              Живая доска
             </div>
           </div>
         </div>
@@ -408,24 +430,47 @@ export function DealsKanbanPage() {
             {/* Top analytics */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-4">
               <div className="rounded-card border border-[rgba(87,183,255,0.24)] bg-[#14345b] p-4">
-                <div className="text-xs text-text2">Открытых сделок</div>
+                <div className="text-xs text-text2">Открытые сделки</div>
                 <div className="text-xl font-semibold mt-1">{topStats.openCount}</div>
                 <div className="text-xs text-text2 mt-1">в работе сейчас</div>
               </div>
               <div className="rounded-card border border-[rgba(87,183,255,0.24)] bg-[#123053] p-4">
-                <div className="text-xs text-text2">Пайплайн</div>
+                <div className="text-xs text-text2">Потенциал выручки</div>
                 <div className="text-xl font-semibold mt-1">{money(topStats.pipeline)} ₽</div>
                 <div className="text-xs text-text2 mt-1">сумма по сделкам</div>
               </div>
               <div className="rounded-card border border-[rgba(87,183,255,0.24)] bg-[#102947] p-4">
-                <div className="text-xs text-text2">Взвешенный пайплайн</div>
+                <div className="text-xs text-text2">Взвешенный потенциал</div>
                 <div className="text-xl font-semibold mt-1">{money(Math.round(topStats.weighted))} ₽</div>
-                <div className="text-xs text-text2 mt-1">с учётом score</div>
+                <div className="text-xs text-text2 mt-1">с учётом вероятности</div>
               </div>
               <div className="rounded-card border border-[rgba(87,183,255,0.24)] bg-[#0f2744] p-4">
-                <div className="text-xs text-text2">Горячих (≥70)</div>
+                <div className="text-xs text-text2">Горячие (вероятность ≥70)</div>
                 <div className="text-xl font-semibold mt-1">{topStats.hot}</div>
                 <div className="text-xs text-text2 mt-1">приоритет на неделю</div>
+              </div>
+              <div className="pointer-events-none fixed bottom-3 right-4 z-20 rounded-xl border border-[rgba(255,255,255,0.22)] bg-[rgba(15,23,42,0.82)] p-2 shadow-[0_0_24px_rgba(45,123,255,0.28)]">
+                <div className="mb-1 text-[10px] text-text2">Навигация по доске</div>
+                <div
+                  ref={miniTrackRef}
+                  className="pointer-events-auto relative h-5 w-56 rounded-md bg-[rgba(255,255,255,0.12)]"
+                  onMouseDown={(e) => {
+                    const track = miniTrackRef.current;
+                    const scroll = kanbanScrollRef.current;
+                    if (!track || !scroll) return;
+                    const rect = track.getBoundingClientRect();
+                    const clickX = e.clientX - rect.left;
+                    const maxLeft = Math.max(0, rect.width - miniViewport.width);
+                    const nextLeft = Math.max(0, Math.min(maxLeft, clickX - miniViewport.width / 2));
+                    const ratio = nextLeft / Math.max(1, maxLeft);
+                    scroll.scrollLeft = ratio * Math.max(1, scroll.scrollWidth - scroll.clientWidth);
+                  }}
+                >
+                  <div
+                    className="absolute top-0 h-5 rounded-md border border-[rgba(51,215,255,0.65)] bg-[rgba(51,215,255,0.35)]"
+                    style={{ left: miniViewport.left, width: miniViewport.width }}
+                  />
+                </div>
               </div>
             </div>
 

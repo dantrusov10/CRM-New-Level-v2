@@ -19,6 +19,7 @@ export function AdminUsersPage() {
   ];
   const [roles, setRoles] = React.useState<Array<{ value: string; label: string }>>(ROLE_FALLBACK);
   const [open, setOpen] = React.useState(false);
+  const myUserId = String(pb.authStore.model?.id || "");
 
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
@@ -115,6 +116,10 @@ export function AdminUsersPage() {
                       value={u.role ?? u.role_name ?? ""}
                       onChange={async (e) => {
                         const nextRole = e.target.value || null;
+                        if (String(u.id) === myUserId && String(nextRole || "") !== "admin") {
+                          alert("Нельзя понизить собственные права через интерфейс.");
+                          return;
+                        }
                         try {
                           // Prefer canonical field `role`.
                           try {

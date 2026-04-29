@@ -1121,6 +1121,7 @@ export function DealDetailPage() {
   const [tab, setTab] = React.useState<string>("overview");
   const [composerType, setComposerType] = React.useState<"comment" | "note" | "task">("comment");
   const [comment, setComment] = React.useState<string>("");
+  const [noteText, setNoteText] = React.useState<string>("");
   const [taskDueAt, setTaskDueAt] = React.useState<string>("");
   const [timelineFilter, setTimelineFilter] = React.useState<string>("all");
   const [aiRunLoading, setAiRunLoading] = React.useState(false);
@@ -1367,6 +1368,14 @@ export function DealDetailPage() {
     if (!text) return;
     await createTimelineEvent(composerType === "note" ? "note" : "comment", text);
     setComment("");
+    tlQ.refetch();
+  }
+
+  async function submitNoteFromNotesTab() {
+    const text = noteText.trim();
+    if (!text || !id) return;
+    await createTimelineEvent("note", text);
+    setNoteText("");
     tlQ.refetch();
   }
 
@@ -2324,10 +2333,23 @@ export function DealDetailPage() {
             <Card>
               <CardHeader>
                 <div className="text-sm font-semibold">Заметки</div>
-                <div className="text-xs text-text2 mt-1">Здесь отображаются заметки и комментарии из правого блока.</div>
+                <div className="text-xs text-text2 mt-1">Отдельный ввод заметок + история заметок/комментариев.</div>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-3">
+                  <div className="rounded-card border border-border bg-rowHover p-3">
+                    <div className="text-xs text-text2 mb-2">Новая заметка</div>
+                    <div className="flex gap-2">
+                      <Input
+                        value={noteText}
+                        onChange={(e) => setNoteText(e.target.value)}
+                        placeholder="Напишите заметку по сделке..."
+                      />
+                      <Button onClick={submitNoteFromNotesTab} disabled={!noteText.trim()}>
+                        Добавить
+                      </Button>
+                    </div>
+                  </div>
                   {tlAll
                     .filter((t) => {
                       const a = String(t.action || "");

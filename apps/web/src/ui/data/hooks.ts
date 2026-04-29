@@ -245,6 +245,36 @@ export function useAiInsights(dealId: string) {
   });
 }
 
+export type AiInsightBellItem = AiInsight & {
+  expand?: {
+    deal_id?: {
+      id?: string;
+      title?: string;
+    };
+  };
+};
+
+export function useRecentAiInsightsForBell(params: { windowHours?: number }) {
+  const { windowHours = 72 } = params;
+  return useQuery({
+    queryKey: ["ai_insights", "bell", windowHours],
+    queryFn: async (): Promise<AiInsightBellItem[]> => {
+      const from = new Date(Date.now() - windowHours * 3600 * 1000).toISOString();
+      const res = await pb
+        .collection("ai_insights")
+        .getList(1, 50, {
+          filter: `created>="${from}"`,
+          sort: "-created",
+          expand: "deal_id",
+        })
+        .catch(() => ({ items: [] as AiInsightBellItem[] }));
+      return normalizeListResult<AiInsightBellItem>(res);
+    },
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+  });
+}
+
 // --- Tasks (manager reminders) ---
 export function useMyTasksInRange(params: { userId: string; fromIso: string; toIso: string }) {
   const { userId, fromIso, toIso } = params;

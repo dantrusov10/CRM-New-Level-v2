@@ -3717,7 +3717,7 @@ class Handler(BaseHTTPRequestHandler):
         return path.startswith("/api/public/")
 
     def _public_headers(self, origin=None):
-        allow_origin = origin if origin and _origin_allowed(origin) else "null"
+        allow_origin = origin if origin and _origin_allowed(origin) else "*"
         return {
             "Access-Control-Allow-Origin": allow_origin,
             "Access-Control-Allow-Methods": "GET,POST,OPTIONS",

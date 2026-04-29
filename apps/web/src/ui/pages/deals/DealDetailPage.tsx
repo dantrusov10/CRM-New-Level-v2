@@ -2330,18 +2330,18 @@ export function DealDetailPage() {
                     ) : null}
 
                     {dynamicSections.length ? (
-                      <details className="rounded-xl border border-border bg-card/90 p-4">
+                      <details className="rounded-xl border border-border bg-card/90 p-4 overflow-hidden">
                         <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-text2">
                           Детализация источника AI ({dynamicSections.length} секций)
                         </summary>
                         <div className="mt-3 rounded-lg border border-border bg-[rgba(255,255,255,0.02)] p-4">
-                          <div className="grid gap-4">
+                          <div className="crm-scrollbar max-h-[300px] overflow-y-auto pr-1 grid gap-4">
                             {dynamicSections.map((section, idx) => (
                               <details key={`${section.title}-${idx}`} className="border-b border-border/60 pb-3 last:border-b-0 last:pb-0" open={idx < 2}>
                                 <summary className="cursor-pointer text-sm font-semibold tracking-wide text-text">
                                   {idx + 1}. {section.title}
                                 </summary>
-                                <div className="mt-2 min-w-0 text-sm leading-relaxed">
+                                <div className="mt-2 min-w-0 text-sm leading-relaxed break-words">
                                   <AiInsightSectionBody value={section.raw} />
                                 </div>
                               </details>

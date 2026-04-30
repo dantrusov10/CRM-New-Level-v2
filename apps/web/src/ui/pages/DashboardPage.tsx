@@ -775,6 +775,14 @@ export function DashboardPage() {
     });
   }
 
+  function onWidgetDragEnd(event: { active?: { id?: string | number }; over?: { id?: string | number } | null }) {
+    if (!layoutEditMode) return;
+    const sourceId = String(event?.active?.id || "") as WidgetId;
+    const targetId = String(event?.over?.id || "") as WidgetId;
+    if (!sourceId || !targetId) return;
+    moveWidgetTo(sourceId, targetId);
+  }
+
   const normalizedFieldName = React.useCallback((source: "deals" | "companies", key: string) => {
     const dealMap: Record<string, string> = {
       id: "ID сделки",

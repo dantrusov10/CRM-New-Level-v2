@@ -290,6 +290,7 @@ export function DashboardPage() {
   const [savedViews, setSavedViews] = React.useState<Array<{ id: string; name: string; globalFilters: WidgetFilters; cfg: DashCfg }>>([]);
   const [activeViewId, setActiveViewId] = React.useState("");
   const [customReports, setCustomReports] = React.useState<Array<{ id: string; name: string; source: "deals" | "companies"; columns: string[] }>>([]);
+  const [customReportLayouts, setCustomReportLayouts] = React.useState<Record<string, { colStart: number; rowStart: number; span: number; rowSpan: number }>>({});
   const [customSource, setCustomSource] = React.useState<"deals" | "companies">("deals");
   const [customName, setCustomName] = React.useState("Мой отчет");
   const [customColumns, setCustomColumns] = React.useState<string[]>(["title", "budget", "responsible"]);
@@ -297,7 +298,8 @@ export function DashboardPage() {
   const [customBuilderOpen, setCustomBuilderOpen] = React.useState(false);
   const [controlsCollapsed, setControlsCollapsed] = React.useState(false);
   const [resizeState, setResizeState] = React.useState<{
-    id: WidgetId;
+    kind: "widget" | "custom";
+    id: string;
     edge: "left" | "right" | "top" | "bottom";
     startX: number;
     startY: number;
@@ -307,7 +309,8 @@ export function DashboardPage() {
     startRowSpan: number;
   } | null>(null);
   const [dragState, setDragState] = React.useState<{
-    id: WidgetId;
+    kind: "widget" | "custom";
+    id: string;
     startX: number;
     startY: number;
     startCol: number;
@@ -340,6 +343,16 @@ export function DashboardPage() {
       setCustomReports(Array.isArray(parsed) ? parsed : []);
     } catch {
       setCustomReports([]);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem("nwlvl_dashboard_custom_report_layouts");
+      const parsed = raw ? JSON.parse(raw) : {};
+      setCustomReportLayouts(parsed && typeof parsed === "object" ? parsed : {});
+    } catch {
+      setCustomReportLayouts({});
     }
   }, []);
 
@@ -872,6 +885,22 @@ export function DashboardPage() {
     });
   }
 
+  function applyCustomPlacement(reportId: string, nextCol: number, nextRow: number) {
+    setCustomReportLayouts((prev) => {
+      const base = prev[reportId] ?? { colStart: 1, rowStart: 2, span: 12, rowSpan: 10 };
+      const next = {
+        ...prev,
+        [reportId]: {
+          ...base,
+          colStart: Math.max(1, Math.min(24 - Number(base.span || 12) + 1, nextCol)),
+          rowStart: Math.max(1, nextRow),
+        },
+      };
+      localStorage.setItem("nwlvl_dashboard_custom_report_layouts", JSON.stringify(next));
+      return next;
+    });
+  }
+
   const normalizedFieldName = React.useCallback((source: "deals" | "companies", key: string) => {
     const dealMap: Record<string, string> = {
       id: "ID сделки",
@@ -942,6 +971,14 @@ export function DashboardPage() {
     const next = [nextReport, ...customReports].slice(0, 30);
     setCustomReports(next);
     localStorage.setItem("nwlvl_dashboard_custom_reports", JSON.stringify(next));
+    setCustomReportLayouts((prev) => {
+      const nextLayouts = {
+        ...prev,
+        [nextReport.id]: prev[nextReport.id] ?? { colStart: 1, rowStart: 2, span: 12, rowSpan: 10 },
+      };
+      localStorage.setItem("nwlvl_dashboard_custom_report_layouts", JSON.stringify(nextLayouts));
+      return nextLayouts;
+    });
   }
 
   async function refreshAdminAiSummary() {
@@ -1025,19 +1062,33 @@ export function DashboardPage() {
         nextRow = Math.max(1, Math.min(bottomEdge - 3, resizeState.startRow + yStep));
         nextRowSpan = Math.max(4, bottomEdge - nextRow + 1);
       }
-      setCfg((prev) => ({
-        ...prev,
-        widgets: {
-          ...prev.widgets,
-          [resizeState.id]: {
-            ...prev.widgets[resizeState.id],
-            colStart: nextCol,
-            rowStart: nextRow,
-            span: nextSpan,
-            rowSpan: nextRowSpan,
+      if (resizeState.kind === "widget") {
+        const wid = resizeState.id as WidgetId;
+        setCfg((prev) => ({
+          ...prev,
+          widgets: {
+            ...prev.widgets,
+            [wid]: {
+              ...prev.widgets[wid],
+              colStart: nextCol,
+              rowStart: nextRow,
+              span: nextSpan,
+              rowSpan: nextRowSpan,
+            },
           },
-        },
-      }));
+        }));
+      } else {
+        const rid = resizeState.id.replace("custom:", "");
+        setCustomReportLayouts((prev) => {
+          const base = prev[rid] ?? { colStart: 1, rowStart: 2, span: 12, rowSpan: 10 };
+          const next = {
+            ...prev,
+            [rid]: { ...base, colStart: nextCol, rowStart: nextRow, span: nextSpan, rowSpan: nextRowSpan },
+          };
+          localStorage.setItem("nwlvl_dashboard_custom_report_layouts", JSON.stringify(next));
+          return next;
+        });
+      }
     };
     const onUp = () => setResizeState(null);
     window.addEventListener("mousemove", onMove);
@@ -1056,7 +1107,11 @@ export function DashboardPage() {
       const colWidth = grid.width / 24;
       const dCols = Math.round((e.clientX - dragState.startX) / Math.max(8, colWidth));
       const dRows = Math.round((e.clientY - dragState.startY) / 24);
-      applyWidgetPlacement(dragState.id, dragState.startCol + dCols, dragState.startRow + dRows);
+      if (dragState.kind === "widget") {
+        applyWidgetPlacement(dragState.id as WidgetId, dragState.startCol + dCols, dragState.startRow + dRows);
+      } else {
+        applyCustomPlacement(dragState.id.replace("custom:", ""), dragState.startCol + dCols, dragState.startRow + dRows);
+      }
     };
     const onUp = () => setDragState(null);
     window.addEventListener("mousemove", onMove);
@@ -1283,7 +1338,14 @@ export function DashboardPage() {
                 className={`grid grid-cols-1 relative auto-rows-[24px] ${layoutEditMode ? "gap-1" : "gap-4"}`}
                 style={{
                   gridTemplateColumns: "repeat(24, minmax(0, 1fr))",
-                  minHeight: `${Math.max(140, ...cfg.widgetOrder.map((id) => Number(cfg.widgets[id].rowStart || 1) + Number(cfg.widgets[id].rowSpan || 8))) * 24}px`,
+                  minHeight: `${Math.max(
+                    140,
+                    ...cfg.widgetOrder.map((id) => Number(cfg.widgets[id].rowStart || 1) + Number(cfg.widgets[id].rowSpan || 8)),
+                    ...customReports.map((r) => {
+                      const l = customReportLayouts[r.id];
+                      return Number(l?.rowStart || 1) + Number(l?.rowSpan || 10);
+                    })
+                  ) * 24}px`,
                   ...(layoutEditMode
                     ? {
                         backgroundImage:
@@ -1310,6 +1372,7 @@ export function DashboardPage() {
                       onResizeStart={(edge, e) => {
                         e.preventDefault();
                         setResizeState({
+                          kind: "widget",
                           id: wid,
                           edge,
                           startX: e.clientX,
@@ -1327,6 +1390,7 @@ export function DashboardPage() {
                           const target = e.target as HTMLElement;
                           if (target.closest("button")) return;
                           setDragState({
+                            kind: "widget",
                             id: wid,
                             startX: e.clientX,
                             startY: e.clientY,
@@ -1341,67 +1405,114 @@ export function DashboardPage() {
                     </SortableReportItem>
                   )
                 ))}
+                {customReports.map((report) => {
+                  const rid = `custom:${report.id}`;
+                  const layout = customReportLayouts[report.id] ?? { colStart: 1, rowStart: 2, span: 12, rowSpan: 10 };
+                  const rows = report.source === "deals"
+                    ? dealsGlobal.slice(0, 30).map((d) => ({
+                        id: String(d.id || ""),
+                        title: String(d.title || ""),
+                        budget: Number(d.budget ?? 0),
+                        turnover: Number(d.turnover ?? 0),
+                        current_score: Number(d.current_score ?? 0),
+                        sales_channel: String(d.sales_channel || ""),
+                        stage_name: String(d.expand?.stage_id?.stage_name || ""),
+                        responsible: String(d.expand?.responsible_id?.full_name || d.expand?.responsible_id?.name || d.expand?.responsible_id?.email || ""),
+                        company: String(d.expand?.company_id?.name || ""),
+                        created: String(d.created || ""),
+                        updated: String(d.updated || ""),
+                      }))
+                    : companiesScoped.slice(0, 30).map((c) => ({
+                        id: String(c.id || ""),
+                        name: String(c.name || ""),
+                        inn: String(c.inn || ""),
+                        city: String(c.city || ""),
+                        website: String(c.website || ""),
+                        email: String(c.email || ""),
+                        phone: String(c.phone || ""),
+                        legal_entity: String(c.legal_entity || ""),
+                        created: String(c.created || ""),
+                        updated: String(c.updated || ""),
+                      }));
+                  return (
+                    <SortableReportItem
+                      key={rid}
+                      id={rid}
+                      editMode={layoutEditMode}
+                      colStart={layout.colStart}
+                      rowStart={layout.rowStart}
+                      colSpan={layout.span}
+                      rowSpan={layout.rowSpan}
+                      isDropAllowed={Boolean(dragState)}
+                      isDropTarget={dragState?.id === rid}
+                      onResizeStart={(edge, e) => {
+                        e.preventDefault();
+                        setResizeState({
+                          kind: "custom",
+                          id: rid,
+                          edge,
+                          startX: e.clientX,
+                          startY: e.clientY,
+                          startCol: layout.colStart,
+                          startRow: layout.rowStart,
+                          startSpan: layout.span,
+                          startRowSpan: layout.rowSpan,
+                        });
+                      }}
+                    >
+                      <div
+                        onMouseDown={(e) => {
+                          if (!layoutEditMode) return;
+                          const target = e.target as HTMLElement;
+                          if (target.closest("button")) return;
+                          setDragState({
+                            kind: "custom",
+                            id: rid,
+                            startX: e.clientX,
+                            startY: e.clientY,
+                            startCol: layout.colStart,
+                            startRow: layout.rowStart,
+                          });
+                        }}
+                        className={layoutEditMode ? "cursor-grab active:cursor-grabbing h-full" : "h-full"}
+                      >
+                        <div className="rounded-[14px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.06)] p-3 h-full">
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <div className="text-sm font-extrabold">{report.name}</div>
+                              <div className="text-xs text-text2 mt-1">{report.source === "deals" ? "Сделки" : "Компании"} · полей: {report.columns.length}</div>
+                            </div>
+                            <button
+                              className="h-8 rounded-md border border-[rgba(239,68,68,0.45)] bg-[rgba(239,68,68,0.12)] px-2 text-xs"
+                              onClick={() => {
+                                const next = customReports.filter((x) => x.id !== report.id);
+                                setCustomReports(next);
+                                localStorage.setItem("nwlvl_dashboard_custom_reports", JSON.stringify(next));
+                                setCustomReportLayouts((prev) => {
+                                  const cp = { ...prev };
+                                  delete cp[report.id];
+                                  localStorage.setItem("nwlvl_dashboard_custom_report_layouts", JSON.stringify(cp));
+                                  return cp;
+                                });
+                              }}
+                            >
+                              Удалить
+                            </button>
+                          </div>
+                          <div className="overflow-auto mt-3">
+                            <table className="min-w-[520px] w-full text-xs">
+                              <thead><tr className="text-left text-text2">{report.columns.map((c) => <th key={c} className="py-1 pr-3">{normalizedFieldName(report.source, c)}</th>)}</tr></thead>
+                              <tbody>{rows.slice(0, 7).map((row, idx) => <tr key={`${report.id}-${idx}`} className="border-t border-[rgba(255,255,255,0.08)]">{report.columns.map((c) => <td key={c} className="py-1 pr-3">{String((row as Record<string, unknown>)[c] ?? "")}</td>)}</tr>)}</tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    </SortableReportItem>
+                  );
+                })}
               </div>
               {layoutEditMode ? <div className="mt-2 text-xs text-text2">Свободное перемещение по всей сетке 24x24: карточка может быть установлена в любой точке, пересечения автоматически сдвигают соседние карточки вниз.</div> : null}
               {layoutEditMode ? <div className="mt-1 text-[11px] text-text2">Resize по периметру карточки. Пространство вниз не ограничено.</div> : null}
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
-              {customReports.map((report) => {
-                const rows = report.source === "deals"
-                  ? dealsGlobal.slice(0, 30).map((d) => ({
-                      id: String(d.id || ""),
-                      title: String(d.title || ""),
-                      budget: Number(d.budget ?? 0),
-                      turnover: Number(d.turnover ?? 0),
-                      current_score: Number(d.current_score ?? 0),
-                      sales_channel: String(d.sales_channel || ""),
-                      stage_name: String(d.expand?.stage_id?.stage_name || ""),
-                      responsible: String(d.expand?.responsible_id?.full_name || d.expand?.responsible_id?.name || d.expand?.responsible_id?.email || ""),
-                      company: String(d.expand?.company_id?.name || ""),
-                      created: String(d.created || ""),
-                      updated: String(d.updated || ""),
-                    }))
-                  : companiesScoped.slice(0, 30).map((c) => ({
-                      id: String(c.id || ""),
-                      name: String(c.name || ""),
-                      inn: String(c.inn || ""),
-                      city: String(c.city || ""),
-                      website: String(c.website || ""),
-                      email: String(c.email || ""),
-                      phone: String(c.phone || ""),
-                      legal_entity: String(c.legal_entity || ""),
-                      created: String(c.created || ""),
-                      updated: String(c.updated || ""),
-                    }));
-                return (
-                  <div key={report.id} className="rounded-[14px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.06)] p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <div className="text-sm font-extrabold">{report.name}</div>
-                        <div className="text-xs text-text2 mt-1">{report.source === "deals" ? "Сделки" : "Компании"} · полей: {report.columns.length}</div>
-                      </div>
-                      <button
-                        className="h-8 rounded-md border border-[rgba(239,68,68,0.45)] bg-[rgba(239,68,68,0.12)] px-2 text-xs"
-                        onClick={() => {
-                          const next = customReports.filter((x) => x.id !== report.id);
-                          setCustomReports(next);
-                          localStorage.setItem("nwlvl_dashboard_custom_reports", JSON.stringify(next));
-                        }}
-                      >
-                        Удалить
-                      </button>
-                    </div>
-                    <div className="overflow-auto mt-3">
-                      <table className="min-w-[520px] w-full text-xs">
-                        <thead><tr className="text-left text-text2">{report.columns.map((c) => <th key={c} className="py-1 pr-3">{normalizedFieldName(report.source, c)}</th>)}</tr></thead>
-                        <tbody>{rows.slice(0, 7).map((row, idx) => <tr key={`${report.id}-${idx}`} className="border-t border-[rgba(255,255,255,0.08)]">{report.columns.map((c) => <td key={c} className="py-1 pr-3">{String((row as Record<string, unknown>)[c] ?? "")}</td>)}</tr>)}</tbody>
-                      </table>
-                    </div>
-                  </div>
-                );
-              })}
-              {!customReports.length ? <div className="text-sm text-text2">Пока нет кастомных отчетов в блоке отчетов.</div> : null}
             </div>
 
           </>

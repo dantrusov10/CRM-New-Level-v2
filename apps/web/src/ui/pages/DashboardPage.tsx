@@ -1,8 +1,6 @@
 import React from "react";
 import { TrendingUp, CircleDot, Percent, Clock, Settings2, BarChart3, Download, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDeals, useFunnelStages, useUsers, useCompanies } from "../data/hooks";
 import type { Deal, FunnelStage, UserSummary, Company } from "../../lib/types";
 import { Button } from "../components/Button";
@@ -237,10 +235,13 @@ export function DashboardPage() {
   const [customSource, setCustomSource] = React.useState<"deals" | "companies">("deals");
   const [customName, setCustomName] = React.useState("Мой отчет");
   const [customColumns, setCustomColumns] = React.useState<string[]>(["title", "budget", "responsible"]);
+  const [customSearch, setCustomSearch] = React.useState("");
+  const [customBuilderOpen, setCustomBuilderOpen] = React.useState(false);
+  const [controlsCollapsed, setControlsCollapsed] = React.useState(false);
   const [resizeState, setResizeState] = React.useState<{ id: WidgetId; startX: number; startSpan: 1 | 2 | 3 } | null>(null);
+  const [draggingWidgetId, setDraggingWidgetId] = React.useState<WidgetId | null>(null);
   const userRole = String(user?.role_name || user?.role || "").toLowerCase();
   const isAdmin = /admin|founder/.test(userRole);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   React.useEffect(() => {
     try {
@@ -758,15 +759,16 @@ export function DashboardPage() {
     setCfg(target.cfg);
   }
 
-  function onWidgetDragEnd(event: DragEndEvent) {
-    if (!layoutEditMode) return;
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
+  function moveWidgetTo(sourceId: WidgetId, targetId: WidgetId) {
+    if (sourceId === targetId) return;
     setCfg((prev) => {
-      const oldIndex = prev.widgetOrder.indexOf(String(active.id) as WidgetId);
-      const newIndex = prev.widgetOrder.indexOf(String(over.id) as WidgetId);
+      const next = [...prev.widgetOrder];
+      const oldIndex = next.indexOf(sourceId);
+      const newIndex = next.indexOf(targetId);
       if (oldIndex < 0 || newIndex < 0) return prev;
-      return { ...prev, widgetOrder: arrayMove(prev.widgetOrder, oldIndex, newIndex) };
+      const [item] = next.splice(oldIndex, 1);
+      next.splice(newIndex, 0, item);
+      return { ...prev, widgetOrder: next };
     });
   }
 
@@ -801,11 +803,27 @@ export function DashboardPage() {
   }, []);
 
   const customFieldOptions = React.useMemo(() => {
-    if (customSource === "deals") {
-      return ["id", "title", "budget", "turnover", "current_score", "sales_channel", "stage_name", "responsible", "company", "created", "updated"];
+    const base = customSource === "deals"
+      ? ["id", "title", "budget", "turnover", "current_score", "sales_channel", "stage_name", "responsible", "company", "created", "updated"]
+      : ["id", "name", "inn", "city", "website", "email", "phone", "legal_entity", "created", "updated"];
+    const dynamic = new Set<string>(base);
+    const sampleRows = customSource === "deals" ? dealsAll.slice(0, 200) : companiesAll.slice(0, 200);
+    for (const row of sampleRows as Array<Record<string, unknown>>) {
+      Object.keys(row || {}).forEach((k) => {
+        if (k !== "expand") dynamic.add(k);
+      });
     }
-    return ["id", "name", "inn", "city", "website", "email", "phone", "legal_entity", "created", "updated"];
+    return Array.from(dynamic).sort((a, b) => a.localeCompare(b));
   }, [customSource]);
+
+  const filteredCustomFieldOptions = React.useMemo(() => {
+    const q = customSearch.trim().toLowerCase();
+    if (!q) return customFieldOptions;
+    return customFieldOptions.filter((key) => {
+      const ru = normalizedFieldName(customSource, key).toLowerCase();
+      return key.toLowerCase().includes(q) || ru.includes(q);
+    });
+  }, [customFieldOptions, customSearch, normalizedFieldName, customSource]);
 
   function addPresetReport(kind: "finance" | "pipeline" | "team") {
     const preset = kind === "finance"
@@ -883,7 +901,7 @@ export function DashboardPage() {
     if (!resizeState) return;
     const onMove = (e: MouseEvent) => {
       const delta = e.clientX - resizeState.startX;
-      const step = delta > 140 ? 1 : delta < -140 ? -1 : 0;
+      const step = Math.max(-2, Math.min(2, Math.round(delta / 160)));
       if (!step) return;
       const nextSpan = Math.max(1, Math.min(3, resizeState.startSpan + step)) as 1 | 2 | 3;
       setCfg((prev) => ({
@@ -906,18 +924,7 @@ export function DashboardPage() {
   function renderWidget(wid: WidgetId) {
     if (!cfg.widgets[wid].enabled) return null;
     if (wid === "insights") {
-      return (
-        <WidgetFrame title="Ключевые сигналы" subtitle="Быстрые сигналы по данным" widgetId="insights">
-          <div className="space-y-3">
-            {ins.map((x) => (
-              <div key={x.title} className="p-3 rounded-[16px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.08)]">
-                <div className="text-sm font-extrabold">{x.title}</div>
-                <div className="text-xs text-text2 mt-1">{x.desc}</div>
-              </div>
-            ))}
-          </div>
-        </WidgetFrame>
-      );
+      return null;
     }
     if (wid === "statCards") {
       return (
@@ -1036,92 +1043,35 @@ export function DashboardPage() {
           <input className="ui-input md:col-span-1 xl:col-span-2" value={globalFilters.channel ?? ""} onChange={(e) => setGlobalFilters((p) => ({ ...p, channel: e.target.value }))} placeholder="Канал (глобально)" />
         </div>
 
+        <div className="mt-4 ui-card p-4">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="text-sm font-extrabold">Блок управления дашбордом</div>
+              <div className="text-xs text-text2 mt-1">Фильтрация, редактирование раскладки, сохранение вида и создание кастомных отчетов.</div>
+            </div>
+            <Button small variant="secondary" onClick={() => setControlsCollapsed((v) => !v)}>
+              {controlsCollapsed ? "Развернуть" : "Свернуть"}
+            </Button>
+          </div>
+          {controlsCollapsed ? null : (
+            <div className="mt-3 grid grid-cols-1 xl:grid-cols-3 gap-2">
+              <Button small variant={layoutEditMode ? "primary" : "secondary"} onClick={openDashboardSettings}>
+                {layoutEditMode ? "Выключить режим редактирования" : "Включить режим редактирования"}
+              </Button>
+              <Button small variant="secondary" onClick={() => setCustomBuilderOpen(true)}>
+                Настройка отчета (модалка)
+              </Button>
+              <Button small variant="secondary" onClick={() => setCfg(DEFAULT_CFG)}>
+                Сбросить раскладку
+              </Button>
+            </div>
+          )}
+        </div>
+
         {loading ? (
           <div className="mt-6 text-sm text-text2">Загрузка данных...</div>
         ) : (
           <>
-            <div className="mt-6 ui-card p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-extrabold">Кастомные отчеты</div>
-                  <div className="text-xs text-text2 mt-1">Преднастроенные шаблоны + конструктор по данным CRM с нормализованными полями.</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button small variant="secondary" onClick={() => addPresetReport("finance")}>Пресет: Финансы</Button>
-                  <Button small variant="secondary" onClick={() => addPresetReport("pipeline")}>Пресет: Воронка</Button>
-                  <Button small variant="secondary" onClick={() => addPresetReport("team")}>Пресет: Команда</Button>
-                </div>
-              </div>
-
-              <div className="mt-3 grid grid-cols-1 xl:grid-cols-4 gap-2">
-                <input className="ui-input" value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder="Название отчета" />
-                <select className="ui-input" value={customSource} onChange={(e) => setCustomSource(e.target.value as "deals" | "companies")}>
-                  <option value="deals">Источник: Сделки</option>
-                  <option value="companies">Источник: Компании</option>
-                </select>
-                <select className="ui-input" value="" onChange={(e) => {
-                  const v = e.target.value;
-                  if (!v) return;
-                  setCustomColumns((prev) => (prev.includes(v) ? prev : [...prev, v]));
-                }}>
-                  <option value="">Добавить поле...</option>
-                  {customFieldOptions.map((f) => <option key={f} value={f}>{normalizedFieldName(customSource, f)}</option>)}
-                </select>
-                <Button small onClick={addCustomReport}>Добавить отчет</Button>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {customColumns.map((c) => (
-                  <button key={c} className="neon-pill" onClick={() => setCustomColumns((prev) => prev.filter((x) => x !== c))}>
-                    {normalizedFieldName(customSource, c)} x
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
-                {customReports.map((report) => {
-                  const rows = report.source === "deals"
-                    ? dealsGlobal.slice(0, 30).map((d) => ({
-                        id: String(d.id || ""),
-                        title: String(d.title || ""),
-                        budget: Number(d.budget ?? 0),
-                        turnover: Number(d.turnover ?? 0),
-                        current_score: Number(d.current_score ?? 0),
-                        sales_channel: String(d.sales_channel || ""),
-                        stage_name: String(d.expand?.stage_id?.stage_name || ""),
-                        responsible: String(d.expand?.responsible_id?.full_name || d.expand?.responsible_id?.name || d.expand?.responsible_id?.email || ""),
-                        company: String(d.expand?.company_id?.name || ""),
-                        created: String(d.created || ""),
-                        updated: String(d.updated || ""),
-                      }))
-                    : companiesScoped.slice(0, 30).map((c) => ({
-                        id: String(c.id || ""),
-                        name: String(c.name || ""),
-                        inn: String(c.inn || ""),
-                        city: String(c.city || ""),
-                        website: String(c.website || ""),
-                        email: String(c.email || ""),
-                        phone: String(c.phone || ""),
-                        legal_entity: String(c.legal_entity || ""),
-                        created: String(c.created || ""),
-                        updated: String(c.updated || ""),
-                      }));
-                  return (
-                    <div key={report.id} className="rounded-[14px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.06)] p-3">
-                      <div className="text-sm font-extrabold">{report.name}</div>
-                      <div className="text-xs text-text2 mt-1">{report.source === "deals" ? "Сделки" : "Компании"} · полей: {report.columns.length}</div>
-                      <div className="overflow-auto mt-3">
-                        <table className="min-w-[520px] w-full text-xs">
-                          <thead><tr className="text-left text-text2">{report.columns.map((c) => <th key={c} className="py-1 pr-3">{normalizedFieldName(report.source, c)}</th>)}</tr></thead>
-                          <tbody>{rows.slice(0, 7).map((row, idx) => <tr key={`${report.id}-${idx}`} className="border-t border-[rgba(255,255,255,0.08)]">{report.columns.map((c) => <td key={c} className="py-1 pr-3">{String((row as Record<string, unknown>)[c] ?? "")}</td>)}</tr>)}</tbody>
-                        </table>
-                      </div>
-                    </div>
-                  );
-                })}
-                {!customReports.length ? <div className="text-sm text-text2">Пока нет кастомных отчетов. Добавьте пресет или соберите свой.</div> : null}
-              </div>
-            </div>
-
             <div className="mt-6 ui-card p-4 neon-accent">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -1139,6 +1089,17 @@ export function DashboardPage() {
             </div>
 
             <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <WidgetFrame title="Ключевые сигналы" subtitle="Быстрые сигналы по данным" widgetId="insights">
+                <div className="space-y-3">
+                  {ins.map((x) => (
+                    <div key={x.title} className="p-3 rounded-[16px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.08)]">
+                      <div className="text-sm font-extrabold">{x.title}</div>
+                      <div className="text-xs text-text2 mt-1">{x.desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </WidgetFrame>
+
               <WidgetFrame title="Узкие места воронки" subtitle="Этапы с максимальным средним зависанием" widgetId="funnel">
                 <div className="space-y-2">
                   {bottlenecks.length ? bottlenecks.map((b) => (
@@ -1175,10 +1136,24 @@ export function DashboardPage() {
                 <SortableContext items={cfg.widgetOrder} strategy={verticalListSortingStrategy}>
                   <div
                     className="grid grid-cols-1 xl:grid-cols-3 gap-4 relative"
-                    style={layoutEditMode ? { backgroundImage: "linear-gradient(to right, rgba(51,215,255,0.12) 1px, transparent 1px), linear-gradient(to bottom, rgba(51,215,255,0.08) 1px, transparent 1px)", backgroundSize: "33.33% 100%, 100% 24px", borderRadius: "14px", padding: "8px" } : undefined}
+                    style={layoutEditMode ? { backgroundImage: "linear-gradient(to right, rgba(51,215,255,0.12) 1px, transparent 1px), linear-gradient(to bottom, rgba(51,215,255,0.08) 1px, transparent 1px)", backgroundSize: "24px 24px", borderRadius: "14px", padding: "8px" } : undefined}
                   >
                     {cfg.widgetOrder.map((wid) => (
-                      <div key={wid} className={`${widgetSpanClass(cfg.widgets[wid].span)} relative`}>
+                      wid === "insights" ? null : <div
+                        key={wid}
+                        className={`${widgetSpanClass(cfg.widgets[wid].span)} relative`}
+                        draggable={layoutEditMode}
+                        onDragStart={() => setDraggingWidgetId(wid)}
+                        onDragOver={(e) => {
+                          if (!layoutEditMode) return;
+                          e.preventDefault();
+                        }}
+                        onDrop={() => {
+                          if (!layoutEditMode || !draggingWidgetId) return;
+                          moveWidgetTo(draggingWidgetId, wid);
+                          setDraggingWidgetId(null);
+                        }}
+                      >
                         {renderWidget(wid)}
                         {layoutEditMode ? (
                           <button
@@ -1200,9 +1175,112 @@ export function DashboardPage() {
               {layoutEditMode ? <div className="mt-2 text-xs text-text2">Режим редактирования активен: перетаскивайте карточки мышкой и тяните маркер ⇆ для ширины.</div> : null}
             </div>
 
+            <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
+              {customReports.map((report) => {
+                const rows = report.source === "deals"
+                  ? dealsGlobal.slice(0, 30).map((d) => ({
+                      id: String(d.id || ""),
+                      title: String(d.title || ""),
+                      budget: Number(d.budget ?? 0),
+                      turnover: Number(d.turnover ?? 0),
+                      current_score: Number(d.current_score ?? 0),
+                      sales_channel: String(d.sales_channel || ""),
+                      stage_name: String(d.expand?.stage_id?.stage_name || ""),
+                      responsible: String(d.expand?.responsible_id?.full_name || d.expand?.responsible_id?.name || d.expand?.responsible_id?.email || ""),
+                      company: String(d.expand?.company_id?.name || ""),
+                      created: String(d.created || ""),
+                      updated: String(d.updated || ""),
+                    }))
+                  : companiesScoped.slice(0, 30).map((c) => ({
+                      id: String(c.id || ""),
+                      name: String(c.name || ""),
+                      inn: String(c.inn || ""),
+                      city: String(c.city || ""),
+                      website: String(c.website || ""),
+                      email: String(c.email || ""),
+                      phone: String(c.phone || ""),
+                      legal_entity: String(c.legal_entity || ""),
+                      created: String(c.created || ""),
+                      updated: String(c.updated || ""),
+                    }));
+                return (
+                  <div key={report.id} className="rounded-[14px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.06)] p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <div className="text-sm font-extrabold">{report.name}</div>
+                        <div className="text-xs text-text2 mt-1">{report.source === "deals" ? "Сделки" : "Компании"} · полей: {report.columns.length}</div>
+                      </div>
+                      <button
+                        className="h-8 rounded-md border border-[rgba(239,68,68,0.45)] bg-[rgba(239,68,68,0.12)] px-2 text-xs"
+                        onClick={() => {
+                          const next = customReports.filter((x) => x.id !== report.id);
+                          setCustomReports(next);
+                          localStorage.setItem("nwlvl_dashboard_custom_reports", JSON.stringify(next));
+                        }}
+                      >
+                        Удалить
+                      </button>
+                    </div>
+                    <div className="overflow-auto mt-3">
+                      <table className="min-w-[520px] w-full text-xs">
+                        <thead><tr className="text-left text-text2">{report.columns.map((c) => <th key={c} className="py-1 pr-3">{normalizedFieldName(report.source, c)}</th>)}</tr></thead>
+                        <tbody>{rows.slice(0, 7).map((row, idx) => <tr key={`${report.id}-${idx}`} className="border-t border-[rgba(255,255,255,0.08)]">{report.columns.map((c) => <td key={c} className="py-1 pr-3">{String((row as Record<string, unknown>)[c] ?? "")}</td>)}</tr>)}</tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
+              {!customReports.length ? <div className="text-sm text-text2">Пока нет кастомных отчетов в блоке отчетов.</div> : null}
+            </div>
+
           </>
         )}
       </div>
+
+      <Modal
+        open={customBuilderOpen}
+        title="Настройка отчета"
+        onClose={() => setCustomBuilderOpen(false)}
+        widthClass="max-w-3xl"
+      >
+        <div className="grid gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            <input className="ui-input" value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder="Название отчета" />
+            <select className="ui-input" value={customSource} onChange={(e) => setCustomSource(e.target.value as "deals" | "companies")}>
+              <option value="deals">Источник: Сделки</option>
+              <option value="companies">Источник: Компании</option>
+            </select>
+            <input className="ui-input" value={customSearch} onChange={(e) => setCustomSearch(e.target.value)} placeholder="Поиск поля (рус/тех)" />
+          </div>
+
+          <div className="rounded-card border border-border bg-rowHover p-3">
+            <div className="text-xs text-text2 mb-2">Все поля из доступных данных PocketBase (нормализованы)</div>
+            <div className="max-h-[260px] overflow-auto grid grid-cols-1 md:grid-cols-2 gap-2">
+              {filteredCustomFieldOptions.map((field) => (
+                <label key={field} className="flex items-center gap-2 text-sm rounded-md border border-border bg-white px-2 py-1.5">
+                  <input
+                    type="checkbox"
+                    checked={customColumns.includes(field)}
+                    onChange={(e) => {
+                      if (e.target.checked) setCustomColumns((prev) => (prev.includes(field) ? prev : [...prev, field]));
+                      else setCustomColumns((prev) => prev.filter((x) => x !== field));
+                    }}
+                  />
+                  <span>{normalizedFieldName(customSource, field)}</span>
+                  <span className="text-[10px] text-text2">{field}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button small variant="secondary" onClick={() => addPresetReport("finance")}>Пресет: Финансы</Button>
+            <Button small variant="secondary" onClick={() => addPresetReport("pipeline")}>Пресет: Воронка</Button>
+            <Button small variant="secondary" onClick={() => addPresetReport("team")}>Пресет: Команда</Button>
+            <Button small onClick={() => { addCustomReport(); setCustomBuilderOpen(false); }} disabled={!customName.trim() || !customColumns.length}>Добавить отчет в блок отчетов</Button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         open={settingsOpen}

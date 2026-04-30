@@ -119,10 +119,10 @@ function SortableReportItem({
       <div>{children}</div>
       {editMode ? (
         <>
-          <button className="absolute right-0 top-0 h-full w-[3px] cursor-ew-resize bg-[rgba(51,215,255,0.6)]" onMouseDown={(e) => onResizeStart("right", e)} title="Изменить ширину" />
-          <button className="absolute left-0 top-0 h-full w-[3px] cursor-ew-resize bg-[rgba(51,215,255,0.6)]" onMouseDown={(e) => onResizeStart("left", e)} title="Изменить ширину" />
-          <button className="absolute left-0 top-0 h-[3px] w-full cursor-ns-resize bg-[rgba(51,215,255,0.6)]" onMouseDown={(e) => onResizeStart("top", e)} title="Изменить высоту" />
-          <button className="absolute left-0 bottom-0 h-[3px] w-full cursor-ns-resize bg-[rgba(51,215,255,0.6)]" onMouseDown={(e) => onResizeStart("bottom", e)} title="Изменить высоту" />
+          <button className="absolute right-0 top-0 h-full w-[4px] cursor-ew-resize border-r border-[rgba(51,215,255,0.95)] bg-[rgba(51,215,255,0.18)] hover:bg-[rgba(51,215,255,0.35)]" onMouseDown={(e) => onResizeStart("right", e)} title="Изменить ширину (правая грань)" />
+          <button className="absolute left-0 top-0 h-full w-[4px] cursor-ew-resize border-l border-[rgba(51,215,255,0.95)] bg-[rgba(51,215,255,0.18)] hover:bg-[rgba(51,215,255,0.35)]" onMouseDown={(e) => onResizeStart("left", e)} title="Изменить ширину (левая грань)" />
+          <button className="absolute left-0 top-0 h-[4px] w-full cursor-ns-resize border-t border-[rgba(51,215,255,0.95)] bg-[rgba(51,215,255,0.18)] hover:bg-[rgba(51,215,255,0.35)]" onMouseDown={(e) => onResizeStart("top", e)} title="Изменить высоту (верхняя грань)" />
+          <button className="absolute left-0 bottom-0 h-[4px] w-full cursor-ns-resize border-b border-[rgba(51,215,255,0.95)] bg-[rgba(51,215,255,0.18)] hover:bg-[rgba(51,215,255,0.35)]" onMouseDown={(e) => onResizeStart("bottom", e)} title="Изменить высоту (нижняя грань)" />
         </>
       ) : null}
     </div>
@@ -298,6 +298,8 @@ export function DashboardPage() {
     edge: "left" | "right" | "top" | "bottom";
     startX: number;
     startY: number;
+    startCol: number;
+    startRow: number;
     startSpan: number;
     startRowSpan: number;
   } | null>(null);
@@ -1001,17 +1003,36 @@ export function DashboardPage() {
       const colWidth = gridWidth > 0 ? gridWidth / 24 : 48;
       const xStep = Math.round(dx / Math.max(16, colWidth));
       const yStep = Math.round(dy / 48);
+      let nextCol = resizeState.startCol;
+      let nextRow = resizeState.startRow;
       let nextSpan = resizeState.startSpan;
       let nextRowSpan = resizeState.startRowSpan;
-      if (resizeState.edge === "right") nextSpan = Math.max(2, Math.min(24, resizeState.startSpan + xStep));
-      if (resizeState.edge === "left") nextSpan = Math.max(2, Math.min(24, resizeState.startSpan - xStep));
+      if (resizeState.edge === "right") {
+        nextSpan = Math.max(2, Math.min(24, resizeState.startSpan + xStep));
+        nextSpan = Math.min(nextSpan, 25 - resizeState.startCol);
+      }
+      if (resizeState.edge === "left") {
+        const rightEdge = resizeState.startCol + resizeState.startSpan - 1;
+        nextCol = Math.max(1, Math.min(rightEdge - 1, resizeState.startCol + xStep));
+        nextSpan = Math.max(2, rightEdge - nextCol + 1);
+      }
       if (resizeState.edge === "bottom") nextRowSpan = Math.max(4, Math.min(120, resizeState.startRowSpan + yStep));
-      if (resizeState.edge === "top") nextRowSpan = Math.max(4, Math.min(120, resizeState.startRowSpan - yStep));
+      if (resizeState.edge === "top") {
+        const bottomEdge = resizeState.startRow + resizeState.startRowSpan - 1;
+        nextRow = Math.max(1, Math.min(bottomEdge - 3, resizeState.startRow + yStep));
+        nextRowSpan = Math.max(4, bottomEdge - nextRow + 1);
+      }
       setCfg((prev) => ({
         ...prev,
         widgets: {
           ...prev.widgets,
-          [resizeState.id]: { ...prev.widgets[resizeState.id], span: nextSpan, rowSpan: nextRowSpan },
+          [resizeState.id]: {
+            ...prev.widgets[resizeState.id],
+            colStart: nextCol,
+            rowStart: nextRow,
+            span: nextSpan,
+            rowSpan: nextRowSpan,
+          },
         },
       }));
     };
@@ -1290,6 +1311,8 @@ export function DashboardPage() {
                           edge,
                           startX: e.clientX,
                           startY: e.clientY,
+                          startCol: cfg.widgets[wid].colStart ?? 1,
+                          startRow: cfg.widgets[wid].rowStart ?? 1,
                           startSpan: cfg.widgets[wid].span ?? 8,
                           startRowSpan: cfg.widgets[wid].rowSpan ?? 10,
                         });

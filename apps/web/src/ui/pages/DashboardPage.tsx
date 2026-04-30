@@ -108,7 +108,7 @@ function SortableReportItem({
     transform: CSS.Transform.toString(transform),
     transition,
     gridColumn: `span ${Math.max(1, Math.min(24, colSpan || 8))}`,
-    gridRow: `span ${Math.max(6, rowSpan || 8)}`,
+    gridRow: `span ${Math.max(4, rowSpan || 8)}`,
     zIndex: isDragging ? 30 : 1,
   };
   const glowClass = editMode && isDropTarget
@@ -123,8 +123,10 @@ function SortableReportItem({
       </div>
       {editMode ? (
         <>
-          <button className="absolute -right-1 top-1/2 h-10 w-2 -translate-y-1/2 cursor-ew-resize rounded bg-[rgba(51,215,255,0.45)]" onMouseDown={(e) => onResizeStart("right", e)} />
-          <button className="absolute left-1/2 -bottom-1 h-2 w-10 -translate-x-1/2 cursor-ns-resize rounded bg-[rgba(51,215,255,0.45)]" onMouseDown={(e) => onResizeStart("bottom", e)} />
+          <button className="absolute right-0 top-0 h-full w-[3px] cursor-ew-resize bg-[rgba(51,215,255,0.6)]" onMouseDown={(e) => onResizeStart("right", e)} title="Изменить ширину" />
+          <button className="absolute left-0 top-0 h-full w-[3px] cursor-ew-resize bg-[rgba(51,215,255,0.6)]" onMouseDown={(e) => onResizeStart("left", e)} title="Изменить ширину" />
+          <button className="absolute left-0 top-0 h-[3px] w-full cursor-ns-resize bg-[rgba(51,215,255,0.6)]" onMouseDown={(e) => onResizeStart("top", e)} title="Изменить высоту" />
+          <button className="absolute left-0 bottom-0 h-[3px] w-full cursor-ns-resize bg-[rgba(51,215,255,0.6)]" onMouseDown={(e) => onResizeStart("bottom", e)} title="Изменить высоту" />
         </>
       ) : null}
     </div>
@@ -293,7 +295,7 @@ export function DashboardPage() {
   const [controlsCollapsed, setControlsCollapsed] = React.useState(false);
   const [resizeState, setResizeState] = React.useState<{
     id: WidgetId;
-    edge: "right" | "bottom";
+    edge: "left" | "right" | "top" | "bottom";
     startX: number;
     startY: number;
     startSpan: number;
@@ -982,7 +984,9 @@ export function DashboardPage() {
       let nextSpan = resizeState.startSpan;
       let nextRowSpan = resizeState.startRowSpan;
       if (resizeState.edge === "right") nextSpan = Math.max(2, Math.min(24, resizeState.startSpan + xStep));
-      if (resizeState.edge === "bottom") nextRowSpan = Math.max(6, Math.min(30, resizeState.startRowSpan + yStep));
+      if (resizeState.edge === "left") nextSpan = Math.max(2, Math.min(24, resizeState.startSpan - xStep));
+      if (resizeState.edge === "bottom") nextRowSpan = Math.max(4, Math.min(120, resizeState.startRowSpan + yStep));
+      if (resizeState.edge === "top") nextRowSpan = Math.max(4, Math.min(120, resizeState.startRowSpan - yStep));
       setCfg((prev) => ({
         ...prev,
         widgets: {
@@ -1225,7 +1229,7 @@ export function DashboardPage() {
                 <SortableContext items={cfg.widgetOrder.filter((x) => x !== "insights")} strategy={rectSortingStrategy}>
                   <div
                     ref={reportsGridRef}
-                    className="grid grid-cols-1 xl:gap-4 gap-4 relative auto-rows-[24px]"
+                    className={`grid grid-cols-1 relative auto-rows-[24px] ${layoutEditMode ? "gap-1" : "gap-4"}`}
                     style={{
                       gridTemplateColumns: "repeat(24, minmax(0, 1fr))",
                       ...(layoutEditMode
@@ -1250,7 +1254,6 @@ export function DashboardPage() {
                           isDropAllowed={Boolean(overWidgetId)}
                           isDropTarget={overWidgetId === wid}
                           onResizeStart={(edge, e) => {
-                            if (edge !== "right" && edge !== "bottom") return;
                             e.preventDefault();
                             setResizeState({
                               id: wid,

@@ -116,13 +116,13 @@ function SortableReportItem({
     : "";
   return (
     <div style={style} className={`relative ${glowClass}`} data-widget-id={id}>
-      <div>{children}</div>
+      <div className="h-full">{children}</div>
       {editMode ? (
         <>
-          <button className="absolute right-0 top-0 h-full w-[4px] cursor-ew-resize border-r border-[rgba(51,215,255,0.95)] bg-[rgba(51,215,255,0.18)] hover:bg-[rgba(51,215,255,0.35)]" onMouseDown={(e) => onResizeStart("right", e)} title="Изменить ширину (правая грань)" />
-          <button className="absolute left-0 top-0 h-full w-[4px] cursor-ew-resize border-l border-[rgba(51,215,255,0.95)] bg-[rgba(51,215,255,0.18)] hover:bg-[rgba(51,215,255,0.35)]" onMouseDown={(e) => onResizeStart("left", e)} title="Изменить ширину (левая грань)" />
-          <button className="absolute left-0 top-0 h-[4px] w-full cursor-ns-resize border-t border-[rgba(51,215,255,0.95)] bg-[rgba(51,215,255,0.18)] hover:bg-[rgba(51,215,255,0.35)]" onMouseDown={(e) => onResizeStart("top", e)} title="Изменить высоту (верхняя грань)" />
-          <button className="absolute left-0 bottom-0 h-[4px] w-full cursor-ns-resize border-b border-[rgba(51,215,255,0.95)] bg-[rgba(51,215,255,0.18)] hover:bg-[rgba(51,215,255,0.35)]" onMouseDown={(e) => onResizeStart("bottom", e)} title="Изменить высоту (нижняя грань)" />
+          <button className="absolute right-0 top-0 h-full w-[3px] cursor-ew-resize bg-[rgba(51,215,255,0.55)] hover:bg-[rgba(51,215,255,0.85)]" onMouseDown={(e) => onResizeStart("right", e)} title="Изменить ширину (правая грань)" />
+          <button className="absolute left-0 top-0 h-full w-[3px] cursor-ew-resize bg-[rgba(51,215,255,0.55)] hover:bg-[rgba(51,215,255,0.85)]" onMouseDown={(e) => onResizeStart("left", e)} title="Изменить ширину (левая грань)" />
+          <button className="absolute left-0 top-0 h-[3px] w-full cursor-ns-resize bg-[rgba(51,215,255,0.55)] hover:bg-[rgba(51,215,255,0.85)]" onMouseDown={(e) => onResizeStart("top", e)} title="Изменить высоту (верхняя грань)" />
+          <button className="absolute left-0 bottom-0 h-[3px] w-full cursor-ns-resize bg-[rgba(51,215,255,0.55)] hover:bg-[rgba(51,215,255,0.85)]" onMouseDown={(e) => onResizeStart("bottom", e)} title="Изменить высоту (нижняя грань)" />
         </>
       ) : null}
     </div>
@@ -722,7 +722,7 @@ export function DashboardPage() {
     onDrill?: () => void;
   }) {
     return (
-      <div className="ui-card p-4">
+    <div className="ui-card p-4 h-full flex flex-col">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-sm font-extrabold">{title}</div>
@@ -738,7 +738,7 @@ export function DashboardPage() {
             </button>
           </div>
         </div>
-        <div className="mt-4">{children}</div>
+      <div className="mt-4 flex-1 min-h-0 overflow-auto">{children}</div>
       </div>
     );
   }

@@ -84,12 +84,6 @@ function Donut({ value }: { value: number }) {
   );
 }
 
-function widgetSpanClass(span?: 1 | 2 | 3) {
-  if (span === 3) return "xl:col-span-3";
-  if (span === 2) return "xl:col-span-2";
-  return "xl:col-span-1";
-}
-
 function SortableReportItem({
   id,
   editMode,
@@ -102,7 +96,7 @@ function SortableReportItem({
 }: {
   id: string;
   editMode: boolean;
-  colSpan: 1 | 2 | 3;
+  colSpan: number;
   rowSpan: number;
   isDropAllowed: boolean;
   isDropTarget: boolean;
@@ -113,7 +107,7 @@ function SortableReportItem({
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    gridColumn: `span ${colSpan}`,
+    gridColumn: `span ${Math.max(1, Math.min(12, colSpan || 4))}`,
     gridRow: `span ${Math.max(6, rowSpan || 8)}`,
     zIndex: isDragging ? 30 : 1,
   };
@@ -130,8 +124,6 @@ function SortableReportItem({
       {editMode ? (
         <>
           <button className="absolute -right-1 top-1/2 h-10 w-2 -translate-y-1/2 cursor-ew-resize rounded bg-[rgba(51,215,255,0.45)]" onMouseDown={(e) => onResizeStart("right", e)} />
-          <button className="absolute -left-1 top-1/2 h-10 w-2 -translate-y-1/2 cursor-ew-resize rounded bg-[rgba(51,215,255,0.45)]" onMouseDown={(e) => onResizeStart("left", e)} />
-          <button className="absolute left-1/2 -top-1 h-2 w-10 -translate-x-1/2 cursor-ns-resize rounded bg-[rgba(51,215,255,0.45)]" onMouseDown={(e) => onResizeStart("top", e)} />
           <button className="absolute left-1/2 -bottom-1 h-2 w-10 -translate-x-1/2 cursor-ns-resize rounded bg-[rgba(51,215,255,0.45)]" onMouseDown={(e) => onResizeStart("bottom", e)} />
         </>
       ) : null}
@@ -196,7 +188,7 @@ export function DashboardPage() {
     syncWithGlobal: boolean;
     filters: WidgetFilters;
     visual?: "cockpit" | "classic"; // used by some widgets
-    span?: 1 | 2 | 3;
+    span?: number;
     rowSpan?: number;
   };
 
@@ -220,13 +212,13 @@ export function DashboardPage() {
   const DEFAULT_CFG: DashCfg = {
     dashboardVisual: "cockpit",
     widgets: {
-      statCards: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 3, rowSpan: 8 },
-      dynamics: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 1, rowSpan: 8 },
-      winRate: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 1, rowSpan: 8 },
-      funnel: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, visual: "cockpit", span: 1, rowSpan: 12 },
-      topManagers: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 1, rowSpan: 12 },
-      insights: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 2, rowSpan: 10 },
-      budgetByStage: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 1, rowSpan: 10 },
+      statCards: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 12, rowSpan: 8 },
+      dynamics: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 4, rowSpan: 8 },
+      winRate: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 4, rowSpan: 8 },
+      funnel: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, visual: "cockpit", span: 4, rowSpan: 12 },
+      topManagers: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 4, rowSpan: 12 },
+      insights: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 8, rowSpan: 10 },
+      budgetByStage: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 4, rowSpan: 10 },
     },
     widgetOrder: ["insights", "statCards", "dynamics", "winRate", "topManagers", "funnel", "budgetByStage"],
   };
@@ -249,6 +241,12 @@ export function DashboardPage() {
           ...DEFAULT_CFG.widgets[k],
           ...src,
           filters: { ...DEFAULT_CFG.widgets[k].filters, ...(src?.filters ?? {}) },
+          span:
+            typeof src?.span === "number"
+              ? src.span <= 3
+                ? src.span * 4
+                : src.span
+              : DEFAULT_CFG.widgets[k].span,
         };
       }
       merged.widgetOrder = Array.isArray(parsed?.widgetOrder)
@@ -293,10 +291,10 @@ export function DashboardPage() {
   const [controlsCollapsed, setControlsCollapsed] = React.useState(false);
   const [resizeState, setResizeState] = React.useState<{
     id: WidgetId;
-    edge: "left" | "right" | "top" | "bottom";
+    edge: "right" | "bottom";
     startX: number;
     startY: number;
-    startSpan: 1 | 2 | 3;
+    startSpan: number;
     startRowSpan: number;
   } | null>(null);
   const [draggingWidgetId, setDraggingWidgetId] = React.useState<WidgetId | null>(null);
@@ -978,10 +976,8 @@ export function DashboardPage() {
       const yStep = Math.round(dy / 48);
       let nextSpan = resizeState.startSpan;
       let nextRowSpan = resizeState.startRowSpan;
-      if (resizeState.edge === "right") nextSpan = Math.max(1, Math.min(3, resizeState.startSpan + xStep)) as 1 | 2 | 3;
-      if (resizeState.edge === "left") nextSpan = Math.max(1, Math.min(3, resizeState.startSpan - xStep)) as 1 | 2 | 3;
+      if (resizeState.edge === "right") nextSpan = Math.max(2, Math.min(12, resizeState.startSpan + xStep));
       if (resizeState.edge === "bottom") nextRowSpan = Math.max(6, Math.min(30, resizeState.startRowSpan + yStep));
-      if (resizeState.edge === "top") nextRowSpan = Math.max(6, Math.min(30, resizeState.startRowSpan - yStep));
       setCfg((prev) => ({
         ...prev,
         widgets: {
@@ -1223,7 +1219,7 @@ export function DashboardPage() {
               >
                 <SortableContext items={cfg.widgetOrder.filter((x) => x !== "insights")} strategy={rectSortingStrategy}>
                   <div
-                    className="grid grid-cols-1 xl:grid-cols-3 gap-4 relative"
+                    className="grid grid-cols-1 xl:grid-cols-12 gap-4 relative auto-rows-[24px]"
                     style={layoutEditMode ? { backgroundImage: "linear-gradient(to right, rgba(51,215,255,0.12) 1px, transparent 1px), linear-gradient(to bottom, rgba(51,215,255,0.08) 1px, transparent 1px)", backgroundSize: "24px 24px", borderRadius: "14px", padding: "8px" } : undefined}
                   >
                     {cfg.widgetOrder.map((wid) => (
@@ -1232,18 +1228,19 @@ export function DashboardPage() {
                           key={wid}
                           id={wid}
                           editMode={layoutEditMode}
-                          colSpan={cfg.widgets[wid].span ?? 1}
+                          colSpan={cfg.widgets[wid].span ?? 4}
                           rowSpan={cfg.widgets[wid].rowSpan ?? 10}
                           isDropAllowed={Boolean(overWidgetId)}
                           isDropTarget={overWidgetId === wid}
                           onResizeStart={(edge, e) => {
+                            if (edge !== "right" && edge !== "bottom") return;
                             e.preventDefault();
                             setResizeState({
                               id: wid,
                               edge,
                               startX: e.clientX,
                               startY: e.clientY,
-                              startSpan: cfg.widgets[wid].span ?? 1,
+                              startSpan: cfg.widgets[wid].span ?? 4,
                               startRowSpan: cfg.widgets[wid].rowSpan ?? 10,
                             });
                           }}
@@ -1264,6 +1261,7 @@ export function DashboardPage() {
                 </DragOverlay>
               </DndContext>
               {layoutEditMode ? <div className="mt-2 text-xs text-text2">Режим редактирования активен: тяните карточку за мышкой (как в Miro), зеленая неоновая рамка — можно поставить, красная — нельзя. Размер меняется за границы карточки.</div> : null}
+              {layoutEditMode ? <div className="mt-1 text-[11px] text-text2">Сетка: 12/12 по ширине, шаг по высоте 24px. Resize: справа — ширина, снизу — высота.</div> : null}
             </div>
 
             <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-4">

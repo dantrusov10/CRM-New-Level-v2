@@ -107,7 +107,7 @@ function SortableReportItem({
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    gridColumn: `span ${Math.max(1, Math.min(12, colSpan || 4))}`,
+    gridColumn: `span ${Math.max(1, Math.min(24, colSpan || 8))}`,
     gridRow: `span ${Math.max(6, rowSpan || 8)}`,
     zIndex: isDragging ? 30 : 1,
   };
@@ -212,13 +212,13 @@ export function DashboardPage() {
   const DEFAULT_CFG: DashCfg = {
     dashboardVisual: "cockpit",
     widgets: {
-      statCards: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 12, rowSpan: 8 },
-      dynamics: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 4, rowSpan: 8 },
-      winRate: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 4, rowSpan: 8 },
-      funnel: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, visual: "cockpit", span: 4, rowSpan: 12 },
-      topManagers: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 4, rowSpan: 12 },
-      insights: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 8, rowSpan: 10 },
-      budgetByStage: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 4, rowSpan: 10 },
+      statCards: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 24, rowSpan: 8 },
+      dynamics: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 8, rowSpan: 8 },
+      winRate: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 8, rowSpan: 8 },
+      funnel: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, visual: "cockpit", span: 8, rowSpan: 12 },
+      topManagers: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 8, rowSpan: 12 },
+      insights: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 16, rowSpan: 10 },
+      budgetByStage: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 8, rowSpan: 10 },
     },
     widgetOrder: ["insights", "statCards", "dynamics", "winRate", "topManagers", "funnel", "budgetByStage"],
   };
@@ -244,8 +244,10 @@ export function DashboardPage() {
           span:
             typeof src?.span === "number"
               ? src.span <= 3
-                ? src.span * 4
-                : src.span
+                ? src.span * 8
+                : src.span <= 12
+                  ? src.span * 2
+                  : src.span
               : DEFAULT_CFG.widgets[k].span,
         };
       }
@@ -299,6 +301,7 @@ export function DashboardPage() {
   } | null>(null);
   const [draggingWidgetId, setDraggingWidgetId] = React.useState<WidgetId | null>(null);
   const [overWidgetId, setOverWidgetId] = React.useState<WidgetId | null>(null);
+  const reportsGridRef = React.useRef<HTMLDivElement | null>(null);
   const userRole = String(user?.role_name || user?.role || "").toLowerCase();
   const isAdmin = /admin|founder/.test(userRole);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -972,11 +975,13 @@ export function DashboardPage() {
     const onMove = (e: MouseEvent) => {
       const dx = e.clientX - resizeState.startX;
       const dy = e.clientY - resizeState.startY;
-      const xStep = Math.round(dx / 180);
+      const gridWidth = reportsGridRef.current?.getBoundingClientRect().width ?? 0;
+      const colWidth = gridWidth > 0 ? gridWidth / 24 : 48;
+      const xStep = Math.round(dx / Math.max(16, colWidth));
       const yStep = Math.round(dy / 48);
       let nextSpan = resizeState.startSpan;
       let nextRowSpan = resizeState.startRowSpan;
-      if (resizeState.edge === "right") nextSpan = Math.max(2, Math.min(12, resizeState.startSpan + xStep));
+      if (resizeState.edge === "right") nextSpan = Math.max(2, Math.min(24, resizeState.startSpan + xStep));
       if (resizeState.edge === "bottom") nextRowSpan = Math.max(6, Math.min(30, resizeState.startRowSpan + yStep));
       setCfg((prev) => ({
         ...prev,
@@ -1219,8 +1224,20 @@ export function DashboardPage() {
               >
                 <SortableContext items={cfg.widgetOrder.filter((x) => x !== "insights")} strategy={rectSortingStrategy}>
                   <div
-                    className="grid grid-cols-1 xl:grid-cols-12 gap-4 relative auto-rows-[24px]"
-                    style={layoutEditMode ? { backgroundImage: "linear-gradient(to right, rgba(51,215,255,0.12) 1px, transparent 1px), linear-gradient(to bottom, rgba(51,215,255,0.08) 1px, transparent 1px)", backgroundSize: "24px 24px", borderRadius: "14px", padding: "8px" } : undefined}
+                    ref={reportsGridRef}
+                    className="grid grid-cols-1 xl:gap-4 gap-4 relative auto-rows-[24px]"
+                    style={{
+                      gridTemplateColumns: "repeat(24, minmax(0, 1fr))",
+                      ...(layoutEditMode
+                        ? {
+                            backgroundImage:
+                              "linear-gradient(to right, rgba(51,215,255,0.14) 1px, transparent 1px), linear-gradient(to bottom, rgba(51,215,255,0.08) 1px, transparent 1px)",
+                            backgroundSize: "calc(100% / 24) 24px, 100% 24px",
+                            borderRadius: "14px",
+                            padding: "8px",
+                          }
+                        : {}),
+                    }}
                   >
                     {cfg.widgetOrder.map((wid) => (
                       wid === "insights" ? null : (
@@ -1228,7 +1245,7 @@ export function DashboardPage() {
                           key={wid}
                           id={wid}
                           editMode={layoutEditMode}
-                          colSpan={cfg.widgets[wid].span ?? 4}
+                          colSpan={cfg.widgets[wid].span ?? 8}
                           rowSpan={cfg.widgets[wid].rowSpan ?? 10}
                           isDropAllowed={Boolean(overWidgetId)}
                           isDropTarget={overWidgetId === wid}
@@ -1240,7 +1257,7 @@ export function DashboardPage() {
                               edge,
                               startX: e.clientX,
                               startY: e.clientY,
-                              startSpan: cfg.widgets[wid].span ?? 4,
+                              startSpan: cfg.widgets[wid].span ?? 8,
                               startRowSpan: cfg.widgets[wid].rowSpan ?? 10,
                             });
                           }}

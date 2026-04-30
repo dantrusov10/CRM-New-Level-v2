@@ -109,14 +109,15 @@ function SortableReportItem({
     gridRow: `${Math.max(1, rowStart || 1)} / span ${Math.max(4, rowSpan || 8)}`,
     zIndex: 1,
   };
-  const glowClass = editMode && isDropTarget
-    ? isDropAllowed
-      ? "ring-2 ring-[rgba(0,216,122,0.95)] shadow-[0_0_24px_rgba(0,216,122,0.65)]"
-      : "ring-2 ring-[rgba(239,68,68,0.95)] shadow-[0_0_24px_rgba(239,68,68,0.65)]"
-    : "";
+  const glowClass =
+    editMode && isDropTarget
+      ? isDropAllowed
+        ? "shadow-[inset_0_0_0_2px_rgba(0,216,122,0.95),0_0_20px_rgba(0,216,122,0.45)]"
+        : "shadow-[inset_0_0_0_2px_rgba(239,68,68,0.95),0_0_20px_rgba(239,68,68,0.45)]"
+      : "";
   return (
-    <div style={style} className={`relative ${glowClass}`} data-widget-id={id}>
-      <div className="h-full">{children}</div>
+    <div style={style} className="relative" data-widget-id={id}>
+      <div className={`h-full rounded-[16px] ${glowClass}`}>{children}</div>
       {editMode ? (
         <>
           <button className="absolute right-0 top-0 h-full w-[3px] cursor-ew-resize bg-[rgba(51,215,255,0.55)] hover:bg-[rgba(51,215,255,0.85)]" onMouseDown={(e) => onResizeStart("right", e)} title="Изменить ширину (правая грань)" />

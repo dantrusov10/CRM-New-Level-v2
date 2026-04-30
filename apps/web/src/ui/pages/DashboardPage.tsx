@@ -1,9 +1,8 @@
 import React from "react";
-import { TrendingUp, CircleDot, Percent, Clock, Settings2, BarChart3, Download, Sparkles, ChevronUp, ChevronDown } from "lucide-react";
+import { TrendingUp, CircleDot, Percent, Clock, Settings2, BarChart3, Download, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDeals, useFunnelStages, useUsers, useCompanies } from "../data/hooks";
 import type { Deal, FunnelStage, UserSummary, Company } from "../../lib/types";
 import { Button } from "../components/Button";
@@ -84,48 +83,10 @@ function Donut({ value }: { value: number }) {
   );
 }
 
-const WIDGET_LABELS: Record<string, string> = {
-  statCards: "Ключевые метрики",
-  dynamics: "Динамика входящих",
-  winRate: "Доля побед",
-  funnel: "Воронка",
-  topManagers: "Менеджеры",
-  insights: "Ключевые сигналы",
-  budgetByStage: "Бюджет по этапам",
-};
-
 function widgetSpanClass(span?: 1 | 2 | 3) {
   if (span === 3) return "xl:col-span-3";
   if (span === 2) return "xl:col-span-2";
   return "xl:col-span-1";
-}
-
-function SortableWidgetRow({
-  id,
-  label,
-  onMoveUp,
-  onMoveDown,
-}: {
-  id: string;
-  label: string;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
-  const style = { transform: CSS.Transform.toString(transform), transition };
-  return (
-    <div ref={setNodeRef} style={style} className="flex items-center justify-between rounded-card border border-border bg-rowHover px-3 py-2">
-      <button className="text-sm font-semibold text-left cursor-grab active:cursor-grabbing" {...attributes} {...listeners}>{label}</button>
-      <div className="flex items-center gap-1">
-        <button className="h-8 w-8 rounded-md border border-border bg-white flex items-center justify-center" onClick={onMoveUp}>
-          <ChevronUp size={14} />
-        </button>
-        <button className="h-8 w-8 rounded-md border border-border bg-white flex items-center justify-center" onClick={onMoveDown}>
-          <ChevronDown size={14} />
-        </button>
-      </div>
-    </div>
-  );
 }
 
 const StatCard = ({
@@ -253,7 +214,8 @@ export function DashboardPage() {
 
   const [cfg, setCfg] = React.useState<DashCfg>(() => loadCfg());
   const [settingsOpen, setSettingsOpen] = React.useState(false);
-  const [settingsTarget, setSettingsTarget] = React.useState<WidgetId | "dashboard">("dashboard");
+  const [settingsTarget, setSettingsTarget] = React.useState<WidgetId>("insights");
+  const [layoutEditMode, setLayoutEditMode] = React.useState(false);
   const [showScoringWelcome, setShowScoringWelcome] = React.useState(false);
   const [scoringRecordId, setScoringRecordId] = React.useState("");
   const [aiSummaryLoading, setAiSummaryLoading] = React.useState(false);
@@ -275,10 +237,7 @@ export function DashboardPage() {
   const [customSource, setCustomSource] = React.useState<"deals" | "companies">("deals");
   const [customName, setCustomName] = React.useState("Мой отчет");
   const [customColumns, setCustomColumns] = React.useState<string[]>(["title", "budget", "responsible"]);
-  const [founderPromptsOpen, setFounderPromptsOpen] = React.useState(false);
-  const [founderAdminPrompt, setFounderAdminPrompt] = React.useState("");
-  const [founderManagerPrompt, setFounderManagerPrompt] = React.useState("");
-  const [founderPromptStatus, setFounderPromptStatus] = React.useState("");
+  const [resizeState, setResizeState] = React.useState<{ id: WidgetId; startX: number; startSpan: 1 | 2 | 3 } | null>(null);
   const userRole = String(user?.role_name || user?.role || "").toLowerCase();
   const isAdmin = /admin|founder/.test(userRole);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -308,28 +267,6 @@ export function DashboardPage() {
       setCustomReports([]);
     }
   }, []);
-
-  React.useEffect(() => {
-    if (!isAdmin) return;
-    let disposed = false;
-    const loadPrompts = async () => {
-      const adminList = await pb.collection("semantic_packs").getList(1, 1, {
-        filter: 'type="dashboard" && model="founder_dashboard_brief_v1"',
-        sort: "-created",
-      }).catch(() => ({ items: [] as Array<{ base_text?: string }> }));
-      const managerList = await pb.collection("semantic_packs").getList(1, 1, {
-        filter: 'type="dashboard" && model="manager_dashboard_brief_v1"',
-        sort: "-created",
-      }).catch(() => ({ items: [] as Array<{ base_text?: string }> }));
-      if (disposed) return;
-      setFounderAdminPrompt(String(adminList.items[0]?.base_text || ""));
-      setFounderManagerPrompt(String(managerList.items[0]?.base_text || ""));
-    };
-    void loadPrompts();
-    return () => {
-      disposed = true;
-    };
-  }, [isAdmin]);
 
   React.useEffect(() => {
     setCfg((prev) => {
@@ -692,10 +629,7 @@ export function DashboardPage() {
 
   const pageWrapperClass = cfg.dashboardVisual === "classic" ? "rounded-card border border-border bg-white p-6" : "cockpit-panel p-6";
 
-  const openDashboardSettings = () => {
-    setSettingsTarget("dashboard");
-    setSettingsOpen(true);
-  };
+  const openDashboardSettings = () => setLayoutEditMode((v) => !v);
 
   const openWidgetSettings = (id: WidgetId) => {
     setSettingsTarget(id);
@@ -804,20 +738,6 @@ export function DashboardPage() {
     return lines.join("\n");
   }
 
-  function moveWidget(id: WidgetId, dir: -1 | 1) {
-    setCfg((prev) => {
-      const idx = prev.widgetOrder.indexOf(id);
-      if (idx < 0) return prev;
-      const nextIdx = idx + dir;
-      if (nextIdx < 0 || nextIdx >= prev.widgetOrder.length) return prev;
-      const next = [...prev.widgetOrder];
-      const tmp = next[idx];
-      next[idx] = next[nextIdx];
-      next[nextIdx] = tmp;
-      return { ...prev, widgetOrder: next };
-    });
-  }
-
   function saveCurrentView() {
     const name = window.prompt("Название сохраненного вида");
     if (!name || !name.trim()) return;
@@ -839,6 +759,7 @@ export function DashboardPage() {
   }
 
   function onWidgetDragEnd(event: DragEndEvent) {
+    if (!layoutEditMode) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     setCfg((prev) => {
@@ -905,34 +826,6 @@ export function DashboardPage() {
     localStorage.setItem("nwlvl_dashboard_custom_reports", JSON.stringify(next));
   }
 
-  async function saveFounderPromptFields() {
-    setFounderPromptStatus("");
-    if (!isAdmin) return;
-    const upsertPrompt = async (model: "founder_dashboard_brief_v1" | "manager_dashboard_brief_v1", text: string) => {
-      const list = await pb.collection("semantic_packs").getList(1, 1, {
-        filter: `type="dashboard" && model="${model}"`,
-        sort: "-created",
-      }).catch(() => ({ items: [] as Array<{ id: string }> }));
-      const payload = {
-        type: "dashboard",
-        model,
-        language: "ru",
-        base_text: text.trim(),
-        variants: { source: "founder_dashboard", role: model.includes("founder") ? "admin" : "manager" },
-      };
-      if (list.items[0]?.id) await pb.collection("semantic_packs").update(list.items[0].id, payload);
-      else await pb.collection("semantic_packs").create(payload);
-    };
-    try {
-      await upsertPrompt("founder_dashboard_brief_v1", founderAdminPrompt);
-      await upsertPrompt("manager_dashboard_brief_v1", founderManagerPrompt);
-      setFounderPromptStatus("Сохранено");
-      setTimeout(() => setFounderPromptStatus(""), 2000);
-    } catch (e) {
-      setFounderPromptStatus(e instanceof Error ? e.message : "Ошибка сохранения");
-    }
-  }
-
   async function refreshAdminAiSummary() {
     setAiSummaryLoading(true);
     setAiSummaryError("");
@@ -985,6 +878,30 @@ export function DashboardPage() {
     if (loading) return;
     void refreshAdminAiSummary();
   }, [loading, JSON.stringify(globalFilters)]);
+
+  React.useEffect(() => {
+    if (!resizeState) return;
+    const onMove = (e: MouseEvent) => {
+      const delta = e.clientX - resizeState.startX;
+      const step = delta > 140 ? 1 : delta < -140 ? -1 : 0;
+      if (!step) return;
+      const nextSpan = Math.max(1, Math.min(3, resizeState.startSpan + step)) as 1 | 2 | 3;
+      setCfg((prev) => ({
+        ...prev,
+        widgets: {
+          ...prev.widgets,
+          [resizeState.id]: { ...prev.widgets[resizeState.id], span: nextSpan },
+        },
+      }));
+    };
+    const onUp = () => setResizeState(null);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [resizeState]);
 
   function renderWidget(wid: WidgetId) {
     if (!cfg.widgets[wid].enabled) return null;
@@ -1092,13 +1009,8 @@ export function DashboardPage() {
               <span className="inline-flex items-center gap-2"><Download size={16} /> Экспорт среза</span>
             </Button>
             <Button small variant="secondary" onClick={openDashboardSettings} className="h-9">
-              <span className="inline-flex items-center gap-2"><BarChart3 size={16} /> Настройки дашборда</span>
+              <span className="inline-flex items-center gap-2"><BarChart3 size={16} /> {layoutEditMode ? "Завершить настройку" : "Настроить дашборд"}</span>
             </Button>
-            {isAdmin ? (
-              <Button small variant="secondary" onClick={() => setFounderPromptsOpen(true)} className="h-9">
-                Founder ЛК: промпты
-              </Button>
-            ) : null}
           </div>
         </div>
 
@@ -1128,68 +1040,6 @@ export function DashboardPage() {
           <div className="mt-6 text-sm text-text2">Загрузка данных...</div>
         ) : (
           <>
-            <div className="mt-6 ui-card p-4 neon-accent">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-extrabold inline-flex items-center gap-2"><Sparkles size={16} /> {isAdmin ? "ИИ-вывод для руководителя" : "ИИ-вывод для менеджера"}</div>
-                  <div className="text-xs text-text2 mt-1">
-                    Режим: {isAdmin ? "админ/руководитель" : "менеджер"} · prompt `{isAdmin ? "founder_dashboard_brief_v1" : "manager_dashboard_brief_v1"}`.
-                  </div>
-                </div>
-                <Button small variant="secondary" onClick={() => void refreshAdminAiSummary()} disabled={aiSummaryLoading}>
-                  {aiSummaryLoading ? "Обновление..." : "Обновить AI-вывод"}
-                </Button>
-              </div>
-              {aiSummaryError ? <div className="mt-2 text-xs text-danger">{aiSummaryError}</div> : null}
-              <div className="mt-3 whitespace-pre-wrap text-sm">{aiSummaryText || "Готовим вывод..."}</div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
-              <WidgetFrame title="Узкие места воронки" subtitle="Этапы с максимальным средним зависанием" widgetId="funnel">
-                <div className="space-y-2">
-                  {bottlenecks.length ? bottlenecks.map((b) => (
-                    <div key={b.id} className="rounded-[14px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.06)] p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="font-semibold">{b.name}</div>
-                        <div className="text-xs text-text2">{b.count} сделок</div>
-                      </div>
-                      <div className="text-xs text-text2 mt-1">Среднее зависание: {b.avgStale} дн.</div>
-                    </div>
-                  )) : <div className="text-sm text-text2">Нет данных для анализа узких мест.</div>}
-                </div>
-              </WidgetFrame>
-
-              <WidgetFrame title="Топ-5 приоритетных действий" subtitle="Сделки с максимальным риском просадки" widgetId="insights">
-                <div className="space-y-2">
-                  {priorityActions.length ? priorityActions.map((a) => (
-                    <button key={a.id} className="w-full text-left rounded-[14px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.06)] p-3 hover:bg-[rgba(255,255,255,0.1)]" onClick={() => nav(`/deals/${a.id}`)}>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="font-semibold truncate">{a.title}</div>
-                        <div className="text-xs text-text2">Риск {a.riskPoints}</div>
-                      </div>
-                      <div className="mt-1 text-xs text-text2">
-                        Вероятность: {a.score || "—"} · Зависание: {a.staleDays} дн. · Сумма: {money(a.amount)} ₽
-                      </div>
-                    </button>
-                  )) : <div className="text-sm text-text2">Нет приоритетных сделок в выбранном срезе.</div>}
-                </div>
-              </WidgetFrame>
-            </div>
-
-            <div className="mt-6">
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onWidgetDragEnd}>
-                <SortableContext items={cfg.widgetOrder} strategy={verticalListSortingStrategy}>
-                  <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-                    {cfg.widgetOrder.map((wid) => (
-                      <div key={wid} className={widgetSpanClass(cfg.widgets[wid].span)}>
-                        {renderWidget(wid)}
-                      </div>
-                    ))}
-                  </div>
-                </SortableContext>
-              </DndContext>
-            </div>
-
             <div className="mt-6 ui-card p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -1272,82 +1122,95 @@ export function DashboardPage() {
               </div>
             </div>
 
+            <div className="mt-6 ui-card p-4 neon-accent">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-extrabold inline-flex items-center gap-2"><Sparkles size={16} /> {isAdmin ? "ИИ-вывод для руководителя" : "ИИ-вывод для менеджера"}</div>
+                  <div className="text-xs text-text2 mt-1">
+                    Режим: {isAdmin ? "админ/руководитель" : "менеджер"} · prompt `{isAdmin ? "founder_dashboard_brief_v1" : "manager_dashboard_brief_v1"}`.
+                  </div>
+                </div>
+                <Button small variant="secondary" onClick={() => void refreshAdminAiSummary()} disabled={aiSummaryLoading}>
+                  {aiSummaryLoading ? "Обновление..." : "Обновить AI-вывод"}
+                </Button>
+              </div>
+              {aiSummaryError ? <div className="mt-2 text-xs text-danger">{aiSummaryError}</div> : null}
+              <div className="mt-3 whitespace-pre-wrap text-sm">{aiSummaryText || "Готовим вывод..."}</div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <WidgetFrame title="Узкие места воронки" subtitle="Этапы с максимальным средним зависанием" widgetId="funnel">
+                <div className="space-y-2">
+                  {bottlenecks.length ? bottlenecks.map((b) => (
+                    <div key={b.id} className="rounded-[14px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.06)] p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-semibold">{b.name}</div>
+                        <div className="text-xs text-text2">{b.count} сделок</div>
+                      </div>
+                      <div className="text-xs text-text2 mt-1">Среднее зависание: {b.avgStale} дн.</div>
+                    </div>
+                  )) : <div className="text-sm text-text2">Нет данных для анализа узких мест.</div>}
+                </div>
+              </WidgetFrame>
+
+              <WidgetFrame title="Топ-5 приоритетных действий" subtitle="Сделки с максимальным риском просадки" widgetId="insights">
+                <div className="space-y-2">
+                  {priorityActions.length ? priorityActions.map((a) => (
+                    <button key={a.id} className="w-full text-left rounded-[14px] border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.06)] p-3 hover:bg-[rgba(255,255,255,0.1)]" onClick={() => nav(`/deals/${a.id}`)}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-semibold truncate">{a.title}</div>
+                        <div className="text-xs text-text2">Риск {a.riskPoints}</div>
+                      </div>
+                      <div className="mt-1 text-xs text-text2">
+                        Вероятность: {a.score || "—"} · Зависание: {a.staleDays} дн. · Сумма: {money(a.amount)} ₽
+                      </div>
+                    </button>
+                  )) : <div className="text-sm text-text2">Нет приоритетных сделок в выбранном срезе.</div>}
+                </div>
+              </WidgetFrame>
+            </div>
+
+            <div className="mt-6">
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onWidgetDragEnd}>
+                <SortableContext items={cfg.widgetOrder} strategy={verticalListSortingStrategy}>
+                  <div
+                    className="grid grid-cols-1 xl:grid-cols-3 gap-4 relative"
+                    style={layoutEditMode ? { backgroundImage: "linear-gradient(to right, rgba(51,215,255,0.12) 1px, transparent 1px), linear-gradient(to bottom, rgba(51,215,255,0.08) 1px, transparent 1px)", backgroundSize: "33.33% 100%, 100% 24px", borderRadius: "14px", padding: "8px" } : undefined}
+                  >
+                    {cfg.widgetOrder.map((wid) => (
+                      <div key={wid} className={`${widgetSpanClass(cfg.widgets[wid].span)} relative`}>
+                        {renderWidget(wid)}
+                        {layoutEditMode ? (
+                          <button
+                            className="absolute bottom-2 right-2 h-6 w-6 rounded border border-[rgba(51,215,255,0.45)] bg-[rgba(51,215,255,0.12)] text-[10px] font-bold"
+                            title="Потяни мышкой вправо/влево для изменения ширины"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              setResizeState({ id: wid, startX: e.clientX, startSpan: cfg.widgets[wid].span ?? 1 });
+                            }}
+                          >
+                            ⇆
+                          </button>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+              {layoutEditMode ? <div className="mt-2 text-xs text-text2">Режим редактирования активен: перетаскивайте карточки мышкой и тяните маркер ⇆ для ширины.</div> : null}
+            </div>
+
           </>
         )}
       </div>
 
       <Modal
         open={settingsOpen}
-        title={settingsTarget === "dashboard" ? "Настройка дашборда" : `Настройка виджета: ${settingsTarget}`}
+        title={`Настройка виджета: ${settingsTarget}`}
         onClose={() => setSettingsOpen(false)}
         widthClass="max-w-2xl"
       >
-        {settingsTarget === "dashboard" ? (
-          <div className="grid gap-4">
-            <div>
-              <div className="text-xs text-text2 mb-1">Стиль дашборда</div>
-              <select
-                className="h-10 w-full rounded-card border border-[#9CA3AF] bg-white px-3 text-sm"
-                value={cfg.dashboardVisual}
-                onChange={(e) => setCfg((p) => ({ ...p, dashboardVisual: e.target.value as DashCfg["dashboardVisual"] }))}
-              >
-                <option value="cockpit">Неон (glass)</option>
-                <option value="classic">Классический</option>
-              </select>
-            </div>
-
-            <div>
-              <div className="text-xs text-text2 mb-2">Виджеты (вкл/выкл)</div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {(
-                  [
-                    ["statCards", "Ключевые метрики"],
-                    ["dynamics", "Динамика входящих"],
-                    ["winRate", "Доля побед"],
-                    ["funnel", "Воронка"],
-                    ["budgetByStage", "Бюджет по этапам"],
-                    ["topManagers", "Менеджеры"],
-                    ["insights", "Ключевые сигналы"],
-                  ] as Array<[WidgetId, string]>
-                ).map(([key, label]) => (
-                  <label key={String(key)} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={cfg.widgets[key].enabled}
-                      onChange={(e) => setCfg((p) => ({ ...p, widgets: { ...p.widgets, [key]: { ...p.widgets[key], enabled: e.target.checked } } }))}
-                    />
-                    <span>{label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="text-xs text-text2 mb-2">Порядок отчетов (менять местами)</div>
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onWidgetDragEnd}>
-                <SortableContext items={cfg.widgetOrder} strategy={verticalListSortingStrategy}>
-                  <div className="grid gap-2">
-                    {cfg.widgetOrder.map((wid) => (
-                      <SortableWidgetRow
-                        key={wid}
-                        id={wid}
-                        label={WIDGET_LABELS[wid] || wid}
-                        onMoveUp={() => moveWidget(wid, -1)}
-                        onMoveDown={() => moveWidget(wid, 1)}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </DndContext>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="secondary" onClick={() => setCfg(DEFAULT_CFG)}>Сбросить всё</Button>
-              <Button onClick={() => setSettingsOpen(false)}>Готово</Button>
-            </div>
-          </div>
-        ) : (
-          (() => {
+        {(() => {
             const wid = settingsTarget as WidgetId;
             const w = cfg.widgets[wid];
             const f = w.filters;
@@ -1534,36 +1397,7 @@ export function DashboardPage() {
                 </div>
               </div>
             );
-          })()
-        )}
-      </Modal>
-
-      <Modal open={founderPromptsOpen} title="Founder ЛК: промпты дашборда" onClose={() => setFounderPromptsOpen(false)} widthClass="max-w-3xl">
-        <div className="grid gap-3">
-          <div>
-            <div className="text-xs text-text2 mb-1">Промпт для руководителя/админа</div>
-            <textarea
-              className="w-full rounded-card border border-[#9CA3AF] bg-white px-3 py-2 text-sm"
-              rows={6}
-              value={founderAdminPrompt}
-              onChange={(e) => setFounderAdminPrompt(e.target.value)}
-            />
-          </div>
-          <div>
-            <div className="text-xs text-text2 mb-1">Промпт для менеджера</div>
-            <textarea
-              className="w-full rounded-card border border-[#9CA3AF] bg-white px-3 py-2 text-sm"
-              rows={6}
-              value={founderManagerPrompt}
-              onChange={(e) => setFounderManagerPrompt(e.target.value)}
-            />
-          </div>
-          <div className="flex items-center justify-end gap-2">
-            {founderPromptStatus ? <span className="text-xs text-success">{founderPromptStatus}</span> : null}
-            <Button variant="secondary" onClick={() => setFounderPromptsOpen(false)}>Закрыть</Button>
-            <Button onClick={() => void saveFounderPromptFields()} disabled={!founderAdminPrompt.trim() || !founderManagerPrompt.trim()}>Сохранить</Button>
-          </div>
-        </div>
+          })()}
       </Modal>
 
       <Modal open={showScoringWelcome} title="Рекомендуемая модель AI-скоринга" onClose={acknowledgeScoringModel}>

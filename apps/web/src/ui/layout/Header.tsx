@@ -10,7 +10,7 @@ import { can } from "../../lib/rbac";
 import { NotificationsBell } from "../components/NotificationsBell";
 
 function titleByPath(pathname: string) {
-  if (pathname.startsWith("/dashboard")) return "Dashboard";
+  if (pathname.startsWith("/dashboard")) return "Дашборд";
   if (pathname.startsWith("/calendar")) return "Календарь";
   if (pathname.startsWith("/search")) return "Поиск";
   if (pathname.startsWith("/kanban")) return "Канбан";

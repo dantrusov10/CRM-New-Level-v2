@@ -117,7 +117,7 @@ function SortableReportItem({
       : "ring-2 ring-[rgba(239,68,68,0.95)] shadow-[0_0_24px_rgba(239,68,68,0.65)]"
     : "";
   return (
-    <div ref={setNodeRef} style={style} className={`relative ${widgetSpanClass(colSpan)} ${glowClass}`}>
+    <div ref={setNodeRef} style={style} className={`relative ${glowClass}`}>
       <div className={isDragging ? "opacity-70" : ""} {...attributes} {...listeners}>
         {children}
       </div>

@@ -117,15 +117,17 @@ function SortableReportItem({
       : "";
   return (
     <div style={style} className="relative" data-widget-id={id}>
-      <div className={`h-full rounded-[16px] ${glowClass}`}>{children}</div>
+      <div className={`h-full rounded-[16px] relative overflow-hidden ${glowClass}`}>
+        <div className="h-full">{children}</div>
       {editMode ? (
         <>
-          <button className="absolute right-0 top-0 h-full w-[3px] cursor-ew-resize bg-[rgba(51,215,255,0.55)] hover:bg-[rgba(51,215,255,0.85)]" onMouseDown={(e) => onResizeStart("right", e)} title="Изменить ширину (правая грань)" />
-          <button className="absolute left-0 top-0 h-full w-[3px] cursor-ew-resize bg-[rgba(51,215,255,0.55)] hover:bg-[rgba(51,215,255,0.85)]" onMouseDown={(e) => onResizeStart("left", e)} title="Изменить ширину (левая грань)" />
-          <button className="absolute left-0 top-0 h-[3px] w-full cursor-ns-resize bg-[rgba(51,215,255,0.55)] hover:bg-[rgba(51,215,255,0.85)]" onMouseDown={(e) => onResizeStart("top", e)} title="Изменить высоту (верхняя грань)" />
-          <button className="absolute left-0 bottom-0 h-[3px] w-full cursor-ns-resize bg-[rgba(51,215,255,0.55)] hover:bg-[rgba(51,215,255,0.85)]" onMouseDown={(e) => onResizeStart("bottom", e)} title="Изменить высоту (нижняя грань)" />
+          <button className="absolute right-0 top-0 h-full w-[6px] cursor-ew-resize bg-[rgba(51,215,255,0.35)] hover:bg-[rgba(51,215,255,0.9)]" onMouseDown={(e) => onResizeStart("right", e)} title="Изменить ширину (правая грань)" />
+          <button className="absolute left-0 top-0 h-full w-[6px] cursor-ew-resize bg-[rgba(51,215,255,0.35)] hover:bg-[rgba(51,215,255,0.9)]" onMouseDown={(e) => onResizeStart("left", e)} title="Изменить ширину (левая грань)" />
+          <button className="absolute left-0 top-0 h-[6px] w-full cursor-ns-resize bg-[rgba(51,215,255,0.35)] hover:bg-[rgba(51,215,255,0.9)]" onMouseDown={(e) => onResizeStart("top", e)} title="Изменить высоту (верхняя грань)" />
+          <button className="absolute left-0 bottom-0 h-[6px] w-full cursor-ns-resize bg-[rgba(51,215,255,0.35)] hover:bg-[rgba(51,215,255,0.9)]" onMouseDown={(e) => onResizeStart("bottom", e)} title="Изменить высоту (нижняя грань)" />
         </>
       ) : null}
+      </div>
     </div>
   );
 }

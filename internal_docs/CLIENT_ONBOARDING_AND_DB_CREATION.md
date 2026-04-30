@@ -19,6 +19,10 @@
 11. Стартовый импорт данных.
 12. Go-live checklist.
 
+### AI и новые клиенты (важно)
+- Промпты и маршрутизация моделей задаются в ЛК фаундера ([control.nwlvl.ru/owner/](https://control.nwlvl.ru/owner/)) и в tenant-данных (например `semantic_packs`), но **обязательный временной контекст** (`request_instant_utc` + текстовая хронология timeline с датами) добавляется **в общем AI gateway** (`platform-console`, функция `run_ai_deal_analysis`), а не копируется в каждый tenant вручную.
+- При поднятии **нового** инстанса control plane / отдельного gateway на VPS нужно задеплоить ту же версию `server.py` (или общий артефакт сборки), иначе новый контур может остаться без блока дат. См. `internal_docs/AI_DATE_CONTEXT_CONTRACT.md`.
+
 ---
 
 ## A) Минимальный/shared тариф

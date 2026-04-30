@@ -675,9 +675,13 @@ function AiPromptsSettings() {
   const [dealPromptId, setDealPromptId] = React.useState<string>("");
   const [clientPromptId, setClientPromptId] = React.useState<string>("");
   const [tzPromptId, setTzPromptId] = React.useState<string>("");
+  const [dashboardAdminPromptId, setDashboardAdminPromptId] = React.useState<string>("");
+  const [dashboardManagerPromptId, setDashboardManagerPromptId] = React.useState<string>("");
   const [prompt, setPrompt] = React.useState("");
   const [clientPrompt, setClientPrompt] = React.useState("");
   const [tzPrompt, setTzPrompt] = React.useState("");
+  const [dashboardAdminPrompt, setDashboardAdminPrompt] = React.useState("");
+  const [dashboardManagerPrompt, setDashboardManagerPrompt] = React.useState("");
   const [scoringRecordId, setScoringRecordId] = React.useState<string>("");
   const [scoringModel, setScoringModel] = React.useState<DealScoringModel>(DEFAULT_DEAL_SCORING_MODEL);
   const [status, setStatus] = React.useState("");
@@ -761,6 +765,32 @@ function AiPromptsSettings() {
         setScoringRecordId("");
         setScoringModel(DEFAULT_DEAL_SCORING_MODEL);
       }
+
+      const dashAdminList = await pb.collection("semantic_packs").getList(1, 1, {
+        filter: 'type="dashboard" && model="founder_dashboard_brief_v1"',
+        sort: "-created",
+      }).catch(() => ({ items: [] as Array<{ id: string; base_text?: string }> }));
+      const dashAdmin = dashAdminList.items[0];
+      if (dashAdmin) {
+        setDashboardAdminPromptId(dashAdmin.id);
+        setDashboardAdminPrompt(dashAdmin.base_text || "");
+      } else {
+        setDashboardAdminPromptId("");
+        setDashboardAdminPrompt("Ты AI-советник руководителя. Дай управленческий вывод: что просело, почему, что сделать за 24/72 часа, где риски квартала.");
+      }
+
+      const dashManagerList = await pb.collection("semantic_packs").getList(1, 1, {
+        filter: 'type="dashboard" && model="manager_dashboard_brief_v1"',
+        sort: "-created",
+      }).catch(() => ({ items: [] as Array<{ id: string; base_text?: string }> }));
+      const dashManager = dashManagerList.items[0];
+      if (dashManager) {
+        setDashboardManagerPromptId(dashManager.id);
+        setDashboardManagerPrompt(dashManager.base_text || "");
+      } else {
+        setDashboardManagerPromptId("");
+        setDashboardManagerPrompt("Ты AI-ассистент менеджера продаж. Дай короткий вывод по личной воронке: проблемные сделки, приоритетные действия и план на день.");
+      }
     } finally {
       setLoading(false);
     }
@@ -808,6 +838,33 @@ function AiPromptsSettings() {
       const created = await pb.collection("semantic_packs").create(tzPayload);
       setTzPromptId((created as { id: string }).id);
     }
+
+    const dashboardAdminPayload = {
+      type: "dashboard",
+      base_text: dashboardAdminPrompt,
+      variants: { purpose: "founder_dashboard_brief", source: "admin_ai_tab", role: "admin" },
+      language: "ru",
+      model: "founder_dashboard_brief_v1",
+    };
+    if (dashboardAdminPromptId) await pb.collection("semantic_packs").update(dashboardAdminPromptId, dashboardAdminPayload);
+    else {
+      const created = await pb.collection("semantic_packs").create(dashboardAdminPayload);
+      setDashboardAdminPromptId((created as { id: string }).id);
+    }
+
+    const dashboardManagerPayload = {
+      type: "dashboard",
+      base_text: dashboardManagerPrompt,
+      variants: { purpose: "manager_dashboard_brief", source: "admin_ai_tab", role: "manager" },
+      language: "ru",
+      model: "manager_dashboard_brief_v1",
+    };
+    if (dashboardManagerPromptId) await pb.collection("semantic_packs").update(dashboardManagerPromptId, dashboardManagerPayload);
+    else {
+      const created = await pb.collection("semantic_packs").create(dashboardManagerPayload);
+      setDashboardManagerPromptId((created as { id: string }).id);
+    }
+
     const scoringPayload = {
       type: "deal_scoring_model",
       base_text: "Tenant scoring factors for deterministic deal probability",
@@ -894,6 +951,30 @@ function AiPromptsSettings() {
               />
             </div>
             <div className="rounded-card border border-border bg-rowHover p-3">
+              <div className="text-sm font-semibold">Промпты дашборда по ролям</div>
+              <div className="text-xs text-text2 mt-1">Эти поля используются для режимов ИИ-выводов: руководитель и менеджер.</div>
+              <div className="mt-3 grid gap-3">
+                <div>
+                  <div className="text-xs text-text2 mb-1">Промпт дашборда для админа/руководителя</div>
+                  <textarea
+                    className="w-full rounded-card border border-[#9CA3AF] bg-white px-3 py-2 text-sm"
+                    rows={5}
+                    value={dashboardAdminPrompt}
+                    onChange={(e) => setDashboardAdminPrompt(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <div className="text-xs text-text2 mb-1">Промпт дашборда для менеджера</div>
+                  <textarea
+                    className="w-full rounded-card border border-[#9CA3AF] bg-white px-3 py-2 text-sm"
+                    rows={5}
+                    value={dashboardManagerPrompt}
+                    onChange={(e) => setDashboardManagerPrompt(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="rounded-card border border-border bg-rowHover p-3">
               <div className="text-sm font-semibold">Факторы скоринга вероятности сделки</div>
               <div className="text-xs text-text2 mt-1">
                 Итоговая вероятность закрытия считается детерминированно по этим факторам (веса и включение можно менять).
@@ -935,7 +1016,7 @@ function AiPromptsSettings() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button onClick={save} disabled={!prompt.trim() || !clientPrompt.trim() || !tzPrompt.trim()}>Сохранить промпты</Button>
+              <Button onClick={save} disabled={!prompt.trim() || !clientPrompt.trim() || !tzPrompt.trim() || !dashboardAdminPrompt.trim() || !dashboardManagerPrompt.trim()}>Сохранить промпты</Button>
               {status ? <span className="text-sm text-success">{status}</span> : null}
             </div>
           </div>

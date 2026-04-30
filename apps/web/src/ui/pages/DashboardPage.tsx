@@ -1,8 +1,9 @@
 import React from "react";
 import { TrendingUp, CircleDot, Percent, Clock, Settings2, BarChart3, Download, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, DragOverlay } from "@dnd-kit/core";
+import { SortableContext, rectSortingStrategy, arrayMove, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useDeals, useFunnelStages, useUsers, useCompanies } from "../data/hooks";
 import type { Deal, FunnelStage, UserSummary, Company } from "../../lib/types";
 import { Button } from "../components/Button";
@@ -89,6 +90,55 @@ function widgetSpanClass(span?: 1 | 2 | 3) {
   return "xl:col-span-1";
 }
 
+function SortableReportItem({
+  id,
+  editMode,
+  colSpan,
+  rowSpan,
+  isDropAllowed,
+  isDropTarget,
+  onResizeStart,
+  children,
+}: {
+  id: string;
+  editMode: boolean;
+  colSpan: 1 | 2 | 3;
+  rowSpan: number;
+  isDropAllowed: boolean;
+  isDropTarget: boolean;
+  onResizeStart: (edge: "left" | "right" | "top" | "bottom", e: React.MouseEvent) => void;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: !editMode });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    gridColumn: `span ${colSpan}`,
+    gridRow: `span ${Math.max(6, rowSpan || 8)}`,
+    zIndex: isDragging ? 30 : 1,
+  };
+  const glowClass = editMode && isDropTarget
+    ? isDropAllowed
+      ? "ring-2 ring-[rgba(0,216,122,0.95)] shadow-[0_0_24px_rgba(0,216,122,0.65)]"
+      : "ring-2 ring-[rgba(239,68,68,0.95)] shadow-[0_0_24px_rgba(239,68,68,0.65)]"
+    : "";
+  return (
+    <div ref={setNodeRef} style={style} className={`relative ${widgetSpanClass(colSpan)} ${glowClass}`}>
+      <div className={isDragging ? "opacity-70" : ""} {...attributes} {...listeners}>
+        {children}
+      </div>
+      {editMode ? (
+        <>
+          <button className="absolute -right-1 top-1/2 h-10 w-2 -translate-y-1/2 cursor-ew-resize rounded bg-[rgba(51,215,255,0.45)]" onMouseDown={(e) => onResizeStart("right", e)} />
+          <button className="absolute -left-1 top-1/2 h-10 w-2 -translate-y-1/2 cursor-ew-resize rounded bg-[rgba(51,215,255,0.45)]" onMouseDown={(e) => onResizeStart("left", e)} />
+          <button className="absolute left-1/2 -top-1 h-2 w-10 -translate-x-1/2 cursor-ns-resize rounded bg-[rgba(51,215,255,0.45)]" onMouseDown={(e) => onResizeStart("top", e)} />
+          <button className="absolute left-1/2 -bottom-1 h-2 w-10 -translate-x-1/2 cursor-ns-resize rounded bg-[rgba(51,215,255,0.45)]" onMouseDown={(e) => onResizeStart("bottom", e)} />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 const StatCard = ({
   title,
   value,
@@ -147,6 +197,7 @@ export function DashboardPage() {
     filters: WidgetFilters;
     visual?: "cockpit" | "classic"; // used by some widgets
     span?: 1 | 2 | 3;
+    rowSpan?: number;
   };
 
   type DashCfg = {
@@ -169,13 +220,13 @@ export function DashboardPage() {
   const DEFAULT_CFG: DashCfg = {
     dashboardVisual: "cockpit",
     widgets: {
-      statCards: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 3 },
-      dynamics: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 1 },
-      winRate: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 1 },
-      funnel: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, visual: "cockpit", span: 1 },
-      topManagers: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 1 },
-      insights: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 2 },
-      budgetByStage: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 1 },
+      statCards: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 3, rowSpan: 8 },
+      dynamics: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 1, rowSpan: 8 },
+      winRate: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 1, rowSpan: 8 },
+      funnel: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, visual: "cockpit", span: 1, rowSpan: 12 },
+      topManagers: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 1, rowSpan: 12 },
+      insights: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 2, rowSpan: 10 },
+      budgetByStage: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 1, rowSpan: 10 },
     },
     widgetOrder: ["insights", "statCards", "dynamics", "winRate", "topManagers", "funnel", "budgetByStage"],
   };
@@ -240,8 +291,16 @@ export function DashboardPage() {
   const [customSearch, setCustomSearch] = React.useState("");
   const [customBuilderOpen, setCustomBuilderOpen] = React.useState(false);
   const [controlsCollapsed, setControlsCollapsed] = React.useState(false);
-  const [resizeState, setResizeState] = React.useState<{ id: WidgetId; startX: number; startSpan: 1 | 2 | 3 } | null>(null);
+  const [resizeState, setResizeState] = React.useState<{
+    id: WidgetId;
+    edge: "left" | "right" | "top" | "bottom";
+    startX: number;
+    startY: number;
+    startSpan: 1 | 2 | 3;
+    startRowSpan: number;
+  } | null>(null);
   const [draggingWidgetId, setDraggingWidgetId] = React.useState<WidgetId | null>(null);
+  const [overWidgetId, setOverWidgetId] = React.useState<WidgetId | null>(null);
   const userRole = String(user?.role_name || user?.role || "").toLowerCase();
   const isAdmin = /admin|founder/.test(userRole);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -781,6 +840,8 @@ export function DashboardPage() {
     const targetId = String(event?.over?.id || "") as WidgetId;
     if (!sourceId || !targetId) return;
     moveWidgetTo(sourceId, targetId);
+    setDraggingWidgetId(null);
+    setOverWidgetId(null);
   }
 
   const normalizedFieldName = React.useCallback((source: "deals" | "companies", key: string) => {
@@ -911,15 +972,21 @@ export function DashboardPage() {
   React.useEffect(() => {
     if (!resizeState) return;
     const onMove = (e: MouseEvent) => {
-      const delta = e.clientX - resizeState.startX;
-      const step = Math.max(-2, Math.min(2, Math.round(delta / 160)));
-      if (!step) return;
-      const nextSpan = Math.max(1, Math.min(3, resizeState.startSpan + step)) as 1 | 2 | 3;
+      const dx = e.clientX - resizeState.startX;
+      const dy = e.clientY - resizeState.startY;
+      const xStep = Math.round(dx / 180);
+      const yStep = Math.round(dy / 48);
+      let nextSpan = resizeState.startSpan;
+      let nextRowSpan = resizeState.startRowSpan;
+      if (resizeState.edge === "right") nextSpan = Math.max(1, Math.min(3, resizeState.startSpan + xStep)) as 1 | 2 | 3;
+      if (resizeState.edge === "left") nextSpan = Math.max(1, Math.min(3, resizeState.startSpan - xStep)) as 1 | 2 | 3;
+      if (resizeState.edge === "bottom") nextRowSpan = Math.max(6, Math.min(30, resizeState.startRowSpan + yStep));
+      if (resizeState.edge === "top") nextRowSpan = Math.max(6, Math.min(30, resizeState.startRowSpan - yStep));
       setCfg((prev) => ({
         ...prev,
         widgets: {
           ...prev.widgets,
-          [resizeState.id]: { ...prev.widgets[resizeState.id], span: nextSpan },
+          [resizeState.id]: { ...prev.widgets[resizeState.id], span: nextSpan, rowSpan: nextRowSpan },
         },
       }));
     };
@@ -1143,47 +1210,60 @@ export function DashboardPage() {
             </div>
 
             <div className="mt-6">
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onWidgetDragEnd}>
-                <SortableContext items={cfg.widgetOrder} strategy={verticalListSortingStrategy}>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragStart={(e) => setDraggingWidgetId(String(e.active?.id || "") as WidgetId)}
+                onDragOver={(e) => setOverWidgetId(e.over ? (String(e.over.id) as WidgetId) : null)}
+                onDragEnd={onWidgetDragEnd}
+                onDragCancel={() => {
+                  setDraggingWidgetId(null);
+                  setOverWidgetId(null);
+                }}
+              >
+                <SortableContext items={cfg.widgetOrder.filter((x) => x !== "insights")} strategy={rectSortingStrategy}>
                   <div
                     className="grid grid-cols-1 xl:grid-cols-3 gap-4 relative"
                     style={layoutEditMode ? { backgroundImage: "linear-gradient(to right, rgba(51,215,255,0.12) 1px, transparent 1px), linear-gradient(to bottom, rgba(51,215,255,0.08) 1px, transparent 1px)", backgroundSize: "24px 24px", borderRadius: "14px", padding: "8px" } : undefined}
                   >
                     {cfg.widgetOrder.map((wid) => (
-                      wid === "insights" ? null : <div
-                        key={wid}
-                        className={`${widgetSpanClass(cfg.widgets[wid].span)} relative`}
-                        draggable={layoutEditMode}
-                        onDragStart={() => setDraggingWidgetId(wid)}
-                        onDragOver={(e) => {
-                          if (!layoutEditMode) return;
-                          e.preventDefault();
-                        }}
-                        onDrop={() => {
-                          if (!layoutEditMode || !draggingWidgetId) return;
-                          moveWidgetTo(draggingWidgetId, wid);
-                          setDraggingWidgetId(null);
-                        }}
-                      >
-                        {renderWidget(wid)}
-                        {layoutEditMode ? (
-                          <button
-                            className="absolute bottom-2 right-2 h-6 w-6 rounded border border-[rgba(51,215,255,0.45)] bg-[rgba(51,215,255,0.12)] text-[10px] font-bold"
-                            title="Потяни мышкой вправо/влево для изменения ширины"
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              setResizeState({ id: wid, startX: e.clientX, startSpan: cfg.widgets[wid].span ?? 1 });
-                            }}
-                          >
-                            ⇆
-                          </button>
-                        ) : null}
-                      </div>
+                      wid === "insights" ? null : (
+                        <SortableReportItem
+                          key={wid}
+                          id={wid}
+                          editMode={layoutEditMode}
+                          colSpan={cfg.widgets[wid].span ?? 1}
+                          rowSpan={cfg.widgets[wid].rowSpan ?? 10}
+                          isDropAllowed={Boolean(overWidgetId)}
+                          isDropTarget={overWidgetId === wid}
+                          onResizeStart={(edge, e) => {
+                            e.preventDefault();
+                            setResizeState({
+                              id: wid,
+                              edge,
+                              startX: e.clientX,
+                              startY: e.clientY,
+                              startSpan: cfg.widgets[wid].span ?? 1,
+                              startRowSpan: cfg.widgets[wid].rowSpan ?? 10,
+                            });
+                          }}
+                        >
+                          {renderWidget(wid)}
+                        </SortableReportItem>
+                      )
                     ))}
                   </div>
                 </SortableContext>
+                <DragOverlay>
+                  {draggingWidgetId ? (
+                    <div className={`ui-card p-4 ${overWidgetId ? "ring-2 ring-[rgba(0,216,122,0.95)] shadow-[0_0_28px_rgba(0,216,122,0.55)]" : "ring-2 ring-[rgba(239,68,68,0.95)] shadow-[0_0_28px_rgba(239,68,68,0.55)]"}`}>
+                      <div className="text-sm font-extrabold">Перемещение отчета</div>
+                      <div className="text-xs text-text2 mt-1">{draggingWidgetId}</div>
+                    </div>
+                  ) : null}
+                </DragOverlay>
               </DndContext>
-              {layoutEditMode ? <div className="mt-2 text-xs text-text2">Режим редактирования активен: перетаскивайте карточки мышкой и тяните маркер ⇆ для ширины.</div> : null}
+              {layoutEditMode ? <div className="mt-2 text-xs text-text2">Режим редактирования активен: тяните карточку за мышкой (как в Miro), зеленая неоновая рамка — можно поставить, красная — нельзя. Размер меняется за границы карточки.</div> : null}
             </div>
 
             <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-4">

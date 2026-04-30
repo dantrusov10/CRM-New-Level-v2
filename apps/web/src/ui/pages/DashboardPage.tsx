@@ -1,6 +1,8 @@
 import React from "react";
 import { TrendingUp, CircleDot, Percent, Clock, Settings2, BarChart3, Download, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDeals, useFunnelStages, useUsers, useCompanies } from "../data/hooks";
 import type { Deal, FunnelStage, UserSummary, Company } from "../../lib/types";
 import { Button } from "../components/Button";
@@ -242,6 +244,7 @@ export function DashboardPage() {
   const [draggingWidgetId, setDraggingWidgetId] = React.useState<WidgetId | null>(null);
   const userRole = String(user?.role_name || user?.role || "").toLowerCase();
   const isAdmin = /admin|founder/.test(userRole);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   React.useEffect(() => {
     try {

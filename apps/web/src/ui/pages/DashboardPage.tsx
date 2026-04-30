@@ -1,9 +1,6 @@
 import React from "react";
 import { TrendingUp, CircleDot, Percent, Clock, Settings2, BarChart3, Download, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, DragOverlay } from "@dnd-kit/core";
-import { SortableContext, rectSortingStrategy, arrayMove, useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { useDeals, useFunnelStages, useUsers, useCompanies } from "../data/hooks";
 import type { Deal, FunnelStage, UserSummary, Company } from "../../lib/types";
 import { Button } from "../components/Button";
@@ -87,6 +84,8 @@ function Donut({ value }: { value: number }) {
 function SortableReportItem({
   id,
   editMode,
+  colStart,
+  rowStart,
   colSpan,
   rowSpan,
   isDropAllowed,
@@ -96,6 +95,8 @@ function SortableReportItem({
 }: {
   id: string;
   editMode: boolean;
+  colStart: number;
+  rowStart: number;
   colSpan: number;
   rowSpan: number;
   isDropAllowed: boolean;
@@ -103,13 +104,10 @@ function SortableReportItem({
   onResizeStart: (edge: "left" | "right" | "top" | "bottom", e: React.MouseEvent) => void;
   children: React.ReactNode;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: !editMode });
   const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    gridColumn: `span ${Math.max(1, Math.min(24, colSpan || 8))}`,
-    gridRow: `span ${Math.max(4, rowSpan || 8)}`,
-    zIndex: isDragging ? 30 : 1,
+    gridColumn: `${Math.max(1, Math.min(24, colStart || 1))} / span ${Math.max(1, Math.min(24, colSpan || 8))}`,
+    gridRow: `${Math.max(1, rowStart || 1)} / span ${Math.max(4, rowSpan || 8)}`,
+    zIndex: 1,
   };
   const glowClass = editMode && isDropTarget
     ? isDropAllowed
@@ -117,10 +115,8 @@ function SortableReportItem({
       : "ring-2 ring-[rgba(239,68,68,0.95)] shadow-[0_0_24px_rgba(239,68,68,0.65)]"
     : "";
   return (
-    <div ref={setNodeRef} style={style} className={`relative ${glowClass}`}>
-      <div className={isDragging ? "opacity-70" : ""} {...attributes} {...listeners}>
-        {children}
-      </div>
+    <div style={style} className={`relative ${glowClass}`} data-widget-id={id}>
+      <div>{children}</div>
       {editMode ? (
         <>
           <button className="absolute right-0 top-0 h-full w-[3px] cursor-ew-resize bg-[rgba(51,215,255,0.6)]" onMouseDown={(e) => onResizeStart("right", e)} title="Изменить ширину" />
@@ -192,6 +188,8 @@ export function DashboardPage() {
     visual?: "cockpit" | "classic"; // used by some widgets
     span?: number;
     rowSpan?: number;
+    colStart?: number;
+    rowStart?: number;
   };
 
   type DashCfg = {
@@ -214,13 +212,13 @@ export function DashboardPage() {
   const DEFAULT_CFG: DashCfg = {
     dashboardVisual: "cockpit",
     widgets: {
-      statCards: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 24, rowSpan: 8 },
-      dynamics: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 8, rowSpan: 8 },
-      winRate: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 8, rowSpan: 8 },
-      funnel: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, visual: "cockpit", span: 8, rowSpan: 12 },
-      topManagers: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 8, rowSpan: 12 },
-      insights: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 16, rowSpan: 10 },
-      budgetByStage: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 8, rowSpan: 10 },
+      statCards: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 24, rowSpan: 8, colStart: 1, rowStart: 1 },
+      insights: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 12, rowSpan: 10, colStart: 1, rowStart: 10 },
+      funnel: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, visual: "cockpit", span: 12, rowSpan: 10, colStart: 13, rowStart: 10 },
+      dynamics: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 8, rowSpan: 8, colStart: 1, rowStart: 21 },
+      winRate: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 8, rowSpan: 8, colStart: 9, rowStart: 21 },
+      topManagers: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 8, rowSpan: 8, colStart: 17, rowStart: 21 },
+      budgetByStage: { enabled: true, syncWithGlobal: true, filters: { ...DEFAULT_WIDGET_FILTERS }, span: 12, rowSpan: 10, colStart: 1, rowStart: 30 },
     },
     widgetOrder: ["insights", "statCards", "dynamics", "winRate", "topManagers", "funnel", "budgetByStage"],
   };
@@ -251,6 +249,8 @@ export function DashboardPage() {
                   ? src.span * 2
                   : src.span
               : DEFAULT_CFG.widgets[k].span,
+          rowStart: typeof src?.rowStart === "number" ? src.rowStart : DEFAULT_CFG.widgets[k].rowStart,
+          colStart: typeof src?.colStart === "number" ? src.colStart : DEFAULT_CFG.widgets[k].colStart,
         };
       }
       merged.widgetOrder = Array.isArray(parsed?.widgetOrder)
@@ -301,12 +301,16 @@ export function DashboardPage() {
     startSpan: number;
     startRowSpan: number;
   } | null>(null);
-  const [draggingWidgetId, setDraggingWidgetId] = React.useState<WidgetId | null>(null);
-  const [overWidgetId, setOverWidgetId] = React.useState<WidgetId | null>(null);
+  const [dragState, setDragState] = React.useState<{
+    id: WidgetId;
+    startX: number;
+    startY: number;
+    startCol: number;
+    startRow: number;
+  } | null>(null);
   const reportsGridRef = React.useRef<HTMLDivElement | null>(null);
   const userRole = String(user?.role_name || user?.role || "").toLowerCase();
   const isAdmin = /admin|founder/.test(userRole);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   React.useEffect(() => {
     try {
@@ -824,27 +828,43 @@ export function DashboardPage() {
     setCfg(target.cfg);
   }
 
-  function moveWidgetTo(sourceId: WidgetId, targetId: WidgetId) {
-    if (sourceId === targetId) return;
-    setCfg((prev) => {
-      const next = [...prev.widgetOrder];
-      const oldIndex = next.indexOf(sourceId);
-      const newIndex = next.indexOf(targetId);
-      if (oldIndex < 0 || newIndex < 0) return prev;
-      const [item] = next.splice(oldIndex, 1);
-      next.splice(newIndex, 0, item);
-      return { ...prev, widgetOrder: next };
-    });
+  function intersects(a: WidgetCfg, b: WidgetCfg) {
+    const ax1 = Number(a.colStart || 1);
+    const ay1 = Number(a.rowStart || 1);
+    const ax2 = ax1 + Number(a.span || 8);
+    const ay2 = ay1 + Number(a.rowSpan || 8);
+    const bx1 = Number(b.colStart || 1);
+    const by1 = Number(b.rowStart || 1);
+    const bx2 = bx1 + Number(b.span || 8);
+    const by2 = by1 + Number(b.rowSpan || 8);
+    return ax1 < bx2 && ax2 > bx1 && ay1 < by2 && ay2 > by1;
   }
 
-  function onWidgetDragEnd(event: { active?: { id?: string | number }; over?: { id?: string | number } | null }) {
-    if (!layoutEditMode) return;
-    const sourceId = String(event?.active?.id || "") as WidgetId;
-    const targetId = String(event?.over?.id || "") as WidgetId;
-    if (!sourceId || !targetId) return;
-    moveWidgetTo(sourceId, targetId);
-    setDraggingWidgetId(null);
-    setOverWidgetId(null);
+  function applyWidgetPlacement(widgetId: WidgetId, nextCol: number, nextRow: number) {
+    setCfg((prev) => {
+      const widgets = { ...prev.widgets };
+      const current = { ...widgets[widgetId] };
+      current.colStart = Math.max(1, Math.min(24 - Number(current.span || 8) + 1, nextCol));
+      current.rowStart = Math.max(1, nextRow);
+      widgets[widgetId] = current;
+
+      const ids = (Object.keys(widgets) as WidgetId[]).filter((id) => id !== widgetId && widgets[id].enabled);
+      let changed = true;
+      let safety = 0;
+      while (changed && safety < 120) {
+        changed = false;
+        safety += 1;
+        for (const id of ids) {
+          const w = { ...widgets[id] };
+          if (intersects(current, w)) {
+            w.rowStart = Number(current.rowStart || 1) + Number(current.rowSpan || 8);
+            widgets[id] = w;
+            changed = true;
+          }
+        }
+      }
+      return { ...prev, widgets };
+    });
   }
 
   const normalizedFieldName = React.useCallback((source: "deals" | "companies", key: string) => {
@@ -1003,6 +1023,25 @@ export function DashboardPage() {
       window.removeEventListener("mouseup", onUp);
     };
   }, [resizeState]);
+
+  React.useEffect(() => {
+    if (!dragState) return;
+    const onMove = (e: MouseEvent) => {
+      const grid = reportsGridRef.current?.getBoundingClientRect();
+      if (!grid) return;
+      const colWidth = grid.width / 24;
+      const dCols = Math.round((e.clientX - dragState.startX) / Math.max(8, colWidth));
+      const dRows = Math.round((e.clientY - dragState.startY) / 24);
+      applyWidgetPlacement(dragState.id, dragState.startCol + dCols, dragState.startRow + dRows);
+    };
+    const onUp = () => setDragState(null);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [dragState]);
 
   function renderWidget(wid: WidgetId) {
     if (!cfg.widgets[wid].enabled) return null;
@@ -1215,73 +1254,70 @@ export function DashboardPage() {
             </div>
 
             <div className="mt-6">
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragStart={(e) => setDraggingWidgetId(String(e.active?.id || "") as WidgetId)}
-                onDragOver={(e) => setOverWidgetId(e.over ? (String(e.over.id) as WidgetId) : null)}
-                onDragEnd={onWidgetDragEnd}
-                onDragCancel={() => {
-                  setDraggingWidgetId(null);
-                  setOverWidgetId(null);
+              <div
+                ref={reportsGridRef}
+                className={`grid grid-cols-1 relative auto-rows-[24px] ${layoutEditMode ? "gap-1" : "gap-4"}`}
+                style={{
+                  gridTemplateColumns: "repeat(24, minmax(0, 1fr))",
+                  minHeight: `${Math.max(140, ...cfg.widgetOrder.map((id) => Number(cfg.widgets[id].rowStart || 1) + Number(cfg.widgets[id].rowSpan || 8))) * 24}px`,
+                  ...(layoutEditMode
+                    ? {
+                        backgroundImage:
+                          "linear-gradient(to right, rgba(51,215,255,0.14) 1px, transparent 1px), linear-gradient(to bottom, rgba(51,215,255,0.08) 1px, transparent 1px)",
+                        backgroundSize: "calc(100% / 24) 24px, 100% 24px",
+                        borderRadius: "14px",
+                        padding: "8px",
+                      }
+                    : {}),
                 }}
               >
-                <SortableContext items={cfg.widgetOrder.filter((x) => x !== "insights")} strategy={rectSortingStrategy}>
-                  <div
-                    ref={reportsGridRef}
-                    className={`grid grid-cols-1 relative auto-rows-[24px] ${layoutEditMode ? "gap-1" : "gap-4"}`}
-                    style={{
-                      gridTemplateColumns: "repeat(24, minmax(0, 1fr))",
-                      ...(layoutEditMode
-                        ? {
-                            backgroundImage:
-                              "linear-gradient(to right, rgba(51,215,255,0.14) 1px, transparent 1px), linear-gradient(to bottom, rgba(51,215,255,0.08) 1px, transparent 1px)",
-                            backgroundSize: "calc(100% / 24) 24px, 100% 24px",
-                            borderRadius: "14px",
-                            padding: "8px",
-                          }
-                        : {}),
-                    }}
-                  >
-                    {cfg.widgetOrder.map((wid) => (
-                      wid === "insights" ? null : (
-                        <SortableReportItem
-                          key={wid}
-                          id={wid}
-                          editMode={layoutEditMode}
-                          colSpan={cfg.widgets[wid].span ?? 8}
-                          rowSpan={cfg.widgets[wid].rowSpan ?? 10}
-                          isDropAllowed={Boolean(overWidgetId)}
-                          isDropTarget={overWidgetId === wid}
-                          onResizeStart={(edge, e) => {
-                            e.preventDefault();
-                            setResizeState({
-                              id: wid,
-                              edge,
-                              startX: e.clientX,
-                              startY: e.clientY,
-                              startSpan: cfg.widgets[wid].span ?? 8,
-                              startRowSpan: cfg.widgets[wid].rowSpan ?? 10,
-                            });
-                          }}
-                        >
-                          {renderWidget(wid)}
-                        </SortableReportItem>
-                      )
-                    ))}
-                  </div>
-                </SortableContext>
-                <DragOverlay>
-                  {draggingWidgetId ? (
-                    <div className={`ui-card p-4 ${overWidgetId ? "ring-2 ring-[rgba(0,216,122,0.95)] shadow-[0_0_28px_rgba(0,216,122,0.55)]" : "ring-2 ring-[rgba(239,68,68,0.95)] shadow-[0_0_28px_rgba(239,68,68,0.55)]"}`}>
-                      <div className="text-sm font-extrabold">Перемещение отчета</div>
-                      <div className="text-xs text-text2 mt-1">{draggingWidgetId}</div>
-                    </div>
-                  ) : null}
-                </DragOverlay>
-              </DndContext>
-              {layoutEditMode ? <div className="mt-2 text-xs text-text2">Режим редактирования активен: тяните карточку за мышкой (как в Miro), зеленая неоновая рамка — можно поставить, красная — нельзя. Размер меняется за границы карточки.</div> : null}
-              {layoutEditMode ? <div className="mt-1 text-[11px] text-text2">Сетка: 12/12 по ширине, шаг по высоте 24px. Resize: справа — ширина, снизу — высота.</div> : null}
+                {cfg.widgetOrder.map((wid) => (
+                  wid === "insights" ? null : (
+                    <SortableReportItem
+                      key={wid}
+                      id={wid}
+                      editMode={layoutEditMode}
+                      colStart={cfg.widgets[wid].colStart ?? 1}
+                      rowStart={cfg.widgets[wid].rowStart ?? 1}
+                      colSpan={cfg.widgets[wid].span ?? 8}
+                      rowSpan={cfg.widgets[wid].rowSpan ?? 10}
+                      isDropAllowed={Boolean(dragState)}
+                      isDropTarget={dragState?.id === wid}
+                      onResizeStart={(edge, e) => {
+                        e.preventDefault();
+                        setResizeState({
+                          id: wid,
+                          edge,
+                          startX: e.clientX,
+                          startY: e.clientY,
+                          startSpan: cfg.widgets[wid].span ?? 8,
+                          startRowSpan: cfg.widgets[wid].rowSpan ?? 10,
+                        });
+                      }}
+                    >
+                      <div
+                        onMouseDown={(e) => {
+                          if (!layoutEditMode) return;
+                          const target = e.target as HTMLElement;
+                          if (target.closest("button")) return;
+                          setDragState({
+                            id: wid,
+                            startX: e.clientX,
+                            startY: e.clientY,
+                            startCol: cfg.widgets[wid].colStart ?? 1,
+                            startRow: cfg.widgets[wid].rowStart ?? 1,
+                          });
+                        }}
+                        className={layoutEditMode ? "cursor-grab active:cursor-grabbing" : ""}
+                      >
+                        {renderWidget(wid)}
+                      </div>
+                    </SortableReportItem>
+                  )
+                ))}
+              </div>
+              {layoutEditMode ? <div className="mt-2 text-xs text-text2">Свободное перемещение по всей сетке 24x24: карточка может быть установлена в любой точке, пересечения автоматически сдвигают соседние карточки вниз.</div> : null}
+              {layoutEditMode ? <div className="mt-1 text-[11px] text-text2">Resize по периметру карточки. Пространство вниз не ограничено.</div> : null}
             </div>
 
             <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -1446,7 +1482,7 @@ export function DashboardPage() {
                   <div className="text-xs text-text2 mb-1">Размер виджета в сетке</div>
                   <select
                     className="h-10 w-full rounded-card border border-[#9CA3AF] bg-white px-3 text-sm"
-                    value={String(w.span ?? 1)}
+                    value={String(w.span ?? 8)}
                     onChange={(e) =>
                       setCfg((p) => ({
                         ...p,
@@ -1454,15 +1490,16 @@ export function DashboardPage() {
                           ...p.widgets,
                           [wid]: {
                             ...p.widgets[wid],
-                            span: Number(e.target.value) as 1 | 2 | 3,
+                            span: Number(e.target.value),
                           },
                         },
                       }))
                     }
                   >
-                    <option value="1">Узкий (1 колонка)</option>
-                    <option value="2">Средний (2 колонки)</option>
-                    <option value="3">Широкий (3 колонки)</option>
+                    <option value="4">Узкий (4/24)</option>
+                    <option value="8">Средний (8/24)</option>
+                    <option value="12">Широкий (12/24)</option>
+                    <option value="24">Полная ширина (24/24)</option>
                   </select>
                 </div>
 

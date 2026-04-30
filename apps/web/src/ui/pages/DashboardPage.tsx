@@ -969,12 +969,24 @@ export function DashboardPage() {
     if (!customName.trim() || !customColumns.length) return;
     const nextReport = { id: `${Date.now()}-custom`, name: customName.trim(), source: customSource, columns: customColumns };
     const next = [nextReport, ...customReports].slice(0, 30);
+    const lastWidgetBottom = Math.max(
+      1,
+      ...cfg.widgetOrder.map((id) => Number(cfg.widgets[id]?.rowStart || 1) + Number(cfg.widgets[id]?.rowSpan || 8))
+    );
+    const lastCustomBottom = Math.max(
+      1,
+      ...customReports.map((r) => {
+        const l = customReportLayouts[r.id];
+        return Number(l?.rowStart || 1) + Number(l?.rowSpan || 10);
+      })
+    );
+    const startRow = Math.max(lastWidgetBottom, lastCustomBottom) + 1;
     setCustomReports(next);
     localStorage.setItem("nwlvl_dashboard_custom_reports", JSON.stringify(next));
     setCustomReportLayouts((prev) => {
       const nextLayouts = {
         ...prev,
-        [nextReport.id]: prev[nextReport.id] ?? { colStart: 1, rowStart: 2, span: 12, rowSpan: 10 },
+        [nextReport.id]: prev[nextReport.id] ?? { colStart: 1, rowStart: startRow, span: 12, rowSpan: 10 },
       };
       localStorage.setItem("nwlvl_dashboard_custom_report_layouts", JSON.stringify(nextLayouts));
       return nextLayouts;

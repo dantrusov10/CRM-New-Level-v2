@@ -31,3 +31,6 @@
 ## Реализации в репозитории
 - TypeScript: `apps/web/src/lib/aiDateContext.ts`
 - Python (референс для gateway): `tools/gateway_ai_date_context.py`
+
+## Продакшен (control plane)
+Блок дат встроен в `/opt/pb-control/platform-console/server.py`: перед JSON-контекстом в `run_ai_deal_analysis` в промпт добавляются `request_instant_utc`, даты сделки и текстовая хронология timeline (новые события сверху). Сервис: `platform-console.service`. Подсказка в ЛК [Кабинет управления AI](https://control.nwlvl.ru/owner/) обновлена.

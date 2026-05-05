@@ -52,6 +52,7 @@ export function Sidebar({ perms }: { perms: PermissionMatrix }) {
             <Item to="/admin/funnel" icon={Settings} label="Воронка" />
             <Item to="/admin/fields" icon={Settings} label="Поля" />
             <Item to="/admin/parsers" icon={Settings} label="Парсеры/AI" />
+            <Item to="/admin/products" icon={Settings} label="Продукты" />
           </div>
         </div>
       ) : null}

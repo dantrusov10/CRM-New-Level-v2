@@ -12,6 +12,7 @@ import { AdminUsersPage } from "./ui/pages/admin/AdminUsersPage";
 import { AdminFunnelPage } from "./ui/pages/admin/AdminFunnelPage";
 import { AdminFieldsPage } from "./ui/pages/admin/AdminFieldsPage";
 import { AdminParsersPage } from "./ui/pages/admin/AdminParsersPage";
+import { AdminProductsPage } from "./ui/pages/admin/AdminProductsPage";
 import { ImportExportPage } from "./ui/pages/ImportExportPage";
 import { CalendarPage } from "./ui/pages/CalendarPage";
 import { Protected } from "./ui/layout/Protected";
@@ -39,6 +40,7 @@ export const router = createBrowserRouter([
       { path: "admin/funnel", element: <AdminFunnelPage /> },
       { path: "admin/fields", element: <AdminFieldsPage /> },
       { path: "admin/parsers", element: <AdminParsersPage /> },
+      { path: "admin/products", element: <AdminProductsPage /> },
     ],
   },
   { path: "*", element: <Navigate to="/" replace /> },

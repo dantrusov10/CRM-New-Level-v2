@@ -15,17 +15,21 @@ import {
   useCreateContactFound,
   useDeleteContactFound,
   useDeal,
+  useDealResearchFacts,
   useEntityFiles,
   useAddWorkspaceFile,
   useDeleteEntityFileLink,
   useFunnelStages,
+  useProducts,
   useTimeline,
   useUpdateDeal,
   useCreateTask,
 } from "../../data/hooks";
+import { requestDealAiAnalysis } from "../../../lib/aiGateway";
+import { AI_GATEWAY_URL } from "../../../lib/env";
 import { DealKpModule } from "../../modules/kp/DealKpModule";
 import { DynamicEntityFormWithRef, DynamicEntityFormHandle } from "../../components/DynamicEntityForm";
-import type { AiInsight, Deal, FunnelStage, TimelineItem } from "../../../lib/types";
+import type { AiInsight, Deal, FunnelStage, ProductMaterial, TimelineItem } from "../../../lib/types";
 import type { ContactFound, EntityFileLink } from "../../data/hooks";
 
 type AnyObj = Record<string, unknown>;
@@ -127,6 +131,12 @@ function buildDynamicSections(insight: AiInsight | null): AiSection[] {
   return sections;
 }
 
+function normalizeProductIds(raw: unknown): string[] {
+  if (raw == null) return [];
+  if (Array.isArray(raw)) return raw.filter((x): x is string => typeof x === "string" && x.length > 0);
+  return [];
+}
+
 function formatMoney(v?: number | null) {
   if (typeof v !== "number") return "";
   try {
@@ -222,6 +232,8 @@ export function DealDetailPage() {
   const addWorkspaceFileM = useAddWorkspaceFile();
   const deleteEntityFileM = useDeleteEntityFileLink();
   const upd = useUpdateDeal();
+  const productsQ = useProducts();
+  const factsQ = useDealResearchFacts(id ?? "");
 
   const deal = (dealQ.data ?? null) as Deal | null;
   const stages = stagesQ.data ?? [];
@@ -277,6 +289,13 @@ export function DealDetailPage() {
   const [projectMapLink, setProjectMapLink] = React.useState<string>("");
   const [kaitenLink, setKaitenLink] = React.useState<string>("");
 
+  const [selectedProductIds, setSelectedProductIds] = React.useState<string[]>([]);
+  const [aiRunning, setAiRunning] = React.useState(false);
+  const [aiError, setAiError] = React.useState<string>("");
+  const [factText, setFactText] = React.useState("");
+  const [factSourceType, setFactSourceType] = React.useState("manual");
+  const [factUrl, setFactUrl] = React.useState("");
+
   const initialRef = React.useRef<AnyObj | null>(null);
 
   React.useEffect(() => {
@@ -328,6 +347,119 @@ export function DealDetailPage() {
       kaiten_link: deal.kaiten_link ?? "",
     };
   }, [deal?.id]);
+
+  React.useEffect(() => {
+    if (!deal?.id) return;
+    setSelectedProductIds(normalizeProductIds((deal as Deal & { product_ids?: unknown }).product_ids));
+  }, [deal?.id]);
+
+  function toggleProductForAi(pid: string) {
+    setSelectedProductIds((prev) => (prev.includes(pid) ? prev.filter((x) => x !== pid) : [...prev, pid]));
+  }
+
+  async function saveDealProductsOnly() {
+    if (!id) return;
+    setAiError("");
+    try {
+      await upd.mutateAsync({ id, data: { product_ids: selectedProductIds } as Partial<Deal> });
+      await dealQ.refetch();
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "Не удалось сохранить продукты");
+    }
+  }
+
+  async function runDealAiAnalysis() {
+    if (!id) return;
+    setAiError("");
+    setAiRunning(true);
+    try {
+      await upd.mutateAsync({ id, data: { product_ids: selectedProductIds } as Partial<Deal> });
+      const materialsLists = await Promise.all(
+        selectedProductIds.map(async (pid) => {
+          const rows = await pb
+            .collection("product_materials")
+            .getFullList({ filter: `product_id="${pid}"`, batch: 80 })
+            .catch(() => []);
+          return { pid, rows: rows as unknown as ProductMaterial[] };
+        }),
+      );
+      const products_snapshot = selectedProductIds.map((pid) => {
+        const row = (productsQ.data ?? []).find((p) => p.id === pid);
+        const mats = materialsLists.find((x) => x.pid === pid)?.rows ?? [];
+        return {
+          id: pid,
+          name: row?.name ?? pid,
+          segment: row?.segment,
+          description: row?.description,
+          technical_spec: row?.technical_spec,
+          battle_card: row?.battle_card,
+          materials: mats.map((m) => ({ title: m.title, url: m.url, type: m.material_type })),
+        };
+      });
+      const factRows = await pb
+        .collection("deal_research_facts")
+        .getFullList({ filter: `deal_id="${id}"`, sort: "-created", batch: 200 })
+        .catch(() => []);
+      const deal_research_facts = (factRows as { fact_text?: string; source_type?: string; source_url?: string }[]).map(
+        (f) => ({
+          fact_text: f.fact_text,
+          source_type: f.source_type,
+          source_url: f.source_url,
+        }),
+      );
+      const res = await requestDealAiAnalysis({
+        deal_id: id,
+        product_ids: selectedProductIds,
+        user_id: auth?.id,
+        context: {
+          product_ids: selectedProductIds,
+          products_snapshot,
+          deal_research_facts,
+        },
+      });
+      if (!res.ok) {
+        const t = await res.text().catch(() => "");
+        throw new Error(t || `Gateway ответил ${res.status}`);
+      }
+      await aiQ.refetch();
+      await dealQ.refetch();
+      await tlQ.refetch();
+      await createTimelineEvent("ai_analysis_requested", "Запрошен AI-анализ сделки", {
+        product_ids: selectedProductIds,
+      });
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "Ошибка AI gateway");
+    } finally {
+      setAiRunning(false);
+    }
+  }
+
+  async function addResearchFact() {
+    if (!id || !factText.trim()) return;
+    try {
+      await pb.collection("deal_research_facts").create({
+        deal_id: id,
+        fact_text: factText.trim(),
+        source_type: factSourceType || "manual",
+        source_url: factUrl.trim() || "",
+      });
+      setFactText("");
+      setFactUrl("");
+      factsQ.refetch();
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "Не удалось добавить факт");
+    }
+  }
+
+  async function removeResearchFact(fid: string) {
+    if (!confirm("Удалить факт?")) return;
+    try {
+      await pb.collection("deal_research_facts").delete(fid);
+      factsQ.refetch();
+    } catch {
+      /* empty */
+    }
+  }
 
   async function createTimelineEvent(action: string, commentText?: string, payload?: TimelinePayload) {
     if (!id) return;
@@ -426,7 +558,7 @@ export function DealDetailPage() {
     await createContactM
       .mutateAsync({
         deal_id: id,
-        company_id: deal?.company_id || deal?.expand?.company_id?.id || null,
+        company_id: deal?.company_id || deal?.expand?.company_id?.id || undefined,
         full_name,
         position: position || "",
         phone: phone || "",
@@ -570,6 +702,49 @@ export function DealDetailPage() {
                         <div className="text-xs text-text2 mt-1">Вероятность, риски, выводы и рекомендации по сделке</div>
                       </CardHeader>
                       <CardContent>
+                        <div className="mb-4 rounded-card border border-border bg-white/80 p-3">
+                          <div className="text-xs font-semibold text-text2 mb-2">Продукты для контекста ИИ</div>
+                          {!AI_GATEWAY_URL ? (
+                            <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-2 mb-2">
+                              Не настроен <code className="text-[11px]">VITE_AI_GATEWAY_URL</code> — запуск анализа с сервера невозможен.
+                            </div>
+                          ) : null}
+                          {productsQ.isLoading ? (
+                            <div className="text-xs text-text2">Загрузка продуктов...</div>
+                          ) : (productsQ.data ?? []).length === 0 ? (
+                            <div className="text-xs text-text2">
+                              В справочнике нет продуктов. Добавьте их в разделе{" "}
+                              <span className="font-medium">Админ → Продукты</span>.
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-2 max-h-36 overflow-y-auto">
+                              {(productsQ.data ?? []).map((p) => (
+                                <label key={p.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedProductIds.includes(p.id)}
+                                    onChange={() => toggleProductForAi(p.id)}
+                                  />
+                                  <span>{p.name}</span>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                          <div className="flex flex-wrap gap-2 mt-3">
+                            <Button type="button" variant="secondary" small onClick={saveDealProductsOnly} disabled={upd.isPending}>
+                              Сохранить выбор в сделке
+                            </Button>
+                            <Button
+                              type="button"
+                              small
+                              onClick={runDealAiAnalysis}
+                              disabled={aiRunning || !AI_GATEWAY_URL || upd.isPending}
+                            >
+                              {aiRunning ? "Идёт запрос…" : "Запустить AI-анализ"}
+                            </Button>
+                          </div>
+                          {aiError ? <div className="text-xs text-red-600 mt-2 whitespace-pre-wrap">{aiError}</div> : null}
+                        </div>
                         {aiQ.isLoading ? (
                           <div className="text-sm text-text2">Загрузка...</div>
                         ) : latestAi ? (
@@ -658,10 +833,73 @@ export function DealDetailPage() {
                     </Card>
                   </div>
                 </div>
+                <Card className="mt-4">
+                  <CardHeader>
+                    <div className="text-sm font-semibold">Факты исследования (структурно)</div>
+                    <div className="text-xs text-text2 mt-1">
+                      Короткие проверяемые формулировки для gateway — не дублируйте весь timeline, только ключевые факты.
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2 items-end mb-3">
+                      <div className="flex-1 min-w-[200px]">
+                        <Input value={factText} onChange={(e) => setFactText(e.target.value)} placeholder="Факт (одно утверждение)" />
+                      </div>
+                      <select
+                        className="h-10 rounded-card border border-border bg-white px-2 text-sm"
+                        value={factSourceType}
+                        onChange={(e) => setFactSourceType(e.target.value)}
+                      >
+                        <option value="manual">manual</option>
+                        <option value="import">import</option>
+                        <option value="parser">parser</option>
+                      </select>
+                      <div className="flex-1 min-w-[160px]">
+                        <Input value={factUrl} onChange={(e) => setFactUrl(e.target.value)} placeholder="URL источника (опц.)" />
+                      </div>
+                      <Button type="button" onClick={addResearchFact} disabled={!factText.trim()}>
+                        Добавить факт
+                      </Button>
+                    </div>
+                    {factsQ.isLoading ? (
+                      <div className="text-sm text-text2">Загрузка…</div>
+                    ) : (
+                      <ul className="space-y-2 max-h-48 overflow-y-auto">
+                        {(factsQ.data ?? []).map((f) => (
+                          <li
+                            key={f.id}
+                            className="text-sm border border-border rounded-md px-2 py-1.5 flex justify-between gap-2 items-start"
+                          >
+                            <div>
+                              <div className="whitespace-pre-wrap">{f.fact_text}</div>
+                              <div className="text-xs text-text2 mt-1">
+                                {f.source_type || "—"}
+                                {f.source_url ? (
+                                  <>
+                                    {" · "}
+                                    <a href={f.source_url} target="_blank" rel="noopener noreferrer" className="underline">
+                                      источник
+                                    </a>
+                                  </>
+                                ) : null}
+                              </div>
+                            </div>
+                            <Button type="button" variant="secondary" small onClick={() => removeResearchFact(f.id)}>
+                              Удалить
+                            </Button>
+                          </li>
+                        ))}
+                        {!(factsQ.data ?? []).length ? (
+                          <div className="text-sm text-text2">Фактов пока нет.</div>
+                        ) : null}
+                      </ul>
+                    )}
+                  </CardContent>
+                </Card>
                 <DynamicEntityFormWithRef
                   ref={formRef}
                   entity="deal"
-                  record={deal}
+                  record={(deal ?? undefined) as Deal}
                   onSaved={async () => {
                     await dealQ.refetch();
                     tlQ.refetch();
@@ -748,7 +986,7 @@ export function DealDetailPage() {
                           </div>
                           {isManual ? (
                             <Button
-                              variant="ghost"
+                              variant="secondary"
                               onClick={async () => {
                                 await deleteContactM.mutateAsync({ id: c.id, dealId: id! }).catch(() => null);
                                 contactsQ.refetch();
@@ -814,7 +1052,7 @@ export function DealDetailPage() {
           ) : null}
 
           {tab === "kp" ? (
-            <DealKpModule deal={deal} onTimeline={createTimelineEvent} />
+            <DealKpModule deal={deal as Deal} onTimeline={createTimelineEvent} />
           ) : null}
 
           {tab === "workspace" ? (
@@ -869,14 +1107,16 @@ export function DealDetailPage() {
                       </div>
                       <div className="mt-3 grid gap-2">
                         {(entityFilesQ.data || []).map((ef: EntityFileLink) => {
-                          const f = ef.expand?.file_id;
-                          const url = f?.path || "";
+                          const f = ef.expand?.file_id as Record<string, unknown> | undefined;
+                          const url = typeof f?.path === "string" ? f.path : "";
+                          const fname = typeof f?.filename === "string" ? f.filename : "Файл";
+                          const tagStr = typeof ef.tag === "string" ? ef.tag : "";
                           return (
                             <div key={ef.id} className="rounded-card border border-border bg-white p-3">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                  <div className="text-sm font-semibold truncate">{f?.filename || "Файл"}</div>
-                                  {ef.tag ? <div className="text-xs text-text2 mt-1">{ef.tag}</div> : null}
+                                  <div className="text-sm font-semibold truncate">{fname}</div>
+                                  {tagStr ? <div className="text-xs text-text2 mt-1">{tagStr}</div> : null}
                                   {url ? (
                                     <a className="text-sm text-primary underline break-all" href={url} target="_blank" rel="noreferrer">
                                       {url}
@@ -884,7 +1124,7 @@ export function DealDetailPage() {
                                   ) : null}
                                 </div>
                                 <Button
-                                  variant="ghost"
+                                  variant="secondary"
                                   onClick={async () => {
                                     await deleteEntityFileM
                                       .mutateAsync({ id: ef.id, entityType: "deal", entityId: id! })
@@ -971,7 +1211,7 @@ export function DealDetailPage() {
             </Select>
           </FieldRow>
           <div className="flex justify-end gap-2 mt-2">
-            <Button variant="ghost" onClick={() => setContactModal(false)}>
+            <Button variant="secondary" onClick={() => setContactModal(false)}>
               Отмена
             </Button>
             <Button onClick={addContact} disabled={createContactM.isPending}>

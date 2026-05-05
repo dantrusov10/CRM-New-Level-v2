@@ -406,6 +406,89 @@
       "deleteRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")"
     },
     {
+      "id": "p7fldsecsect01",
+      "name": "settings_field_sections",
+      "type": "base",
+      "system": false,
+      "schema": [
+        {
+          "id": "p7fs_entity_typ",
+          "name": "entity_type",
+          "type": "select",
+          "system": false,
+          "required": true,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "maxSelect": 1,
+            "values": [
+              "company",
+              "deal"
+            ]
+          }
+        },
+        {
+          "id": "p7fs_key_fld",
+          "name": "key",
+          "type": "text",
+          "system": false,
+          "required": true,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
+        },
+        {
+          "id": "p7fs_title_fld",
+          "name": "title",
+          "type": "text",
+          "system": false,
+          "required": true,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
+        },
+        {
+          "id": "p7fs_order_fld",
+          "name": "order",
+          "type": "number",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "noDecimal": false
+          }
+        },
+        {
+          "id": "p7fs_collapsed",
+          "name": "collapsed",
+          "type": "bool",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {}
+        }
+      ],
+      "indexes": [],
+      "options": {},
+      "listRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || @request.auth.role = \"manager\" || @request.auth.role = \"viewer\")",
+      "viewRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || @request.auth.role = \"manager\" || @request.auth.role = \"viewer\")",
+      "createRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
+      "updateRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
+      "deleteRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")"
+    },
+    {
       "id": "yfqk5l28rdd4dru",
       "name": "settings_fields",
       "type": "base",
@@ -524,6 +607,90 @@
           "options": {
             "maxSize": 2000000
           }
+        },
+        {
+          "id": "fldentyptype001",
+          "name": "entity_type",
+          "type": "select",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "maxSelect": 1,
+            "values": [
+              "company",
+              "deal"
+            ]
+          }
+        },
+        {
+          "id": "fldsectrel001",
+          "name": "section_id",
+          "type": "relation",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "collectionId": "p7fldsecsect01",
+            "cascadeDelete": false,
+            "minSelect": 0,
+            "maxSelect": 1,
+            "displayFields": null
+          }
+        },
+        {
+          "id": "fldvaluetype01",
+          "name": "value_type",
+          "type": "text",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
+        },
+        {
+          "id": "fldfldorder001",
+          "name": "order",
+          "type": "number",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "noDecimal": false
+          }
+        },
+        {
+          "id": "fldhelp_txt001",
+          "name": "help_text",
+          "type": "text",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
+        },
+        {
+          "id": "fldsystem001",
+          "name": "system",
+          "type": "bool",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {}
         }
       ],
       "indexes": [],
@@ -992,6 +1159,18 @@
           "options": {
             "exceptDomains": null,
             "onlyDomains": null
+          }
+        },
+        {
+          "id": "dm7k2p9qx4deal1",
+          "name": "product_ids",
+          "type": "json",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "maxSize": 2000000
           }
         },
         {
@@ -1690,6 +1869,18 @@
           }
         },
         {
+          "id": "ai9ctxprodids1",
+          "name": "context_product_ids",
+          "type": "json",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "maxSize": 2000000
+          }
+        },
+        {
           "id": "ur6k5ykyqq909eb",
           "name": "token_usage",
           "type": "number",
@@ -1756,6 +1947,120 @@
       "createRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
       "updateRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
       "deleteRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")"
+    },
+    {
+      "id": "drfct7k2m9n1xqb",
+      "name": "deal_research_facts",
+      "type": "base",
+      "system": false,
+      "schema": [
+        {
+          "id": "drf1dealrel001",
+          "name": "deal_id",
+          "type": "relation",
+          "system": false,
+          "required": true,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "collectionId": "5ob41g0sxdeap7m",
+            "cascadeDelete": true,
+            "minSelect": 1,
+            "maxSelect": 1,
+            "displayFields": null
+          }
+        },
+        {
+          "id": "drf2facttext01",
+          "name": "fact_text",
+          "type": "text",
+          "system": false,
+          "required": true,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
+        },
+        {
+          "id": "drf3sourcetype1",
+          "name": "source_type",
+          "type": "select",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "maxSelect": 1,
+            "values": [
+              "manual",
+              "import",
+              "parser"
+            ]
+          }
+        },
+        {
+          "id": "drf4sourceurl01",
+          "name": "source_url",
+          "type": "url",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "exceptDomains": null,
+            "onlyDomains": null
+          }
+        },
+        {
+          "id": "drf5observedat1",
+          "name": "observed_at",
+          "type": "date",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null
+          }
+        },
+        {
+          "id": "drf6confidence1",
+          "name": "confidence",
+          "type": "number",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "noDecimal": false
+          }
+        },
+        {
+          "id": "drf7metajson001",
+          "name": "meta",
+          "type": "json",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "maxSize": 2000000
+          }
+        }
+      ],
+      "indexes": [],
+      "options": {},
+      "listRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || (@request.auth.role = \"manager\" && deal_id.responsible_id = @request.auth.id))",
+      "viewRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || (@request.auth.role = \"manager\" && deal_id.responsible_id = @request.auth.id))",
+      "createRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || (@request.auth.role = \"manager\" && deal_id.responsible_id = @request.auth.id))",
+      "updateRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || (@request.auth.role = \"manager\" && deal_id.responsible_id = @request.auth.id))",
+      "deleteRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || (@request.auth.role = \"manager\" && deal_id.responsible_id = @request.auth.id))"
     },
     {
       "id": "ijjcytw9d6mu9rb",
@@ -3875,12 +4180,26 @@
           "options": {
             "maxSize": 2000000
           }
+        },
+        {
+          "id": "pr8techspec001",
+          "name": "technical_spec",
+          "type": "text",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
         }
       ],
       "indexes": [],
       "options": {},
-      "listRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
-      "viewRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
+      "listRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || @request.auth.role = \"manager\")",
+      "viewRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || @request.auth.role = \"manager\")",
       "createRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
       "updateRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
       "deleteRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")"
@@ -3971,8 +4290,8 @@
       ],
       "indexes": [],
       "options": {},
-      "listRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
-      "viewRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
+      "listRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || @request.auth.role = \"manager\")",
+      "viewRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || @request.auth.role = \"manager\")",
       "createRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
       "updateRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
       "deleteRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")"
@@ -4433,6 +4752,264 @@
       "viewRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
       "createRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
       "updateRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
+      "deleteRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")"
+    },
+    {
+      "id": "kpTpl00000000001",
+      "name": "settings_kp_templates",
+      "type": "base",
+      "system": false,
+      "schema": [
+        {
+          "id": "kpTplName0000001",
+          "name": "name",
+          "type": "text",
+          "system": false,
+          "required": true,
+          "presentable": true,
+          "unique": false,
+          "options": {
+            "min": 1,
+            "max": 200,
+            "pattern": ""
+          }
+        },
+        {
+          "id": "kpTplIsAct00001",
+          "name": "is_active",
+          "type": "bool",
+          "system": false,
+          "required": true,
+          "presentable": false,
+          "unique": false,
+          "options": {}
+        },
+        {
+          "id": "kpTplIsDef00001",
+          "name": "is_default",
+          "type": "bool",
+          "system": false,
+          "required": true,
+          "presentable": false,
+          "unique": false,
+          "options": {}
+        },
+        {
+          "id": "kpTplJson0000001",
+          "name": "template_json",
+          "type": "json",
+          "system": false,
+          "required": true,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "maxSize": 200000
+          }
+        },
+        {
+          "id": "kpTplLogo0000001",
+          "name": "logo",
+          "type": "file",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "mimeTypes": [
+              "image/png",
+              "image/jpeg",
+              "image/webp",
+              "image/svg+xml"
+            ],
+            "thumbs": [],
+            "maxSelect": 1,
+            "maxSize": 5242880
+          }
+        }
+      ],
+      "indexes": [],
+      "options": {},
+      "listRule": "@request.auth.id != \"\" && (is_active = true || @request.auth.role = \"admin\")",
+      "viewRule": "@request.auth.id != \"\" && (is_active = true || @request.auth.role = \"admin\")",
+      "createRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
+      "updateRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
+      "deleteRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")"
+    },
+    {
+      "id": "kpIns000000000001",
+      "name": "kp_instances",
+      "type": "base",
+      "system": false,
+      "schema": [
+        {
+          "id": "kpInsDeal0000001",
+          "name": "deal_id",
+          "type": "relation",
+          "system": false,
+          "required": true,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "collectionId": "5ob41g0sxdeap7m",
+            "cascadeDelete": true,
+            "minSelect": 1,
+            "maxSelect": 1,
+            "displayFields": null
+          }
+        },
+        {
+          "id": "kpInsTpl0000001",
+          "name": "template_id",
+          "type": "relation",
+          "system": false,
+          "required": true,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "collectionId": "kpTpl00000000001",
+            "cascadeDelete": false,
+            "minSelect": 1,
+            "maxSelect": 1,
+            "displayFields": null
+          }
+        },
+        {
+          "id": "kpInsStatus00001",
+          "name": "status",
+          "type": "select",
+          "system": false,
+          "required": true,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "maxSelect": 1,
+            "values": [
+              "draft",
+              "final"
+            ]
+          }
+        },
+        {
+          "id": "kpInsVersion0001",
+          "name": "version",
+          "type": "number",
+          "system": false,
+          "required": true,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": 1,
+            "max": null,
+            "noDecimal": true
+          }
+        },
+        {
+          "id": "kpInsInput00001",
+          "name": "input_json",
+          "type": "json",
+          "system": false,
+          "required": true,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "maxSize": 200000
+          }
+        },
+        {
+          "id": "kpInsComp000001",
+          "name": "computed_json",
+          "type": "json",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "maxSize": 200000
+          }
+        }
+      ],
+      "indexes": [],
+      "options": {},
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
+      "deleteRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")"
+    },
+    {
+      "id": "kpDoc000000000001",
+      "name": "kp_documents",
+      "type": "base",
+      "system": false,
+      "schema": [
+        {
+          "id": "kpDocDeal0000001",
+          "name": "deal_id",
+          "type": "relation",
+          "system": false,
+          "required": true,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "collectionId": "5ob41g0sxdeap7m",
+            "cascadeDelete": true,
+            "minSelect": 1,
+            "maxSelect": 1,
+            "displayFields": null
+          }
+        },
+        {
+          "id": "kpDocInst0000001",
+          "name": "kp_instance_id",
+          "type": "relation",
+          "system": false,
+          "required": true,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "collectionId": "kpIns000000000001",
+            "cascadeDelete": true,
+            "minSelect": 1,
+            "maxSelect": 1,
+            "displayFields": null
+          }
+        },
+        {
+          "id": "kpDocFile0000001",
+          "name": "pdf",
+          "type": "file",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "mimeTypes": [
+              "application/pdf"
+            ],
+            "thumbs": [],
+            "maxSelect": 1,
+            "maxSize": 20971520
+          }
+        },
+        {
+          "id": "kpDocMeta0000001",
+          "name": "meta",
+          "type": "json",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "maxSize": 50000
+          }
+        }
+      ],
+      "indexes": [],
+      "options": {},
+      "listRule": "@request.auth.id != \"\"",
+      "viewRule": "@request.auth.id != \"\"",
+      "createRule": "@request.auth.id != \"\"",
+      "updateRule": "@request.auth.id != \"\"",
       "deleteRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")"
     }
   ]

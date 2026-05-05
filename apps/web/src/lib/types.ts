@@ -70,6 +70,9 @@ export type Deal = {
   current_score?: number; // 0..100
   current_recommendations?: string;
 
+  /** ID записей `products`, выбранные для сделки (мультивыбор). */
+  product_ids?: string[];
+
   created?: string;
   updated?: string;
   expand?: {
@@ -90,17 +93,57 @@ export type TimelineItem = {
   created?: string;
 };
 
+export type Product = {
+  id: Id;
+  name: string;
+  segment?: string;
+  target_customer_segments?: unknown;
+  description?: string;
+  battle_card?: unknown;
+  technical_spec?: string;
+  created?: string;
+  updated?: string;
+};
+
+export type ProductMaterial = {
+  id: Id;
+  product_id: Id;
+  file_id?: Id;
+  material_type?: string;
+  title?: string;
+  url?: string;
+  created?: string;
+  updated?: string;
+};
+
+export type DealResearchFact = {
+  id: Id;
+  deal_id: Id;
+  fact_text: string;
+  source_type?: string;
+  source_url?: string;
+  observed_at?: string;
+  confidence?: number;
+  meta?: Record<string, unknown> | null;
+  created?: string;
+  updated?: string;
+};
+
 export type AiInsight = {
   id: Id;
   deal_id: Id;
   score?: number; // 0..100
+  score_percent?: number;
   summary?: string;
   suggestions?: string;
+  recommendations?: string;
   risks?: Record<string, unknown> | null;
   explainability?: Record<string, unknown> | unknown;
   model?: string;
   token_usage?: Record<string, unknown> | null;
   trigger_event_id?: Id;
+  /** Какие продукты были учтены в этом прогоне ИИ (копия на момент запроса). */
+  context_product_ids?: string[];
   created_by?: Id;
   created_at?: string;
   created?: string;

@@ -1,6 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { pb } from "../../lib/pb";
-import type { Deal, Company, FunnelStage, TimelineItem, AiInsight, TaskItem, UserSummary } from "../../lib/types";
+import type {
+  Deal,
+  Company,
+  FunnelStage,
+  TimelineItem,
+  AiInsight,
+  TaskItem,
+  UserSummary,
+  Product,
+  ProductMaterial,
+  DealResearchFact,
+} from "../../lib/types";
 import type { PermissionMatrix } from "../../lib/rbac";
 
 export type ContactFound = {
@@ -147,6 +158,46 @@ export function useDeal(id: string) {
       return rec;
     },
     enabled: !!id,
+  });
+}
+
+export function useProducts() {
+  return useQuery({
+    queryKey: ["products"],
+    queryFn: async (): Promise<Product[]> => {
+      const res = await pb.collection("products").getFullList({ sort: "name", batch: 200 });
+      return res as unknown as Product[];
+    },
+  });
+}
+
+export function useProductMaterials(productId: string | undefined) {
+  return useQuery({
+    queryKey: ["product_materials", productId],
+    queryFn: async (): Promise<ProductMaterial[]> => {
+      if (!productId) return [];
+      const res = await pb.collection("product_materials").getFullList({
+        filter: `product_id="${productId}"`,
+        sort: "created",
+        batch: 200,
+      });
+      return res as unknown as ProductMaterial[];
+    },
+    enabled: !!productId,
+  });
+}
+
+export function useDealResearchFacts(dealId: string) {
+  return useQuery({
+    queryKey: ["deal_research_facts", dealId],
+    queryFn: async (): Promise<DealResearchFact[]> => {
+      const res = await pb
+        .collection("deal_research_facts")
+        .getList(1, 500, { filter: `deal_id="${dealId}"`, sort: "-created" })
+        .catch(() => ({ items: [] as DealResearchFact[] }));
+      return normalizeListResult<DealResearchFact>(res as unknown as ListResultLike<DealResearchFact>);
+    },
+    enabled: !!dealId,
   });
 }
 

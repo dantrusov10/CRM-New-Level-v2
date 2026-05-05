@@ -8,7 +8,7 @@ import { DEFAULT_KP_TEMPLATE_V1 } from "../../modules/kp/defaultTemplate";
 import { PriceListAdmin } from "../../modules/kp/PriceListAdmin";
 import type { KpTemplateConfig, KpTemplateRecord } from "../../modules/kp/types";
 
-type Tab = "contacts" | "media" | "tenders" | "kp";
+type Tab = "contacts" | "media" | "tenders" | "ai" | "kp";
 
 type TabButtonProps = { active: boolean; children: React.ReactNode; onClick: () => void };
 type ParserKeywordBag = { phrases?: string[] };
@@ -23,6 +23,23 @@ type TenderPlatform = { id: string; name: string; integration_type?: string };
 type TenderLink = { id: string; platform_id: string };
 
 type KpTemplatePatch = { template_json?: KpTemplateConfig; name?: string };
+type DealScoringFactor = { code: string; name: string; weight: number; enabled: boolean };
+type DealScoringModel = { version: string; recommended: boolean; acknowledged?: boolean; factors: DealScoringFactor[] };
+
+const DEFAULT_DEAL_SCORING_MODEL: DealScoringModel = {
+  version: "v1",
+  recommended: true,
+  acknowledged: false,
+  factors: [
+    { code: "stage_progress", name: "Прогресс этапа", weight: 22, enabled: true },
+    { code: "decision_maker_coverage", name: "Покрытие ЛПР/ЛВР", weight: 18, enabled: true },
+    { code: "activity_freshness", name: "Свежесть активности", weight: 14, enabled: true },
+    { code: "budget_clarity", name: "Определенность бюджета", weight: 14, enabled: true },
+    { code: "pilot_status", name: "Статус пилота/пресейла", weight: 12, enabled: true },
+    { code: "competition_pressure", name: "Конкурентное давление", weight: 10, enabled: true },
+    { code: "data_completeness", name: "Полнота данных сделки", weight: 10, enabled: true },
+  ],
+};
 
 export function AdminParsersPage() {
   const [tab, setTab] = React.useState<Tab>("contacts");
@@ -39,6 +56,7 @@ export function AdminParsersPage() {
             <TabButton active={tab==="contacts"} onClick={() => setTab("contacts")}>Контакты</TabButton>
             <TabButton active={tab==="media"} onClick={() => setTab("media")}>Медиа</TabButton>
             <TabButton active={tab==="tenders"} onClick={() => setTab("tenders")}>Тендеры</TabButton>
+            <TabButton active={tab==="ai"} onClick={() => setTab("ai")}>Парсеры + AI</TabButton>
             <TabButton active={tab==="kp"} onClick={() => setTab("kp")}>КП (каркас)</TabButton>
           </div>
         </CardContent>
@@ -47,6 +65,7 @@ export function AdminParsersPage() {
       {tab === "contacts" ? <ContactsParser /> : null}
       {tab === "media" ? <MediaParser /> : null}
       {tab === "tenders" ? <TenderParser /> : null}
+      {tab === "ai" ? <AiPromptsSettings /> : null}
       {tab === "kp" ? <KpSettings /> : null}
     </div>
   );
@@ -355,7 +374,6 @@ function TenderParser() {
   const [platforms, setPlatforms] = React.useState<TenderPlatform[]>([]);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [keywords, setKeywords] = React.useState("");
-  const [tokens, setTokens] = React.useState("");
 
   async function load() {
     const sList = await pb.collection("settings_tender_parser").getList(1, 1).catch(() => ({ items: [] as TenderParserSettings[] }));
@@ -368,7 +386,6 @@ function TenderParser() {
     const links = await pb.collection("settings_tender_parser_platforms").getFullList({ filter: `settings_id="${s.id}"` }).catch(() => []);
     setSelected(new Set((links as TenderLink[]).map((l) => l.platform_id)));
     setKeywords((s.keywords?.phrases ?? []).join(", "));
-    setTokens(JSON.stringify(s.platform_tokens ?? {}, null, 2));
   }
 
   React.useEffect(() => { load(); }, []);
@@ -393,11 +410,6 @@ function TenderParser() {
   async function saveKeywords() {
     const phrases = keywords.split(",").map((s) => s.trim()).filter(Boolean);
     await saveSettings({ keywords: { phrases } });
-  }
-
-  async function saveTokens() {
-    const obj = JSON.parse(tokens || "{}");
-    await saveSettings({ platform_tokens: obj });
   }
 
   return (
@@ -447,11 +459,217 @@ function TenderParser() {
             </div>
 
             <div className="rounded-card border border-border bg-rowHover p-3">
-              <div className="text-sm font-semibold mb-2">Токены доступа (JSON)</div>
-              <textarea className="w-full min-h-[160px] rounded-card border border-[#9CA3AF] bg-white p-3 font-mono text-xs" value={tokens} onChange={(e) => setTokens(e.target.value)} />
-              <div className="flex justify-end mt-2">
-                <Button onClick={saveTokens}>Сохранить</Button>
+              <div className="text-sm font-semibold mb-2">Токены доступа</div>
+              <div className="text-sm text-text2">
+                Для безопасности токены площадок не хранятся во фронте и не записываются в PocketBase.
+                Храните их только на сервере в переменных окружения (см. `backend/pocketbase/SECRETS.example.md`).
               </div>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** AI PROMPTS (tenant-level) */
+function AiPromptsSettings() {
+  const [loading, setLoading] = React.useState(true);
+  const [recordId, setRecordId] = React.useState<string>("");
+  const [prompt, setPrompt] = React.useState("");
+  const [scoringRecordId, setScoringRecordId] = React.useState<string>("");
+  const [scoringModel, setScoringModel] = React.useState<DealScoringModel>(DEFAULT_DEAL_SCORING_MODEL);
+  const [status, setStatus] = React.useState("");
+
+  async function load() {
+    setLoading(true);
+    setStatus("");
+    try {
+      const list = await pb.collection("semantic_packs").getList(1, 1, {
+        filter: 'type="deal" && model="deal_analysis_prompt" && (language="ru" || language="")',
+        sort: "-created",
+      });
+      const item = list.items[0] as { id: string; base_text?: string } | undefined;
+      if (item) {
+        setRecordId(item.id);
+        setPrompt(item.base_text || "");
+      } else {
+        setRecordId("");
+        setPrompt(
+          "Проанализируй сделку с учетом всех полей карточки, истории комментариев, заметок, динамики событий и прошлых AI-оценок. Верни четкий вывод по вероятности закрытия, рискам и следующим шагам."
+        );
+      }
+
+      const scoringList = await pb.collection("semantic_packs").getList(1, 1, {
+        filter: 'type="deal_scoring_model" && model="deal_scoring_model_v1"',
+        sort: "-created",
+      });
+      const scoringItem = scoringList.items[0] as { id: string; variants?: unknown } | undefined;
+      if (scoringItem) {
+        setScoringRecordId(scoringItem.id);
+        const raw = scoringItem.variants;
+        let parsed: DealScoringModel | null = null;
+        if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+          parsed = raw as DealScoringModel;
+        } else if (typeof raw === "string" && raw.trim()) {
+          try {
+            parsed = JSON.parse(raw) as DealScoringModel;
+          } catch {
+            parsed = null;
+          }
+        }
+        if (parsed && Array.isArray(parsed.factors) && parsed.factors.length) {
+          setScoringModel({
+            ...DEFAULT_DEAL_SCORING_MODEL,
+            ...parsed,
+            factors: parsed.factors.map((f, i) => ({
+              code: String(f?.code || DEFAULT_DEAL_SCORING_MODEL.factors[i]?.code || `factor_${i}`),
+              name: String(f?.name || DEFAULT_DEAL_SCORING_MODEL.factors[i]?.name || `Фактор ${i + 1}`),
+              weight: Number(f?.weight ?? DEFAULT_DEAL_SCORING_MODEL.factors[i]?.weight ?? 0),
+              enabled: Boolean(f?.enabled ?? true),
+            })),
+          });
+        } else {
+          setScoringModel(DEFAULT_DEAL_SCORING_MODEL);
+        }
+      } else {
+        setScoringRecordId("");
+        setScoringModel(DEFAULT_DEAL_SCORING_MODEL);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  React.useEffect(() => {
+    load();
+  }, []);
+
+  async function save() {
+    const payload = {
+      type: "deal",
+      base_text: prompt,
+      variants: { purpose: "deal_analysis_prompt", source: "admin_parsers_ai_tab" },
+      language: "ru",
+      model: "deal_analysis_prompt",
+    };
+    if (recordId) {
+      await pb.collection("semantic_packs").update(recordId, payload);
+    } else {
+      const created = await pb.collection("semantic_packs").create(payload);
+      setRecordId((created as { id: string }).id);
+    }
+    const scoringPayload = {
+      type: "deal_scoring_model",
+      base_text: "Tenant scoring factors for deterministic deal probability",
+      variants: scoringModel,
+      language: "ru",
+      model: "deal_scoring_model_v1",
+    };
+    if (scoringRecordId) {
+      await pb.collection("semantic_packs").update(scoringRecordId, scoringPayload);
+    } else {
+      const createdScoring = await pb.collection("semantic_packs").create(scoringPayload);
+      setScoringRecordId((createdScoring as { id: string }).id);
+    }
+    setStatus("Сохранено (промпт + факторы скоринга)");
+    setTimeout(() => setStatus(""), 2500);
+  }
+
+  function updateFactor(idx: number, patch: Partial<DealScoringFactor>) {
+    setScoringModel((prev) => ({
+      ...prev,
+      factors: prev.factors.map((f, i) => (i === idx ? { ...f, ...patch } : f)),
+    }));
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="text-sm font-semibold">Парсеры + AI: промпт анализа сделки</div>
+        <div className="text-xs text-text2 mt-1">
+          Этот промпт задает правила анализа для данного клиента CRM. Он учитывается независимо от выбранного AI-провайдера.
+        </div>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="text-sm text-text2">Загрузка...</div>
+        ) : (
+          <div className="grid gap-3">
+            <div className="rounded-card border border-infoBorder bg-infoBg p-3">
+              <div className="text-sm font-semibold">Рекомендуемая модель скоринга (по умолчанию)</div>
+              <div className="text-xs text-text2 mt-1">
+                Мы предзаполнили факторную модель для всех клиентов. Рекомендуем использовать ее как baseline.
+                При необходимости можно скорректировать веса и включение факторов под ваш процесс.
+              </div>
+              <div className="mt-2">
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    setScoringModel({
+                      ...DEFAULT_DEAL_SCORING_MODEL,
+                      acknowledged: true,
+                    })
+                  }
+                >
+                  Вернуть рекомендуемую модель
+                </Button>
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-text2 mb-1">Промпт AI (tenant-level)</div>
+              <textarea
+                className="w-full rounded-card border border-[#9CA3AF] bg-white px-3 py-2 text-sm"
+                rows={8}
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="Опиши правила AI-анализа для этой CRM..."
+              />
+            </div>
+            <div className="rounded-card border border-border bg-rowHover p-3">
+              <div className="text-sm font-semibold">Факторы скоринга вероятности сделки</div>
+              <div className="text-xs text-text2 mt-1">
+                Итоговая вероятность закрытия считается детерминированно по этим факторам (веса и включение можно менять).
+              </div>
+              <div className="mt-3 overflow-auto">
+                <table className="min-w-[720px] w-full text-sm">
+                  <thead>
+                    <tr className="h-10 bg-[#EEF1F6] text-[#374151] font-semibold">
+                      <th className="text-left px-3">Фактор</th>
+                      <th className="text-left px-3">Код</th>
+                      <th className="text-left px-3">Вес</th>
+                      <th className="text-left px-3">Включен</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scoringModel.factors.map((f, idx) => (
+                      <tr key={f.code} className="h-12 border-b border-border">
+                        <td className="px-3">
+                          <Input value={f.name} onChange={(e) => updateFactor(idx, { name: e.target.value })} />
+                        </td>
+                        <td className="px-3 text-text2">{f.code}</td>
+                        <td className="px-3">
+                          <Input
+                            value={String(f.weight)}
+                            onChange={(e) => updateFactor(idx, { weight: Number(e.target.value || 0) })}
+                          />
+                        </td>
+                        <td className="px-3">
+                          <input
+                            type="checkbox"
+                            checked={!!f.enabled}
+                            onChange={(e) => updateFactor(idx, { enabled: e.target.checked })}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button onClick={save} disabled={!prompt.trim()}>Сохранить промпт</Button>
+              {status ? <span className="text-sm text-success">{status}</span> : null}
             </div>
           </div>
         )}
@@ -512,3 +730,7 @@ function KpSettings() {
     </div>
   );
 }
+
+
+
+

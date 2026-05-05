@@ -1,5 +1,5 @@
 import React from "react";
-import { TrendingUp, AlertTriangle, CircleDot, Percent, Clock, Users, Settings2, BarChart3 } from "lucide-react";
+import { TrendingUp, AlertTriangle, CircleDot, Percent, Clock, Users, Settings2, BarChart3, type LucideProps } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useDeals, useFunnelStages, useUsers } from "../data/hooks";
 import type { Deal, FunnelStage, UserSummary } from "../../lib/types";
@@ -86,7 +86,7 @@ const StatCard = ({
 }: {
   title: string;
   value: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: React.ComponentType<LucideProps>;
   hint?: string;
 }) => (
   <div className="ui-card p-4">

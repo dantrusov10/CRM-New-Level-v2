@@ -27,7 +27,7 @@ export function AdminUsersPage() {
   async function load() {
     const u = await pb.collection("users").getList(1, 200, { sort: "email" });
     const r = await pb.collection("settings_roles").getFullList({ sort: "role_name" }).catch(() => []);
-    setUsers(u.items);
+    setUsers(u.items as unknown as UserSummary[]);
     // If settings_roles exists and filled - use it; else fallback.
     const mapped = (r as Array<{ role_name?: string; label?: string }>)
       .map((x) => ({ value: x.role_name ?? "", label: x.label ?? x.role_name ?? "" }))

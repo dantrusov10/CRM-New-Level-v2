@@ -1,6 +1,7 @@
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
-export type JsonObject = { [key: string]: JsonValue };
+/** PocketBase/TS unions may include explicit `undefined` on optional keys; allow it for template JSON trees. */
+export type JsonObject = { [key: string]: JsonValue | undefined };
 
 export type KpTemplate = {
   id?: string;

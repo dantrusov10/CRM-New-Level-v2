@@ -86,7 +86,7 @@ export function DealKpModule({ deal, onTimeline }: { deal: Deal; onTimeline?: (a
         .then((r) => r.items[0])
         .catch(() => null);
       if (inst) {
-        setInstance(inst);
+        setInstance(inst as unknown as KpInstanceRecord);
         setInput(inst.input_json || {});
         setItems((inst.computed_json?.items || inst.input_json?.items || []) as SpecItem[]);
       } else {
@@ -146,7 +146,7 @@ export function DealKpModule({ deal, onTimeline }: { deal: Deal; onTimeline?: (a
       ? await pb.collection("kp_instances").update(instance.id, payload)
       : await pb.collection("kp_instances").create(payload);
 
-    setInstance(saved);
+    setInstance(saved as unknown as KpInstanceRecord);
     if (onTimeline) await onTimeline("kp_draft_saved", "Сохранён черновик КП", { kp_instance_id: saved.id });
   }
 

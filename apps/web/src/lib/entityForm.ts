@@ -165,7 +165,7 @@ export async function saveEntityFormData(input: SaveEntityFormInput): Promise<Sa
     }
 
     const created = await pb.collection(valueCollectionName).create(payload);
-    createdRowsByField[item.field.id] = created as FieldValueRow;
+    createdRowsByField[item.field.id] = created as unknown as FieldValueRow;
   }
 
   return { createdRowsByField };

@@ -46,10 +46,14 @@ export type EntityFileLink = {
 
 type ListResultLike<T> = T[] | { items?: T[] } | null | undefined;
 
-function normalizeListResult<T>(res: ListResultLike<T>): T[] {
-  if (!res) return [];
-  if (Array.isArray(res)) return res;
-  if (Array.isArray(res.items)) return res.items;
+/** PocketBase SDK типизирует ответы как RecordModel — приводим к T[] для UI. */
+function normalizeListResult<T>(res: unknown): T[] {
+  if (res == null) return [];
+  if (Array.isArray(res)) return res as T[];
+  if (typeof res === "object" && res !== null && "items" in res) {
+    const items = (res as { items?: unknown }).items;
+    if (Array.isArray(items)) return items as T[];
+  }
   return [];
 }
 
@@ -103,7 +107,7 @@ export function useFunnelStages() {
     queryFn: async (): Promise<FunnelStage[]> => {
       // PocketBase schema: stage_name + position
       const res = await pb.collection("settings_funnel_stages").getFullList({ sort: "position" });
-      return res as FunnelStage[];
+      return res as unknown as FunnelStage[];
     },
   });
 }
@@ -195,7 +199,7 @@ export function useDealResearchFacts(dealId: string) {
         .collection("deal_research_facts")
         .getList(1, 500, { filter: `deal_id="${dealId}"`, sort: "-created" })
         .catch(() => ({ items: [] as DealResearchFact[] }));
-      return normalizeListResult<DealResearchFact>(res as unknown as ListResultLike<DealResearchFact>);
+      return normalizeListResult<DealResearchFact>(res);
     },
     enabled: !!dealId,
   });

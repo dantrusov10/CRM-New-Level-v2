@@ -18,17 +18,18 @@ type FunnelStage = {
 
 function normalizeStage(raw: Record<string, unknown>): Partial<FunnelStage> {
   // поддержка старого формата (name/order/win/loss) + нового (stage_name/position/won/lost)
-  const stage_name = raw.stage_name ?? raw.name ?? "";
+  const stage_name = String(raw.stage_name ?? raw.name ?? "");
   const position = Number(raw.position ?? raw.order ?? 0);
-  const color = raw.color ?? "#004EEB";
+  const color = String(raw.color ?? "#004EEB");
 
-  let final_type: FunnelStage["final_type"] | string = String(raw.final_type ?? "none");
-  if (final_type === "win") final_type = "won";
-  if (final_type === "loss") final_type = "lost";
-  if (!["none", "won", "lost"].includes(final_type)) final_type = "none";
+  let final_type: FunnelStage["final_type"] = "none";
+  const ftRaw = String(raw.final_type ?? "none");
+  if (ftRaw === "win" || ftRaw === "won") final_type = "won";
+  else if (ftRaw === "loss" || ftRaw === "lost") final_type = "lost";
+  else final_type = "none";
 
-  const is_final = !!raw.is_final;
-  const active = raw.active ?? true;
+  const is_final = Boolean(raw.is_final);
+  const active = raw.active !== false;
 
   const default_prob =
     raw.default_prob === undefined || raw.default_prob === null || raw.default_prob === ""
@@ -46,7 +47,7 @@ export function AdminFunnelPage() {
   async function load() {
     // PocketBase schema: stage_name + position
     const s = await pb.collection("settings_funnel_stages").getFullList({ sort: "position" });
-    setStages(s as FunnelStage[]);
+    setStages(s as unknown as FunnelStage[]);
   }
   React.useEffect(() => {
     load();
@@ -235,7 +236,7 @@ export function AdminFunnelPage() {
                         className="h-9 rounded-card border border-[#9CA3AF] bg-white px-2 text-sm"
                         disabled={!s.is_final}
                         value={s.is_final ? s.final_type ?? "won" : "none"}
-                        onChange={(e) => updateStage(s.id, { final_type: e.target.value })}
+                        onChange={(e) => updateStage(s.id, { final_type: e.target.value as FunnelStage["final_type"] })}
                       >
                         <option value="won">Успех (Won)</option>
                         <option value="lost">Провал (Lost)</option>
@@ -245,7 +246,7 @@ export function AdminFunnelPage() {
                       <Input
                         value={s.default_prob === undefined || s.default_prob === null ? "" : String(s.default_prob)}
                         onChange={(e) =>
-                          updateStage(s.id, { default_prob: e.target.value === "" ? null : Number(e.target.value) })
+                          updateStage(s.id, { default_prob: e.target.value === "" ? undefined : Number(e.target.value) })
                         }
                         placeholder="например 25"
                       />

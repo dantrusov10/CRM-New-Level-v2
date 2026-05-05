@@ -166,6 +166,9 @@ export type TaskItem = {
   created_by: Id;
   created?: string;
   updated?: string;
+  expand?: {
+    deal_id?: Pick<Deal, "id" | "title">;
+  };
 };
 
 

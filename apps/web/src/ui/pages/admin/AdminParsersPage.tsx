@@ -85,13 +85,13 @@ function ContactsParser() {
     setSettings(s);
 
     const m = await pb.collection("role_maps").getFullList({ sort: "-created" });
-    setMaps(m as RoleMap[]);
+    setMaps(m as unknown as RoleMap[]);
 
-    const mapId = s.role_map_id ?? (m[0] as RoleMap | undefined)?.id ?? "";
+    const mapId = s.role_map_id ?? (m[0] as unknown as RoleMap | undefined)?.id ?? "";
     setCurrentMap(mapId);
     if (mapId) {
       const it = await pb.collection("role_map_items").getFullList({ filter: `role_map_id="${mapId}"`, sort: "-is_active, -weight, position_title" });
-      setItems(it as RoleMapItem[]);
+      setItems(it as unknown as RoleMapItem[]);
     } else {
       setItems([]);
     }
@@ -100,11 +100,13 @@ function ContactsParser() {
   React.useEffect(() => { load(); }, []);
 
   async function saveSettings(patch: Partial<ContactParserSettings>) {
+    if (!settings) return;
     const upd = await pb.collection("settings_contact_parser").update(settings.id, patch);
-    setSettings(upd);
+    setSettings(upd as ContactParserSettings);
   }
 
   async function createMap() {
+    if (!settings) return;
     const m = await pb.collection("role_maps").create({ title, segment });
     setTitle(""); setSegment("default");
     await pb.collection("settings_contact_parser").update(settings.id, { role_map_id: m.id });
@@ -264,7 +266,7 @@ function MediaParser() {
     setSettings(s);
 
     const src = await pb.collection("parser_sources_media").getFullList({ filter: "is_active=true", sort: "name" });
-    setSources(src as MediaSource[]);
+    setSources(src as unknown as MediaSource[]);
 
     const links = await pb.collection("settings_media_parser_sources").getFullList({ filter: `settings_id="${s.id}"` }).catch(() => []);
     setSelected(new Set((links as MediaLink[]).map((l) => l.source_id)));
@@ -274,11 +276,13 @@ function MediaParser() {
   React.useEffect(() => { load(); }, []);
 
   async function saveSettings(patch: Partial<MediaParserSettings>) {
+    if (!settings) return;
     const upd = await pb.collection("settings_media_parser").update(settings.id, patch);
-    setSettings(upd);
+    setSettings(upd as MediaParserSettings);
   }
 
   async function toggleSource(id: string, on: boolean) {
+    if (!settings) return;
     if (on) {
       await pb.collection("settings_media_parser_sources").create({ settings_id: settings.id, source_id: id });
     } else {
@@ -359,7 +363,7 @@ function TenderParser() {
     setSettings(s);
 
     const p = await pb.collection("parser_sources_tender").getFullList({ filter: "is_active=true", sort: "name" });
-    setPlatforms(p as TenderPlatform[]);
+    setPlatforms(p as unknown as TenderPlatform[]);
 
     const links = await pb.collection("settings_tender_parser_platforms").getFullList({ filter: `settings_id="${s.id}"` }).catch(() => []);
     setSelected(new Set((links as TenderLink[]).map((l) => l.platform_id)));
@@ -370,11 +374,13 @@ function TenderParser() {
   React.useEffect(() => { load(); }, []);
 
   async function saveSettings(patch: Partial<TenderParserSettings>) {
+    if (!settings) return;
     const upd = await pb.collection("settings_tender_parser").update(settings.id, patch);
-    setSettings(upd);
+    setSettings(upd as TenderParserSettings);
   }
 
   async function togglePlatform(id: string, on: boolean) {
+    if (!settings) return;
     if (on) {
       await pb.collection("settings_tender_parser_platforms").create({ settings_id: settings.id, platform_id: id });
     } else {

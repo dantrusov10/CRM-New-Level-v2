@@ -43,7 +43,7 @@ export function DealsTablePage() {
   const stagesQ = useFunnelStages();
   const usersQ = useUsers();
 
-  const items = dealsQ.data?.items ?? [];
+  const items = (dealsQ.data?.items ?? []) as unknown as Deal[];
 
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const selectedCount = selected.size;

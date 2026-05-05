@@ -24,7 +24,7 @@ export function CompaniesPage() {
   ].filter(Boolean).join(" && ");
 
   const companiesQ = useCompaniesList({ search: q || undefined, filter, page, perPage: 25 });
-  const companies = companiesQ.data?.items ?? [];
+  const companies = (companiesQ.data?.items ?? []) as unknown as Company[];
   const usersQ = useUsers();
 
   const selectedCount = selected.size;

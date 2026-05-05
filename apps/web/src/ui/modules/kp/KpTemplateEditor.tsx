@@ -14,6 +14,12 @@ function deepClone<T>(v: T): T {
   return JSON.parse(JSON.stringify(v));
 }
 
+function previewInputStr(v: unknown): string {
+  if (v == null) return "";
+  if (typeof v === "string" || typeof v === "number") return String(v);
+  return "";
+}
+
 export function KpTemplateEditor({
   templateRecord,
   onSave,
@@ -413,9 +419,9 @@ export function KpTemplateEditor({
               <div className="rounded-card border border-border bg-rowHover p-3">
                 <div className="text-sm font-semibold mb-2">Демо-данные для предпросмотра</div>
                 <div className="grid grid-cols-2 gap-2">
-                  <Input value={demoInput.clientName || ""} onChange={(e) => setDemoInput((p) => ({ ...p, clientName: e.target.value }))} placeholder="Компания" />
-                  <Input value={demoInput.clientEmail || ""} onChange={(e) => setDemoInput((p) => ({ ...p, clientEmail: e.target.value }))} placeholder="Email" />
-                  <Input value={demoInput.clientInn || ""} onChange={(e) => setDemoInput((p) => ({ ...p, clientInn: e.target.value }))} placeholder="ИНН" />
+                  <Input value={previewInputStr(demoInput.clientName)} onChange={(e) => setDemoInput((p) => ({ ...p, clientName: e.target.value }))} placeholder="Компания" />
+                  <Input value={previewInputStr(demoInput.clientEmail)} onChange={(e) => setDemoInput((p) => ({ ...p, clientEmail: e.target.value }))} placeholder="Email" />
+                  <Input value={previewInputStr(demoInput.clientInn)} onChange={(e) => setDemoInput((p) => ({ ...p, clientInn: e.target.value }))} placeholder="ИНН" />
                   <Input value={String(demoInput.discountManualPercent || "")} onChange={(e) => setDemoInput((p) => ({ ...p, discountManualPercent: e.target.value }))} placeholder="Скидка %" />
                 </div>
               </div>

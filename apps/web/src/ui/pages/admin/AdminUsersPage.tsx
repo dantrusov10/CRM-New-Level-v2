@@ -9,7 +9,6 @@ import type { UserSummary } from "../../../lib/types";
 
 export function AdminUsersPage() {
   const [users, setUsers] = React.useState<UserSummary[]>([]);
-  const [guidedMode, setGuidedMode] = React.useState(true);
   // Роль хранится в auth-коллекции `users.role` (в некоторых старых сборках могла быть `role_name`).
   // settings_roles остаётся для матрицы прав и лейблов.
   const ROLE_FALLBACK = [
@@ -19,7 +18,6 @@ export function AdminUsersPage() {
   ];
   const [roles, setRoles] = React.useState<Array<{ value: string; label: string }>>(ROLE_FALLBACK);
   const [open, setOpen] = React.useState(false);
-  const myUserId = String(pb.authStore.model?.id || "");
 
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
@@ -29,7 +27,7 @@ export function AdminUsersPage() {
   async function load() {
     const u = await pb.collection("users").getList(1, 200, { sort: "email" });
     const r = await pb.collection("settings_roles").getFullList({ sort: "role_name" }).catch(() => []);
-    setUsers(u.items);
+    setUsers(u.items as unknown as UserSummary[]);
     // If settings_roles exists and filled - use it; else fallback.
     const mapped = (r as Array<{ role_name?: string; label?: string }>)
       .map((x) => ({ value: x.role_name ?? "", label: x.label ?? x.role_name ?? "" }))
@@ -69,37 +67,19 @@ export function AdminUsersPage() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center justify-between">
           <div>
-            <div className="text-base font-extrabold tracking-wide">Пользователи</div>
+            <div className="text-sm font-semibold">Пользователи</div>
             <div className="text-xs text-text2 mt-1">Список + добавление + назначение ролей (матрица доступов хранится в `settings_roles`)</div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button small variant="secondary" onClick={() => setGuidedMode((v) => !v)}>
-              {guidedMode ? "Скрыть подсказки" : "Пошаговый режим"}
-            </Button>
-            <Button small onClick={() => setOpen(true)} className="neon-accent">Добавить пользователя</Button>
-          </div>
+          <Button onClick={() => setOpen(true)}>Добавить пользователя</Button>
         </div>
       </CardHeader>
       <CardContent>
-        {guidedMode ? (
-          <div className="mb-3 board-panel p-3 neon-accent">
-            <div className="text-sm font-semibold">Как работать с разделом</div>
-            <div className="mt-2 grid gap-2 text-xs text-text2">
-              <div><b>Шаг 1.</b> Проверь, есть ли пользователь в списке и текущая роль.</div>
-              <div><b>Шаг 2.</b> Создавай нового только при наличии согласованной роли.</div>
-              <div><b>Шаг 3.</b> После смены роли зайди тест-пользователем и проверь доступы.</div>
-              <div><b>Важно.</b> Роль влияет на видимость разделов и разрешенные операции.</div>
-            </div>
-          </div>
-        ) : null}
-
         <div className="overflow-auto">
-          <div className="board-shell neon-accent">
-          <table className="min-w-[900px] board-table text-sm">
+          <table className="min-w-[900px] w-full text-sm">
             <thead>
-              <tr className="text-[#374151] font-semibold">
+              <tr className="h-10 bg-[#EEF1F6] text-[#374151] font-semibold">
                 <th className="text-left px-3">Имя</th>
                 <th className="text-left px-3">Email</th>
                 <th className="text-left px-3">Роль</th>
@@ -107,7 +87,7 @@ export function AdminUsersPage() {
             </thead>
             <tbody>
               {users.map((u) => (
-                <tr key={u.id}>
+                <tr key={u.id} className="h-11 border-b border-border">
                   <td className="px-3">{u.name ?? "—"}</td>
                   <td className="px-3 text-text2">{u.email}</td>
                   <td className="px-3">
@@ -116,10 +96,6 @@ export function AdminUsersPage() {
                       value={u.role ?? u.role_name ?? ""}
                       onChange={async (e) => {
                         const nextRole = e.target.value || null;
-                        if (String(u.id) === myUserId && String(nextRole || "") !== "admin") {
-                          alert("Нельзя понизить собственные права через интерфейс.");
-                          return;
-                        }
                         try {
                           // Prefer canonical field `role`.
                           try {
@@ -143,7 +119,6 @@ export function AdminUsersPage() {
               ))}
             </tbody>
           </table>
-          </div>
           {!users.length ? <div className="text-sm text-text2 py-6">Пользователей пока нет.</div> : null}
         </div>
       </CardContent>

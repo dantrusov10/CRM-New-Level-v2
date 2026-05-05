@@ -29,7 +29,7 @@ import { DealKpModule } from "../../modules/kp/DealKpModule";
 import { DynamicEntityFormWithRef, DynamicEntityFormHandle } from "../../components/DynamicEntityForm";
 import { InlineConfirmActions } from "../../components/InlineConfirmActions";
 import type { AiInsight, Deal, TimelineItem } from "../../../lib/types";
-import type { ContactFound, EntityFileLink } from "../../data/hooks";
+import type { ContactFound, EntityFileLink, ProductProfile } from "../../data/hooks";
 import { analyzeDealWithAi } from "../../../lib/aiGateway";
 
 type AnyObj = Record<string, unknown>;
@@ -984,16 +984,19 @@ function FieldRow({
 function Select({
   value,
   onChange,
+  disabled,
   children,
 }: {
   value: string;
   onChange: (v: string) => void;
+  disabled?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <select
       className="h-10 w-full rounded-card border border-border bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
       value={value}
+      disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
     >
       {children}
@@ -1424,7 +1427,7 @@ export function DealDetailPage() {
   }, [deal?.id]);
 
   const productProfiles = React.useMemo(() => {
-    return (productProfilesQ.data || []).map((p) => {
+    return (productProfilesQ.data || []).map((p: ProductProfile) => {
       const variants = p.variants && typeof p.variants === "object" && !Array.isArray(p.variants) ? p.variants as Record<string, unknown> : {};
       return {
         id: p.id,
@@ -1604,7 +1607,7 @@ export function DealDetailPage() {
     await createContactM
       .mutateAsync({
         deal_id: id,
-        company_id: deal?.company_id || deal?.expand?.company_id?.id || null,
+        company_id: deal?.company_id || deal?.expand?.company_id?.id || undefined,
         full_name,
         position: position || "",
         phone: phone || "",
@@ -1821,7 +1824,7 @@ export function DealDetailPage() {
         context: requestContext,
       });
       async function attachClientResearchReport(insight: { id?: string; summary?: string; suggestions?: string; explainability?: unknown }) {
-        if (!id) return;
+        if (!id || !deal) return;
         const createdAt = dayjs().format("YYYY-MM-DD HH:mm");
         const productName = effectiveProduct?.name || "Продукт";
         const title = `AI client research ${deal.title || deal.id} ${dayjs().format("YYYY-MM-DD HH-mm")}.md`;
@@ -2255,7 +2258,7 @@ export function DealDetailPage() {
                 <DynamicEntityFormWithRef
                   ref={formRef}
                   entity="deal"
-                  record={deal}
+                  record={deal!}
                   excludeFieldNames={["title", "budget", "company_id"]}
                   onSaved={async () => {
                     await dealQ.refetch();
@@ -2812,7 +2815,7 @@ export function DealDetailPage() {
           {tab === "kp" ? (
             <div className="h-[calc(100vh-170px)]">
               <div className="crm-scrollbar h-full overflow-y-auto pr-1">
-                <DealKpModule deal={deal} onTimeline={createTimelineEvent} />
+                <DealKpModule deal={deal!} onTimeline={createTimelineEvent} />
               </div>
             </div>
           ) : null}
@@ -2909,13 +2912,13 @@ export function DealDetailPage() {
                       <div className="mt-3 grid gap-2">
                         {(entityFilesQ.data || []).map((ef: EntityFileLink) => {
                           const f = ef.expand?.file_id;
-                          const url = normalizeExternalUrl(f?.path || "");
+                          const url = normalizeExternalUrl(String(f?.path ?? ""));
                           const fileProductId = parseProductIdFromTag(String(ef.tag || ""));
                           return (
                             <div key={ef.id} className="rounded-card border border-border bg-white p-3 min-w-0">
                               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
                                 <div className="min-w-0">
-                                  <div className="text-sm font-semibold truncate">{f?.filename || "Файл"}</div>
+                                  <div className="text-sm font-semibold truncate">{String(f?.filename ?? "Файл")}</div>
                                   <div className="mt-2 flex items-center gap-2 flex-wrap">
                                     <label className="flex items-center gap-2 text-xs text-text2">
                                       <input

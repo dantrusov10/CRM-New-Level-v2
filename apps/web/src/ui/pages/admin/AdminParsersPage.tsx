@@ -8,7 +8,7 @@ import { DEFAULT_KP_TEMPLATE_V1 } from "../../modules/kp/defaultTemplate";
 import { PriceListAdmin } from "../../modules/kp/PriceListAdmin";
 import type { KpTemplateConfig, KpTemplateRecord } from "../../modules/kp/types";
 
-type Tab = "contacts" | "media" | "tenders" | "ai" | "kp";
+type Tab = "contacts" | "media" | "tenders" | "kp";
 
 type TabButtonProps = { active: boolean; children: React.ReactNode; onClick: () => void };
 type ParserKeywordBag = { phrases?: string[] };
@@ -21,81 +21,24 @@ type MediaLink = { id: string; source_id: string };
 type TenderParserSettings = { id: string; enabled?: boolean; schedule_cron?: string; keywords?: ParserKeywordBag; platform_tokens?: Record<string, unknown> };
 type TenderPlatform = { id: string; name: string; integration_type?: string };
 type TenderLink = { id: string; platform_id: string };
-type ProductProfileItem = { id: string; variants?: Record<string, unknown> };
 
 type KpTemplatePatch = { template_json?: KpTemplateConfig; name?: string };
-type DealScoringFactor = { code: string; name: string; weight: number; enabled: boolean };
-type DealScoringModel = { version: string; recommended: boolean; acknowledged?: boolean; factors: DealScoringFactor[] };
-
-const DEFAULT_DEAL_SCORING_MODEL: DealScoringModel = {
-  version: "v1",
-  recommended: true,
-  acknowledged: false,
-  factors: [
-    { code: "stage_progress", name: "Прогресс этапа", weight: 22, enabled: true },
-    { code: "decision_maker_coverage", name: "Покрытие ЛПР/ЛВР", weight: 18, enabled: true },
-    { code: "activity_freshness", name: "Свежесть активности", weight: 14, enabled: true },
-    { code: "budget_clarity", name: "Определенность бюджета", weight: 14, enabled: true },
-    { code: "pilot_status", name: "Статус пилота/пресейла", weight: 12, enabled: true },
-    { code: "competition_pressure", name: "Конкурентное давление", weight: 10, enabled: true },
-    { code: "data_completeness", name: "Полнота данных сделки", weight: 10, enabled: true },
-  ],
-};
-
-function CjmChecklist({ title, items }: { title: string; items: Array<{ label: string; ok: boolean }> }) {
-  const done = items.filter((i) => i.ok).length;
-  return (
-    <div className="rounded-card border border-border bg-rowHover p-3">
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-sm font-semibold">{title}</div>
-        <div className="text-xs text-text2">{done}/{items.length} готово</div>
-      </div>
-      <div className="mt-2 grid gap-1.5">
-        {items.map((item) => (
-          <div key={item.label} className="flex items-center gap-2 text-xs">
-            <span className={item.ok ? "text-success" : "text-warning"}>{item.ok ? "●" : "○"}</span>
-            <span className={item.ok ? "text-text" : "text-text2"}>{item.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 export function AdminParsersPage() {
   const [tab, setTab] = React.useState<Tab>("contacts");
-  const [guidedMode, setGuidedMode] = React.useState(true);
 
   return (
     <div className="grid gap-4">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <div className="text-base font-extrabold tracking-wide">Парсеры и AI-настройки</div>
-              <div className="text-xs text-text2 mt-1">Контакты, медиа, тендеры, AI-промпт и КП-конфигурация</div>
-            </div>
-            <Button small variant="secondary" onClick={() => setGuidedMode((v) => !v)}>
-              {guidedMode ? "Скрыть подсказки" : "Пошаговый режим"}
-            </Button>
-          </div>
+          <div className="text-sm font-semibold">Парсеры и AI-настройки</div>
+          <div className="text-xs text-text2 mt-1">Контакты (карта ролей), медиа (источники + ключевые слова), тендеры (площадки + токены) + каркас КП</div>
         </CardHeader>
         <CardContent>
-          {guidedMode ? (
-            <div className="board-panel p-3 mb-3 neon-accent">
-              <div className="text-sm font-semibold">Рекомендуемый порядок</div>
-              <div className="mt-2 grid gap-1.5 text-xs text-text2">
-                <div><b>1.</b> Настрой карту контактов и влияние ролей.</div>
-                <div><b>2.</b> Подключи источники медиа/тендеров и проверь ключевые слова.</div>
-                <div><b>3.</b> Скорректируй AI-промпт и факторы скоринга, затем сделай smoke-run на тестовой сделке.</div>
-              </div>
-            </div>
-          ) : null}
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2">
             <TabButton active={tab==="contacts"} onClick={() => setTab("contacts")}>Контакты</TabButton>
             <TabButton active={tab==="media"} onClick={() => setTab("media")}>Медиа</TabButton>
             <TabButton active={tab==="tenders"} onClick={() => setTab("tenders")}>Тендеры</TabButton>
-            <TabButton active={tab==="ai"} onClick={() => setTab("ai")}>Настройка AI</TabButton>
             <TabButton active={tab==="kp"} onClick={() => setTab("kp")}>КП (каркас)</TabButton>
           </div>
         </CardContent>
@@ -104,139 +47,7 @@ export function AdminParsersPage() {
       {tab === "contacts" ? <ContactsParser /> : null}
       {tab === "media" ? <MediaParser /> : null}
       {tab === "tenders" ? <TenderParser /> : null}
-      {tab === "ai" ? <AiPromptsSettings /> : null}
       {tab === "kp" ? <KpSettings /> : null}
-    </div>
-  );
-}
-
-function ParserAiControls({ parserKey }: { parserKey: "contacts" | "media" | "tenders" }) {
-  const [recordId, setRecordId] = React.useState("");
-  const [products, setProducts] = React.useState<Array<{ id: string; name: string }>>([]);
-  const [productId, setProductId] = React.useState("");
-  const [prompt, setPrompt] = React.useState("");
-  const [enabled, setEnabled] = React.useState(true);
-  const [status, setStatus] = React.useState("");
-
-  async function load() {
-    const productRows = await pb.collection("semantic_packs").getList(1, 200, {
-      filter: 'model="product_profile_v1"',
-      sort: "-updated",
-    }).catch(() => ({ items: [] as ProductProfileItem[] }));
-    const mapped = (productRows.items || []).map((p: ProductProfileItem) => ({
-      id: p.id,
-      name: String((p.variants && typeof p.variants === "object" ? (p.variants as Record<string, unknown>).name : "") || "Без названия"),
-    }));
-    setProducts(mapped);
-    if (!productId && mapped[0]) setProductId(mapped[0].id);
-
-    const pack = await pb.collection("semantic_packs").getList(1, 1, {
-      filter: 'type="parser_ai_settings" && model="parser_ai_settings_v1"',
-      sort: "-updated",
-    }).catch(() => ({ items: [] as Array<Record<string, unknown>> }));
-    const item = (pack.items || [])[0] as Record<string, unknown> | undefined;
-    if (!item) return;
-    setRecordId(String(item.id || ""));
-    const variants = item.variants && typeof item.variants === "object" ? item.variants as Record<string, unknown> : {};
-    const section = variants[parserKey] && typeof variants[parserKey] === "object" ? variants[parserKey] as Record<string, unknown> : {};
-    setPrompt(String(section.prompt || ""));
-    const byProduct = section.enrich_by_product && typeof section.enrich_by_product === "object" ? section.enrich_by_product as Record<string, unknown> : {};
-    const pid = productId || mapped[0]?.id || "";
-    setEnabled(Boolean(byProduct[pid] ?? true));
-  }
-
-  React.useEffect(() => {
-    void load();
-  }, []);
-
-  React.useEffect(() => {
-    const run = async () => {
-      if (!productId) return;
-      const pack = await pb.collection("semantic_packs").getList(1, 1, {
-        filter: 'type="parser_ai_settings" && model="parser_ai_settings_v1"',
-        sort: "-updated",
-      }).catch(() => ({ items: [] as Array<Record<string, unknown>> }));
-      const item = (pack.items || [])[0] as Record<string, unknown> | undefined;
-      if (!item) return;
-      const variants = item.variants && typeof item.variants === "object" ? item.variants as Record<string, unknown> : {};
-      const section = variants[parserKey] && typeof variants[parserKey] === "object" ? variants[parserKey] as Record<string, unknown> : {};
-      const byProduct = section.enrich_by_product && typeof section.enrich_by_product === "object" ? section.enrich_by_product as Record<string, unknown> : {};
-      setEnabled(Boolean(byProduct[productId] ?? true));
-      setPrompt(String(section.prompt || ""));
-    };
-    void run();
-  }, [productId, parserKey]);
-
-  async function save() {
-    if (!productId) return;
-    setStatus("");
-    const pack = await pb.collection("semantic_packs").getList(1, 1, {
-      filter: 'type="parser_ai_settings" && model="parser_ai_settings_v1"',
-      sort: "-updated",
-    }).catch(() => ({ items: [] as Array<Record<string, unknown>> }));
-    const item = (pack.items || [])[0] as Record<string, unknown> | undefined;
-    const root = item?.variants && typeof item.variants === "object" ? item.variants as Record<string, unknown> : {};
-    const currentSection = root[parserKey] && typeof root[parserKey] === "object" ? root[parserKey] as Record<string, unknown> : {};
-    const byProduct = currentSection.enrich_by_product && typeof currentSection.enrich_by_product === "object"
-      ? currentSection.enrich_by_product as Record<string, unknown>
-      : {};
-    byProduct[productId] = enabled;
-    root[parserKey] = {
-      ...currentSection,
-      prompt: prompt.trim(),
-      enrich_by_product: byProduct,
-    };
-    const payload = {
-      type: "parser_ai_settings",
-      model: "parser_ai_settings_v1",
-      language: "ru",
-      base_text: "Parser AI enrichment settings",
-      variants: root,
-    };
-    if (item?.id) {
-      await pb.collection("semantic_packs").update(String(item.id), payload);
-      setRecordId(String(item.id));
-    } else {
-      const created = await pb.collection("semantic_packs").create(payload);
-      setRecordId(String((created as { id?: string }).id || ""));
-    }
-    setStatus("Сохранено");
-    setTimeout(() => setStatus(""), 2000);
-  }
-
-  return (
-    <div className="rounded-card border border-border bg-rowHover p-3">
-      <div className="text-sm font-semibold">AI-обогащение по продуктам</div>
-      <div className="mt-2 grid grid-cols-12 gap-2">
-        <div className="col-span-12 md:col-span-4">
-          <div className="text-xs text-text2 mb-1">Продукт</div>
-          <select className="h-10 w-full rounded-card border border-[#9CA3AF] bg-white px-3 text-sm" value={productId} onChange={(e) => setProductId(e.target.value)}>
-            <option value="">—</option>
-            {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </div>
-        <div className="col-span-12 md:col-span-4 flex items-end">
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
-            Включить ИИ для обогащения
-          </label>
-        </div>
-      </div>
-      <div className="mt-2">
-        <div className="text-xs text-text2 mb-1">Промт (общий для этого парсера)</div>
-        <textarea
-          className="w-full rounded-card border border-[#9CA3AF] bg-white px-3 py-2 text-sm"
-          rows={4}
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Вставь промт для AI-обогащения"
-        />
-        <div className="text-[11px] text-text2 mt-1">Рекомендуется не переписывать радикально: сначала использовать founder parent prompt, затем точечно адаптировать под продукт.</div>
-      </div>
-      <div className="mt-2 flex items-center gap-2">
-        <Button onClick={save} disabled={!productId}>Сохранить AI-настройку</Button>
-        {status ? <span className="text-sm text-success">{status}</span> : null}
-      </div>
     </div>
   );
 }
@@ -245,10 +56,8 @@ function TabButton({ active, children, onClick }: TabButtonProps) {
   return (
     <button
       className={
-        "h-9 rounded-md px-3 text-sm border transition-colors " +
-        (active
-          ? "bg-[rgba(51,215,255,0.24)] border-[rgba(51,215,255,0.55)] shadow-[0_0_14px_rgba(51,215,255,0.18)]"
-          : "bg-white border-border hover:bg-[rgba(51,215,255,0.14)]")
+        "h-10 rounded-card px-4 text-sm border " +
+        (active ? "bg-rowSelected border-border" : "bg-white border-border hover:bg-rowHover")
       }
       onClick={onClick}
     >
@@ -276,13 +85,13 @@ function ContactsParser() {
     setSettings(s);
 
     const m = await pb.collection("role_maps").getFullList({ sort: "-created" });
-    setMaps(m as RoleMap[]);
+    setMaps(m as unknown as RoleMap[]);
 
-    const mapId = s.role_map_id ?? (m[0] as RoleMap | undefined)?.id ?? "";
+    const mapId = s.role_map_id ?? (m[0] as unknown as RoleMap | undefined)?.id ?? "";
     setCurrentMap(mapId);
     if (mapId) {
       const it = await pb.collection("role_map_items").getFullList({ filter: `role_map_id="${mapId}"`, sort: "-is_active, -weight, position_title" });
-      setItems(it as RoleMapItem[]);
+      setItems(it as unknown as RoleMapItem[]);
     } else {
       setItems([]);
     }
@@ -291,11 +100,13 @@ function ContactsParser() {
   React.useEffect(() => { load(); }, []);
 
   async function saveSettings(patch: Partial<ContactParserSettings>) {
+    if (!settings) return;
     const upd = await pb.collection("settings_contact_parser").update(settings.id, patch);
-    setSettings(upd);
+    setSettings(upd as ContactParserSettings);
   }
 
   async function createMap() {
+    if (!settings) return;
     const m = await pb.collection("role_maps").create({ title, segment });
     setTitle(""); setSegment("default");
     await pb.collection("settings_contact_parser").update(settings.id, { role_map_id: m.id });
@@ -326,17 +137,6 @@ function ContactsParser() {
           <div className="text-sm text-text2">Загрузка...</div>
         ) : (
           <div className="grid gap-4">
-            <ParserAiControls parserKey="contacts" />
-            <CjmChecklist
-              title="CJM-проверка: Контакты"
-              items={[
-                { label: "Парсер контактов включен", ok: Boolean(settings.enabled) },
-                { label: "Cron расписание заполнено", ok: Boolean((settings.schedule_cron || "").trim()) },
-                { label: "Политика источников выбрана", ok: Boolean((settings.sources_policy || "").trim()) },
-                { label: "Карта ролей назначена", ok: Boolean(currentMap) },
-                { label: "Есть хотя бы одна роль/должность", ok: items.length > 0 },
-              ]}
-            />
             <div className="grid grid-cols-4 gap-3">
               <label className="flex items-center gap-2 text-sm col-span-1">
                 <input type="checkbox" checked={!!settings.enabled} onChange={(e) => saveSettings({ enabled: e.target.checked })} />
@@ -466,7 +266,7 @@ function MediaParser() {
     setSettings(s);
 
     const src = await pb.collection("parser_sources_media").getFullList({ filter: "is_active=true", sort: "name" });
-    setSources(src as MediaSource[]);
+    setSources(src as unknown as MediaSource[]);
 
     const links = await pb.collection("settings_media_parser_sources").getFullList({ filter: `settings_id="${s.id}"` }).catch(() => []);
     setSelected(new Set((links as MediaLink[]).map((l) => l.source_id)));
@@ -476,11 +276,13 @@ function MediaParser() {
   React.useEffect(() => { load(); }, []);
 
   async function saveSettings(patch: Partial<MediaParserSettings>) {
+    if (!settings) return;
     const upd = await pb.collection("settings_media_parser").update(settings.id, patch);
-    setSettings(upd);
+    setSettings(upd as MediaParserSettings);
   }
 
   async function toggleSource(id: string, on: boolean) {
+    if (!settings) return;
     if (on) {
       await pb.collection("settings_media_parser_sources").create({ settings_id: settings.id, source_id: id });
     } else {
@@ -504,16 +306,6 @@ function MediaParser() {
       <CardContent>
         {!settings ? <div className="text-sm text-text2">Загрузка...</div> : (
           <div className="grid gap-4">
-            <ParserAiControls parserKey="media" />
-            <CjmChecklist
-              title="CJM-проверка: Медиа"
-              items={[
-                { label: "Медиа-парсер включен", ok: Boolean(settings.enabled) },
-                { label: "Cron расписание заполнено", ok: Boolean((settings.schedule_cron || "").trim()) },
-                { label: "Выбран хотя бы один источник", ok: selected.size > 0 },
-                { label: "Ключевые слова заполнены", ok: Boolean(keywords.trim()) },
-              ]}
-            />
             <div className="grid grid-cols-3 gap-3">
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={!!settings.enabled} onChange={(e) => saveSettings({ enabled: e.target.checked })} />
@@ -563,6 +355,7 @@ function TenderParser() {
   const [platforms, setPlatforms] = React.useState<TenderPlatform[]>([]);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [keywords, setKeywords] = React.useState("");
+  const [tokens, setTokens] = React.useState("");
 
   async function load() {
     const sList = await pb.collection("settings_tender_parser").getList(1, 1).catch(() => ({ items: [] as TenderParserSettings[] }));
@@ -570,21 +363,24 @@ function TenderParser() {
     setSettings(s);
 
     const p = await pb.collection("parser_sources_tender").getFullList({ filter: "is_active=true", sort: "name" });
-    setPlatforms(p as TenderPlatform[]);
+    setPlatforms(p as unknown as TenderPlatform[]);
 
     const links = await pb.collection("settings_tender_parser_platforms").getFullList({ filter: `settings_id="${s.id}"` }).catch(() => []);
     setSelected(new Set((links as TenderLink[]).map((l) => l.platform_id)));
     setKeywords((s.keywords?.phrases ?? []).join(", "));
+    setTokens(JSON.stringify(s.platform_tokens ?? {}, null, 2));
   }
 
   React.useEffect(() => { load(); }, []);
 
   async function saveSettings(patch: Partial<TenderParserSettings>) {
+    if (!settings) return;
     const upd = await pb.collection("settings_tender_parser").update(settings.id, patch);
-    setSettings(upd);
+    setSettings(upd as TenderParserSettings);
   }
 
   async function togglePlatform(id: string, on: boolean) {
+    if (!settings) return;
     if (on) {
       await pb.collection("settings_tender_parser_platforms").create({ settings_id: settings.id, platform_id: id });
     } else {
@@ -599,6 +395,11 @@ function TenderParser() {
     await saveSettings({ keywords: { phrases } });
   }
 
+  async function saveTokens() {
+    const obj = JSON.parse(tokens || "{}");
+    await saveSettings({ platform_tokens: obj });
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -608,16 +409,6 @@ function TenderParser() {
       <CardContent>
         {!settings ? <div className="text-sm text-text2">Загрузка...</div> : (
           <div className="grid gap-4">
-            <ParserAiControls parserKey="tenders" />
-            <CjmChecklist
-              title="CJM-проверка: Тендеры"
-              items={[
-                { label: "Тендерный парсер включен", ok: Boolean(settings.enabled) },
-                { label: "Cron расписание заполнено", ok: Boolean((settings.schedule_cron || "").trim()) },
-                { label: "Выбрана хотя бы одна площадка", ok: selected.size > 0 },
-                { label: "Ключевые слова заполнены", ok: Boolean(keywords.trim()) },
-              ]}
-            />
             <div className="grid grid-cols-3 gap-3">
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={!!settings.enabled} onChange={(e) => saveSettings({ enabled: e.target.checked })} />
@@ -656,368 +447,11 @@ function TenderParser() {
             </div>
 
             <div className="rounded-card border border-border bg-rowHover p-3">
-              <div className="text-sm font-semibold mb-2">Токены доступа</div>
-              <div className="text-sm text-text2">
-                Для безопасности токены площадок не хранятся во фронте и не записываются в PocketBase.
-                Храните их только на сервере в переменных окружения (см. `backend/pocketbase/SECRETS.example.md`).
+              <div className="text-sm font-semibold mb-2">Токены доступа (JSON)</div>
+              <textarea className="w-full min-h-[160px] rounded-card border border-[#9CA3AF] bg-white p-3 font-mono text-xs" value={tokens} onChange={(e) => setTokens(e.target.value)} />
+              <div className="flex justify-end mt-2">
+                <Button onClick={saveTokens}>Сохранить</Button>
               </div>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-/** AI PROMPTS (tenant-level) */
-function AiPromptsSettings() {
-  const [loading, setLoading] = React.useState(true);
-  const [dealPromptId, setDealPromptId] = React.useState<string>("");
-  const [clientPromptId, setClientPromptId] = React.useState<string>("");
-  const [tzPromptId, setTzPromptId] = React.useState<string>("");
-  const [dashboardAdminPromptId, setDashboardAdminPromptId] = React.useState<string>("");
-  const [dashboardManagerPromptId, setDashboardManagerPromptId] = React.useState<string>("");
-  const [prompt, setPrompt] = React.useState("");
-  const [clientPrompt, setClientPrompt] = React.useState("");
-  const [tzPrompt, setTzPrompt] = React.useState("");
-  const [dashboardAdminPrompt, setDashboardAdminPrompt] = React.useState("");
-  const [dashboardManagerPrompt, setDashboardManagerPrompt] = React.useState("");
-  const [scoringRecordId, setScoringRecordId] = React.useState<string>("");
-  const [scoringModel, setScoringModel] = React.useState<DealScoringModel>(DEFAULT_DEAL_SCORING_MODEL);
-  const [status, setStatus] = React.useState("");
-
-  async function load() {
-    setLoading(true);
-    setStatus("");
-    try {
-      const list = await pb.collection("semantic_packs").getList(1, 1, {
-        filter: 'type="deal" && model="deal_analysis_prompt" && (language="ru" || language="")',
-        sort: "-created",
-      });
-      const item = list.items[0] as { id: string; base_text?: string } | undefined;
-      if (item) {
-        setDealPromptId(item.id);
-        setPrompt(item.base_text || "");
-      } else {
-        setDealPromptId("");
-        setPrompt(
-          "Проанализируй сделку с учетом всех полей карточки, истории комментариев, заметок, динамики событий и прошлых AI-оценок. Верни четкий вывод по вероятности закрытия, рискам и следующим шагам."
-        );
-      }
-      const clientList = await pb.collection("semantic_packs").getList(1, 1, {
-        filter: 'type="deal" && model="client_research_prompt" && (language="ru" || language="")',
-        sort: "-created",
-      }).catch(() => ({ items: [] as Array<{ id: string; base_text?: string }> }));
-      const clientItem = clientList.items[0];
-      if (clientItem) {
-        setClientPromptId(clientItem.id);
-        setClientPrompt(clientItem.base_text || "");
-      } else {
-        setClientPromptId("");
-        setClientPrompt("Исследуй клиента по открытым источникам и данным CRM, выдели подтвержденные факты, ЛПР/ЛВР, риски и рекомендации для входа.");
-      }
-      const tzList = await pb.collection("semantic_packs").getList(1, 1, {
-        filter: 'type="deal" && model="tz_analysis_prompt" && (language="ru" || language="")',
-        sort: "-created",
-      }).catch(() => ({ items: [] as Array<{ id: string; base_text?: string }> }));
-      const tzItem = tzList.items[0];
-      if (tzItem) {
-        setTzPromptId(tzItem.id);
-        setTzPrompt(tzItem.base_text || "");
-      } else {
-        setTzPromptId("");
-        setTzPrompt("Сравни ТЗ клиента с паспортом продукта, выдели fit/gap, блокеры, вероятность прохождения и шаги по доработке КП.");
-      }
-
-      const scoringList = await pb.collection("semantic_packs").getList(1, 1, {
-        filter: 'type="deal_scoring_model" && model="deal_scoring_model_v1"',
-        sort: "-created",
-      });
-      const scoringItem = scoringList.items[0] as { id: string; variants?: unknown } | undefined;
-      if (scoringItem) {
-        setScoringRecordId(scoringItem.id);
-        const raw = scoringItem.variants;
-        let parsed: DealScoringModel | null = null;
-        if (raw && typeof raw === "object" && !Array.isArray(raw)) {
-          parsed = raw as DealScoringModel;
-        } else if (typeof raw === "string" && raw.trim()) {
-          try {
-            parsed = JSON.parse(raw) as DealScoringModel;
-          } catch {
-            parsed = null;
-          }
-        }
-        if (parsed && Array.isArray(parsed.factors) && parsed.factors.length) {
-          setScoringModel({
-            ...DEFAULT_DEAL_SCORING_MODEL,
-            ...parsed,
-            factors: parsed.factors.map((f, i) => ({
-              code: String(f?.code || DEFAULT_DEAL_SCORING_MODEL.factors[i]?.code || `factor_${i}`),
-              name: String(f?.name || DEFAULT_DEAL_SCORING_MODEL.factors[i]?.name || `Фактор ${i + 1}`),
-              weight: Number(f?.weight ?? DEFAULT_DEAL_SCORING_MODEL.factors[i]?.weight ?? 0),
-              enabled: Boolean(f?.enabled ?? true),
-            })),
-          });
-        } else {
-          setScoringModel(DEFAULT_DEAL_SCORING_MODEL);
-        }
-      } else {
-        setScoringRecordId("");
-        setScoringModel(DEFAULT_DEAL_SCORING_MODEL);
-      }
-
-      const dashAdminList = await pb.collection("semantic_packs").getList(1, 1, {
-        filter: 'type="dashboard" && model="founder_dashboard_brief_v1"',
-        sort: "-created",
-      }).catch(() => ({ items: [] as Array<{ id: string; base_text?: string }> }));
-      const dashAdmin = dashAdminList.items[0];
-      if (dashAdmin) {
-        setDashboardAdminPromptId(dashAdmin.id);
-        setDashboardAdminPrompt(dashAdmin.base_text || "");
-      } else {
-        setDashboardAdminPromptId("");
-        setDashboardAdminPrompt("Ты AI-советник руководителя. Дай управленческий вывод: что просело, почему, что сделать за 24/72 часа, где риски квартала.");
-      }
-
-      const dashManagerList = await pb.collection("semantic_packs").getList(1, 1, {
-        filter: 'type="dashboard" && model="manager_dashboard_brief_v1"',
-        sort: "-created",
-      }).catch(() => ({ items: [] as Array<{ id: string; base_text?: string }> }));
-      const dashManager = dashManagerList.items[0];
-      if (dashManager) {
-        setDashboardManagerPromptId(dashManager.id);
-        setDashboardManagerPrompt(dashManager.base_text || "");
-      } else {
-        setDashboardManagerPromptId("");
-        setDashboardManagerPrompt("Ты AI-ассистент менеджера продаж. Дай короткий вывод по личной воронке: проблемные сделки, приоритетные действия и план на день.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  React.useEffect(() => {
-    load();
-  }, []);
-
-  async function save() {
-    const payload = {
-      type: "deal",
-      base_text: prompt,
-      variants: { purpose: "deal_analysis_prompt", source: "admin_parsers_ai_tab" },
-      language: "ru",
-      model: "deal_analysis_prompt",
-    };
-    if (dealPromptId) {
-      await pb.collection("semantic_packs").update(dealPromptId, payload);
-    } else {
-      const created = await pb.collection("semantic_packs").create(payload);
-      setDealPromptId((created as { id: string }).id);
-    }
-    const clientPayload = {
-      type: "deal",
-      base_text: clientPrompt,
-      variants: { purpose: "client_research_prompt", source: "admin_ai_tab" },
-      language: "ru",
-      model: "client_research_prompt",
-    };
-    if (clientPromptId) await pb.collection("semantic_packs").update(clientPromptId, clientPayload);
-    else {
-      const created = await pb.collection("semantic_packs").create(clientPayload);
-      setClientPromptId((created as { id: string }).id);
-    }
-    const tzPayload = {
-      type: "deal",
-      base_text: tzPrompt,
-      variants: { purpose: "tz_analysis_prompt", source: "admin_ai_tab" },
-      language: "ru",
-      model: "tz_analysis_prompt",
-    };
-    if (tzPromptId) await pb.collection("semantic_packs").update(tzPromptId, tzPayload);
-    else {
-      const created = await pb.collection("semantic_packs").create(tzPayload);
-      setTzPromptId((created as { id: string }).id);
-    }
-
-    const dashboardAdminPayload = {
-      type: "dashboard",
-      base_text: dashboardAdminPrompt,
-      variants: { purpose: "founder_dashboard_brief", source: "admin_ai_tab", role: "admin" },
-      language: "ru",
-      model: "founder_dashboard_brief_v1",
-    };
-    if (dashboardAdminPromptId) await pb.collection("semantic_packs").update(dashboardAdminPromptId, dashboardAdminPayload);
-    else {
-      const created = await pb.collection("semantic_packs").create(dashboardAdminPayload);
-      setDashboardAdminPromptId((created as { id: string }).id);
-    }
-
-    const dashboardManagerPayload = {
-      type: "dashboard",
-      base_text: dashboardManagerPrompt,
-      variants: { purpose: "manager_dashboard_brief", source: "admin_ai_tab", role: "manager" },
-      language: "ru",
-      model: "manager_dashboard_brief_v1",
-    };
-    if (dashboardManagerPromptId) await pb.collection("semantic_packs").update(dashboardManagerPromptId, dashboardManagerPayload);
-    else {
-      const created = await pb.collection("semantic_packs").create(dashboardManagerPayload);
-      setDashboardManagerPromptId((created as { id: string }).id);
-    }
-
-    const scoringPayload = {
-      type: "deal_scoring_model",
-      base_text: "Tenant scoring factors for deterministic deal probability",
-      variants: scoringModel,
-      language: "ru",
-      model: "deal_scoring_model_v1",
-    };
-    if (scoringRecordId) {
-      await pb.collection("semantic_packs").update(scoringRecordId, scoringPayload);
-    } else {
-      const createdScoring = await pb.collection("semantic_packs").create(scoringPayload);
-      setScoringRecordId((createdScoring as { id: string }).id);
-    }
-    setStatus("Сохранено (промпт + факторы скоринга)");
-    setTimeout(() => setStatus(""), 2500);
-  }
-
-  function updateFactor(idx: number, patch: Partial<DealScoringFactor>) {
-    setScoringModel((prev) => ({
-      ...prev,
-      factors: prev.factors.map((f, i) => (i === idx ? { ...f, ...patch } : f)),
-    }));
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <div className="text-sm font-semibold">Настройка AI: промпты сценариев</div>
-        <div className="text-xs text-text2 mt-1">
-          Рекомендуется не менять без веской причины. Эти промпты используются как базовые сценарные инструкции.
-        </div>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <div className="text-sm text-text2">Загрузка...</div>
-        ) : (
-          <div className="grid gap-3">
-            <div className="rounded-card border border-infoBorder bg-infoBg p-3">
-              <div className="text-sm font-semibold">Рекомендуемая модель скоринга (по умолчанию)</div>
-              <div className="text-xs text-text2 mt-1">
-                Мы предзаполнили факторную модель для всех клиентов. Рекомендуем использовать ее как baseline.
-                При необходимости можно скорректировать веса и включение факторов под ваш процесс.
-              </div>
-              <div className="mt-2">
-                <Button
-                  variant="secondary"
-                  onClick={() =>
-                    setScoringModel({
-                      ...DEFAULT_DEAL_SCORING_MODEL,
-                      acknowledged: true,
-                    })
-                  }
-                >
-                  Вернуть рекомендуемую модель
-                </Button>
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-text2 mb-1">Промпт: анализ сделки (рекомендуется не менять)</div>
-              <textarea
-                className="w-full rounded-card border border-[#9CA3AF] bg-white px-3 py-2 text-sm"
-                rows={8}
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Опиши правила AI-анализа для этой CRM..."
-              />
-            </div>
-            <div>
-              <div className="text-xs text-text2 mb-1">Промпт: исследование клиента (рекомендуется не менять)</div>
-              <textarea
-                className="w-full rounded-card border border-[#9CA3AF] bg-white px-3 py-2 text-sm"
-                rows={6}
-                value={clientPrompt}
-                onChange={(e) => setClientPrompt(e.target.value)}
-              />
-            </div>
-            <div>
-              <div className="text-xs text-text2 mb-1">Промпт: анализ ТЗ (рекомендуется не менять)</div>
-              <textarea
-                className="w-full rounded-card border border-[#9CA3AF] bg-white px-3 py-2 text-sm"
-                rows={6}
-                value={tzPrompt}
-                onChange={(e) => setTzPrompt(e.target.value)}
-              />
-            </div>
-            <div className="rounded-card border border-border bg-rowHover p-3">
-              <div className="text-sm font-semibold">Промпты дашборда по ролям</div>
-              <div className="text-xs text-text2 mt-1">Эти поля используются для режимов ИИ-выводов: руководитель и менеджер.</div>
-              <div className="mt-3 grid gap-3">
-                <div>
-                  <div className="text-xs text-text2 mb-1">Промпт дашборда для админа/руководителя</div>
-                  <textarea
-                    className="w-full rounded-card border border-[#9CA3AF] bg-white px-3 py-2 text-sm"
-                    rows={5}
-                    value={dashboardAdminPrompt}
-                    onChange={(e) => setDashboardAdminPrompt(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <div className="text-xs text-text2 mb-1">Промпт дашборда для менеджера</div>
-                  <textarea
-                    className="w-full rounded-card border border-[#9CA3AF] bg-white px-3 py-2 text-sm"
-                    rows={5}
-                    value={dashboardManagerPrompt}
-                    onChange={(e) => setDashboardManagerPrompt(e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="rounded-card border border-border bg-rowHover p-3">
-              <div className="text-sm font-semibold">Факторы скоринга вероятности сделки</div>
-              <div className="text-xs text-text2 mt-1">
-                Итоговая вероятность закрытия считается детерминированно по этим факторам (веса и включение можно менять).
-              </div>
-              <div className="mt-3 overflow-auto">
-                <table className="min-w-[720px] w-full text-sm">
-                  <thead>
-                    <tr className="h-10 bg-[#EEF1F6] text-[#374151] font-semibold">
-                      <th className="text-left px-3">Фактор</th>
-                      <th className="text-left px-3">Код</th>
-                      <th className="text-left px-3">Вес</th>
-                      <th className="text-left px-3">Включен</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {scoringModel.factors.map((f, idx) => (
-                      <tr key={f.code} className="h-12 border-b border-border">
-                        <td className="px-3">
-                          <Input value={f.name} onChange={(e) => updateFactor(idx, { name: e.target.value })} />
-                        </td>
-                        <td className="px-3 text-text2">{f.code}</td>
-                        <td className="px-3">
-                          <Input
-                            value={String(f.weight)}
-                            onChange={(e) => updateFactor(idx, { weight: Number(e.target.value || 0) })}
-                          />
-                        </td>
-                        <td className="px-3">
-                          <input
-                            type="checkbox"
-                            checked={!!f.enabled}
-                            onChange={(e) => updateFactor(idx, { enabled: e.target.checked })}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button onClick={save} disabled={!prompt.trim() || !clientPrompt.trim() || !tzPrompt.trim() || !dashboardAdminPrompt.trim() || !dashboardManagerPrompt.trim()}>Сохранить промпты</Button>
-              {status ? <span className="text-sm text-success">{status}</span> : null}
             </div>
           </div>
         )}

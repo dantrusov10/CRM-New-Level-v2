@@ -23,8 +23,6 @@ export function DealsTablePage() {
   const scoreMin = sp.get("scoreMin") ?? "";
   const scoreMax = sp.get("scoreMax") ?? "";
   const fromIso = sp.get("from") ?? "";
-  const view = sp.get("view") ?? "";
-  const [overdueDealIds, setOverdueDealIds] = React.useState<Set<string>>(new Set());
 
   // PocketBase filter uses datetime strings; keep it simple with ISO.
   const createdFrom = fromIso ? new Date(fromIso) : null;
@@ -45,31 +43,7 @@ export function DealsTablePage() {
   const stagesQ = useFunnelStages();
   const usersQ = useUsers();
 
-  const itemsRaw = dealsQ.data?.items ?? [];
-  const items = React.useMemo(() => {
-    if (view !== "overdue") return itemsRaw;
-    return itemsRaw.filter((d: Deal) => overdueDealIds.has(String(d.id)));
-  }, [itemsRaw, view, overdueDealIds]);
-
-  React.useEffect(() => {
-    if (view !== "overdue") return;
-    const userId = String(pb.authStore.model?.id || "");
-    const nowIso = new Date().toISOString();
-    const f = userId
-      ? `is_done=false && due_at<="${nowIso}" && created_by="${userId}" && deal_id!=""`
-      : `is_done=false && due_at<="${nowIso}" && deal_id!=""`;
-    pb.collection("tasks")
-      .getList(1, 200, { filter: f, sort: "due_at" })
-      .then((r) => {
-        const ids = new Set(
-          (r.items as Array<{ deal_id?: string }>)
-            .map((x) => String(x.deal_id || ""))
-            .filter(Boolean),
-        );
-        setOverdueDealIds(ids);
-      })
-      .catch(() => setOverdueDealIds(new Set()));
-  }, [view]);
+  const items = (dealsQ.data?.items ?? []) as unknown as Deal[];
 
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const selectedCount = selected.size;
@@ -147,71 +121,16 @@ export function DealsTablePage() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center justify-between">
           <div>
-            <div className="text-base font-extrabold tracking-wide">Deals list / pipeline</div>
-            <div className="text-xs text-text2 mt-1">Быстрый список для ежедневной работы менеджера: фильтр → выбор → массовое действие</div>
+            <div className="text-sm font-semibold">Сделки</div>
+            <div className="text-xs text-text2 mt-1">Табличный вид (колонки по ТЗ, упрощённая настраиваемость в MVP)</div>
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end">
-            <Button
-              small
-              variant={view === "risk" ? "primary" : "secondary"}
-              onClick={() => {
-                const n = new URLSearchParams(sp);
-                n.set("view", "risk");
-                n.set("scoreMax", "49");
-                n.delete("from");
-                setSp(n, { replace: true });
-              }}
-            >
-              Мои сделки в риске
-            </Button>
-            <Button
-              small
-              variant={view === "overdue" ? "primary" : "secondary"}
-              onClick={() => {
-                const n = new URLSearchParams(sp);
-                n.set("view", "overdue");
-                n.delete("scoreMax");
-                n.delete("from");
-                setSp(n, { replace: true });
-              }}
-            >
-              Просроченные шаги
-            </Button>
-            <Button
-              small
-              variant={view === "talks_week" ? "primary" : "secondary"}
-              onClick={() => {
-                const n = new URLSearchParams(sp);
-                const start = dayjs().startOf("week").toISOString();
-                n.set("view", "talks_week");
-                n.set("from", start);
-                n.delete("scoreMax");
-                setSp(n, { replace: true });
-              }}
-            >
-              Переговоры этой недели
-            </Button>
-            <Button
-              small
-              variant="secondary"
-              onClick={() => {
-                const n = new URLSearchParams(sp);
-                n.delete("view");
-                n.delete("scoreMax");
-                n.delete("from");
-                setSp(n, { replace: true });
-              }}
-            >
-              Сброс вида
-            </Button>
             {search ? <Badge>поиск: {search}</Badge> : null}
             {stage ? <Badge>этап</Badge> : null}
             {owner ? <Badge>ответственный</Badge> : null}
             {channel ? <Badge>канал: {channel}</Badge> : null}
-            {fromIso ? <Badge>период</Badge> : null}
-            <span className="rounded-md border border-[rgba(87,183,255,0.35)] bg-[rgba(45,123,255,0.18)] px-3 py-1 text-xs font-semibold text-text">Operational view</span>
           </div>
         </div>
       </CardHeader>
@@ -222,26 +141,12 @@ export function DealsTablePage() {
           <div className="text-sm text-danger">Ошибка загрузки</div>
         ) : (
           <div className="overflow-auto">
-            <div className="mb-3 grid grid-cols-1 gap-2 lg:grid-cols-3">
-              <div className="board-panel p-3 neon-accent">
-                <div className="text-xs text-text2">Сделок на странице</div>
-                <div className="mt-1 text-lg font-semibold">{items.length}</div>
-              </div>
-              <div className="board-panel p-3 neon-accent">
-                <div className="text-xs text-text2">Выбрано для массовых действий</div>
-                <div className="mt-1 text-lg font-semibold">
-                  {selectedCount}
-                  {selectedCount > 0 && selectedCount === items.length ? <span className="text-sm text-text2"> (вся страница)</span> : null}
-                </div>
-              </div>
-              <div className="board-panel p-3 neon-accent">
-                <div className="text-xs text-text2">Текущий режим</div>
-                <div className="mt-1 text-sm font-semibold">{search || stage || owner || channel ? "Фильтрованный список" : "Все сделки"}</div>
-              </div>
-            </div>
-
             {/* Bulk actions bar (always visible so it’s obvious) */}
-            <div className="mb-3 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 board-panel p-3 neon-accent">
+            <div className="mb-3 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 rounded-card border border-border bg-white p-3">
+              <div className="text-sm">
+                Выбрано: <span className="font-semibold">{selectedCount}</span>
+                {selectedCount > 0 && selectedCount === items.length ? <span className="text-text2"> (страница)</span> : null}
+              </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Button variant="secondary" onClick={() => togglePage(true)} disabled={!items.length}>Выбрать страницу</Button>
                 <Button variant="secondary" onClick={selectAllMatching} disabled={dealsQ.isLoading}>Выбрать все по фильтру</Button>
@@ -269,10 +174,9 @@ export function DealsTablePage() {
               </div>
             </div>
 
-            <div className="board-shell">
-            <table className="min-w-[1100px] board-table text-sm">
+            <table className="min-w-[1100px] w-full text-sm">
               <thead>
-                <tr className="text-[#374151] font-semibold">
+                <tr className="h-10 bg-[#EEF1F6] text-[#374151] font-semibold">
                   <th className="text-left px-3 w-10">
                     <input
                       type="checkbox"
@@ -296,15 +200,13 @@ export function DealsTablePage() {
                 {items.map((d: Deal) => (
                   <tr
                     key={d.id}
-                    className="cursor-pointer transition-colors"
+                    className="h-11 border-b border-border hover:bg-rowHover cursor-pointer"
                     onClick={() => nav(`/deals/${d.id}`)}
                   >
                     <td className="px-3" onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={selected.has(String(d.id))} onChange={(e) => toggleOne(String(d.id), e.target.checked)} aria-label="Выбрать сделку" />
                     </td>
-                    <td className="px-3 font-medium">
-                      <div className="max-w-[280px] truncate">{d.title}</div>
-                    </td>
+                    <td className="px-3 font-medium">{d.title}</td>
                     <td className="px-3 text-text2">{d.expand?.company_id?.name ?? "—"}</td>
                     <td className="px-3 text-text2">{d.expand?.responsible_id?.full_name ?? d.expand?.responsible_id?.email ?? "—"}</td>
                     <td className="px-3">
@@ -322,7 +224,6 @@ export function DealsTablePage() {
                 ))}
               </tbody>
             </table>
-            </div>
             {!(dealsQ.data?.items ?? []).length ? <div className="text-sm text-text2 py-6">Сделок пока нет.</div> : null}
 
             <Pagination

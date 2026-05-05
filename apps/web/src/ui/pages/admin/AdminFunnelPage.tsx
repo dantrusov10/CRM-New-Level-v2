@@ -18,17 +18,18 @@ type FunnelStage = {
 
 function normalizeStage(raw: Record<string, unknown>): Partial<FunnelStage> {
   // поддержка старого формата (name/order/win/loss) + нового (stage_name/position/won/lost)
-  const stage_name = raw.stage_name ?? raw.name ?? "";
+  const stage_name = String(raw.stage_name ?? raw.name ?? "");
   const position = Number(raw.position ?? raw.order ?? 0);
-  const color = raw.color ?? "#004EEB";
+  const color = String(raw.color ?? "#004EEB");
 
-  let final_type: FunnelStage["final_type"] | string = String(raw.final_type ?? "none");
-  if (final_type === "win") final_type = "won";
-  if (final_type === "loss") final_type = "lost";
-  if (!["none", "won", "lost"].includes(final_type)) final_type = "none";
+  let final_type: FunnelStage["final_type"] = "none";
+  const ftRaw = String(raw.final_type ?? "none");
+  if (ftRaw === "win" || ftRaw === "won") final_type = "won";
+  else if (ftRaw === "loss" || ftRaw === "lost") final_type = "lost";
+  else final_type = "none";
 
-  const is_final = !!raw.is_final;
-  const active = raw.active ?? true;
+  const is_final = Boolean(raw.is_final);
+  const active = raw.active !== false;
 
   const default_prob =
     raw.default_prob === undefined || raw.default_prob === null || raw.default_prob === ""
@@ -42,12 +43,11 @@ export function AdminFunnelPage() {
   const [stages, setStages] = React.useState<FunnelStage[]>([]);
   const [name, setName] = React.useState("");
   const [color, setColor] = React.useState("#004EEB");
-  const [guidedMode, setGuidedMode] = React.useState(true);
 
   async function load() {
     // PocketBase schema: stage_name + position
     const s = await pb.collection("settings_funnel_stages").getFullList({ sort: "position" });
-    setStages(s as FunnelStage[]);
+    setStages(s as unknown as FunnelStage[]);
   }
   React.useEffect(() => {
     load();
@@ -148,16 +148,13 @@ export function AdminFunnelPage() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center justify-between">
           <div>
-            <div className="text-base font-extrabold tracking-wide">Воронка продаж</div>
+            <div className="text-sm font-semibold">Воронка продаж</div>
             <div className="text-xs text-text2 mt-1">Этапы: название, порядок, цвет, финальность + импорт/экспорт шаблона</div>
           </div>
           <div className="flex items-center gap-2">
-            <Button small variant="secondary" onClick={() => setGuidedMode((v) => !v)}>
-              {guidedMode ? "Скрыть подсказки" : "Пошаговый режим"}
-            </Button>
-            <Button small variant="secondary" onClick={exportJson}>
+            <Button variant="secondary" onClick={exportJson}>
               Экспорт
             </Button>
             <label className="inline-flex">
@@ -170,26 +167,14 @@ export function AdminFunnelPage() {
                   if (f) importJson(f);
                 }}
               />
-              <Button small variant="secondary">Импорт</Button>
+              <Button variant="secondary">Импорт</Button>
             </label>
           </div>
         </div>
       </CardHeader>
       <CardContent>
         <div className="grid gap-3">
-          {guidedMode ? (
-            <div className="board-panel p-3 neon-accent">
-              <div className="text-sm font-semibold">Инструкции по настройке воронки</div>
-              <div className="mt-2 grid gap-2 text-xs text-text2">
-                <div><b>1.</b> Сначала проверь порядок этапов: это влияет на канбан и аналитику.</div>
-                <div><b>2.</b> `Финальный` + `Тип` определяют расчет win/loss и отчетность.</div>
-                <div><b>3.</b> `Вероятность` — базовый ориентир прогноза, не завышай искусственно.</div>
-                <div><b>4.</b> Перед массовым импортом всегда делай экспорт как backup.</div>
-              </div>
-            </div>
-          ) : null}
-
-          <div className="grid grid-cols-[1fr_120px_110px] gap-2 items-end board-panel p-3 neon-accent">
+          <div className="grid grid-cols-[1fr_140px_120px] gap-2 items-end">
             <div>
               <div className="text-xs text-text2 mb-1">Название этапа</div>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Квалификация" />
@@ -209,10 +194,9 @@ export function AdminFunnelPage() {
           </div>
 
           <div className="overflow-auto">
-            <div className="board-shell neon-accent">
-            <table className="min-w-[980px] board-table text-sm">
+            <table className="min-w-[980px] w-full text-sm">
               <thead>
-                <tr className="text-[#374151] font-semibold">
+                <tr className="h-10 bg-[#EEF1F6] text-[#374151] font-semibold">
                   <th className="text-left px-3">Порядок</th>
                   <th className="text-left px-3">Название</th>
                   <th className="text-left px-3">Цвет</th>
@@ -224,7 +208,7 @@ export function AdminFunnelPage() {
               </thead>
               <tbody>
                 {stages.map((s) => (
-                  <tr key={s.id}>
+                  <tr key={s.id} className="h-11 border-b border-border">
                     <td className="px-3 w-[110px]">
                       <Input
                         value={String(s.position ?? 0)}
@@ -252,7 +236,7 @@ export function AdminFunnelPage() {
                         className="h-9 rounded-card border border-[#9CA3AF] bg-white px-2 text-sm"
                         disabled={!s.is_final}
                         value={s.is_final ? s.final_type ?? "won" : "none"}
-                        onChange={(e) => updateStage(s.id, { final_type: e.target.value })}
+                        onChange={(e) => updateStage(s.id, { final_type: e.target.value as FunnelStage["final_type"] })}
                       >
                         <option value="won">Успех (Won)</option>
                         <option value="lost">Провал (Lost)</option>
@@ -262,7 +246,7 @@ export function AdminFunnelPage() {
                       <Input
                         value={s.default_prob === undefined || s.default_prob === null ? "" : String(s.default_prob)}
                         onChange={(e) =>
-                          updateStage(s.id, { default_prob: e.target.value === "" ? null : Number(e.target.value) })
+                          updateStage(s.id, { default_prob: e.target.value === "" ? undefined : Number(e.target.value) })
                         }
                         placeholder="например 25"
                       />
@@ -276,7 +260,6 @@ export function AdminFunnelPage() {
                 ))}
               </tbody>
             </table>
-            </div>
             {!stages.length ? <div className="text-sm text-text2 py-6">Этапов пока нет.</div> : null}
           </div>
         </div>

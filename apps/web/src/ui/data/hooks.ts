@@ -1,6 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { pb } from "../../lib/pb";
-import type { Deal, Company, FunnelStage, TimelineItem, AiInsight, TaskItem, UserSummary } from "../../lib/types";
+import type {
+  Deal,
+  Company,
+  FunnelStage,
+  TimelineItem,
+  AiInsight,
+  TaskItem,
+  UserSummary,
+  Product,
+  ProductMaterial,
+  DealResearchFact,
+} from "../../lib/types";
 import type { PermissionMatrix } from "../../lib/rbac";
 
 export type ContactFound = {
@@ -33,6 +44,7 @@ export type EntityFileLink = {
   expand?: { file_id?: Record<string, unknown> | null };
 };
 
+/** Записи `semantic_packs` с model=product_profile_v1 (админка продуктовых профилей). */
 export type ProductProfile = {
   id: string;
   type?: string;
@@ -46,10 +58,14 @@ export type ProductProfile = {
 
 type ListResultLike<T> = T[] | { items?: T[] } | null | undefined;
 
-function normalizeListResult<T>(res: ListResultLike<T>): T[] {
-  if (!res) return [];
-  if (Array.isArray(res)) return res;
-  if (Array.isArray(res.items)) return res.items;
+/** PocketBase SDK типизирует ответы как RecordModel — приводим к T[] для UI. */
+function normalizeListResult<T>(res: unknown): T[] {
+  if (res == null) return [];
+  if (Array.isArray(res)) return res as T[];
+  if (typeof res === "object" && res !== null && "items" in res) {
+    const items = (res as { items?: unknown }).items;
+    if (Array.isArray(items)) return items as T[];
+  }
   return [];
 }
 
@@ -103,7 +119,7 @@ export function useFunnelStages() {
     queryFn: async (): Promise<FunnelStage[]> => {
       // PocketBase schema: stage_name + position
       const res = await pb.collection("settings_funnel_stages").getFullList({ sort: "position" });
-      return res as FunnelStage[];
+      return res as unknown as FunnelStage[];
     },
   });
 }
@@ -154,7 +170,7 @@ export function useDeal(id: string) {
   return useQuery({
     queryKey: ["deal", id],
     queryFn: async (): Promise<Deal> => {
-      const rec = await pb.collection("deals").getOne<Deal>(id, { expand: "company_id,stage_id,responsible_id,product_id" });
+      const rec = await pb.collection("deals").getOne<Deal>(id, { expand: "company_id,stage_id,responsible_id" });
       return rec;
     },
     enabled: !!id,
@@ -175,6 +191,46 @@ export function useProductProfiles() {
       return normalizeListResult<ProductProfile>(res);
     },
     staleTime: 60_000,
+  });
+}
+
+export function useProducts() {
+  return useQuery({
+    queryKey: ["products"],
+    queryFn: async (): Promise<Product[]> => {
+      const res = await pb.collection("products").getFullList({ sort: "name", batch: 200 });
+      return res as unknown as Product[];
+    },
+  });
+}
+
+export function useProductMaterials(productId: string | undefined) {
+  return useQuery({
+    queryKey: ["product_materials", productId],
+    queryFn: async (): Promise<ProductMaterial[]> => {
+      if (!productId) return [];
+      const res = await pb.collection("product_materials").getFullList({
+        filter: `product_id="${productId}"`,
+        sort: "created",
+        batch: 200,
+      });
+      return res as unknown as ProductMaterial[];
+    },
+    enabled: !!productId,
+  });
+}
+
+export function useDealResearchFacts(dealId: string) {
+  return useQuery({
+    queryKey: ["deal_research_facts", dealId],
+    queryFn: async (): Promise<DealResearchFact[]> => {
+      const res = await pb
+        .collection("deal_research_facts")
+        .getList(1, 500, { filter: `deal_id="${dealId}"`, sort: "-created" })
+        .catch(() => ({ items: [] as DealResearchFact[] }));
+      return normalizeListResult<DealResearchFact>(res);
+    },
+    enabled: !!dealId,
   });
 }
 

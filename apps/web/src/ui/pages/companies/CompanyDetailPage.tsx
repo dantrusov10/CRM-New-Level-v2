@@ -32,12 +32,14 @@ export function CompanyDetailPage() {
         <CardContent>
           {companyQ.isLoading ? (
             <div className="text-sm text-text2">Загрузка...</div>
+          ) : !c ? (
+            <div className="text-sm text-danger">Компания не найдена</div>
           ) : (
             <div className="grid gap-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-xl font-semibold">{c?.name}</div>
-                  <div className="text-sm text-text2 mt-1">ID: {c?.id}</div>
+                  <div className="text-xl font-semibold">{c.name}</div>
+                  <div className="text-sm text-text2 mt-1">ID: {c.id}</div>
                 </div>
                 <Button
                   variant="secondary"

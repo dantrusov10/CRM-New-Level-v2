@@ -1015,8 +1015,8 @@ def _extract_checko_primary_okved(company_payload):
         return ""
     primary = company_payload.get("okved") or company_payload.get("ОКВЭД")
     if isinstance(primary, dict):
-        code = str(primary.get("code", "")).strip()
-        name = str(primary.get("name", "")).strip()
+        code = str(primary.get("code", "") or primary.get("Код", "")).strip()
+        name = str(primary.get("name", "") or primary.get("Наим", "")).strip()
         if code and name:
             return f"{code} — {name}"
         return code or name
@@ -1026,8 +1026,8 @@ def _extract_checko_primary_okved(company_payload):
     if isinstance(all_okved, list) and all_okved:
         item = all_okved[0]
         if isinstance(item, dict):
-            code = str(item.get("code", "")).strip()
-            name = str(item.get("name", "")).strip()
+            code = str(item.get("code", "") or item.get("Код", "")).strip()
+            name = str(item.get("name", "") or item.get("Наим", "")).strip()
             if code and name:
                 return f"{code} — {name}"
             return code or name

@@ -145,6 +145,19 @@ function formatMoneyRu(value: unknown): string {
   return `${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(n)} ₽`;
 }
 
+function formatContractDirection(groupKey: string): string {
+  if (groupKey.includes("_customer")) return "Закупки";
+  if (groupKey.includes("_supplier")) return "Продажи";
+  return "Контракты";
+}
+
+function formatContractLaw(groupKey: string): string {
+  if (groupKey.includes("law_44")) return "44-ФЗ";
+  if (groupKey.includes("law_223")) return "223-ФЗ";
+  if (groupKey.includes("law_94")) return "94-ФЗ";
+  return "—";
+}
+
 function checkoValueToText(value: unknown): string {
   if (value == null) return "—";
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
@@ -259,6 +272,25 @@ function CheckoRecordCard({ item }: { item: Record<string, unknown> }) {
       </div>
     </div>
   );
+}
+
+function extractFinanceHighlights(finance: unknown): Array<{ label: string; value: string }> {
+  const obj = asObject(finance);
+  if (!obj) return [];
+  const years = Object.keys(obj).filter((k) => /^\d{4}$/.test(k)).sort((a, b) => Number(b) - Number(a));
+  if (!years.length) return [];
+  const latestYear = years[0];
+  const yearData = asObject(obj[latestYear]);
+  if (!yearData) return [];
+  const pick = (code: string) => yearData[code];
+  const lines: Array<{ label: string; value: string }> = [];
+  const revenue = pick("2110");
+  const profit = pick("2400");
+  const assets = pick("1600");
+  if (revenue != null) lines.push({ label: `Выручка (${latestYear})`, value: formatMoneyRu(revenue) });
+  if (profit != null) lines.push({ label: `Чистая прибыль (${latestYear})`, value: formatMoneyRu(profit) });
+  if (assets != null) lines.push({ label: `Активы (${latestYear})`, value: formatMoneyRu(assets) });
+  return lines;
 }
 
 function InlineMdBold({ text }: { text: string }) {
@@ -1742,6 +1774,11 @@ export function DealDetailPage() {
   const searchItems = toCheckoRecords(checkoSearchSource).slice(0, 10);
   const personItems = toCheckoRecords(checkoPersonsSource).slice(0, 10);
   const contractRawItems = checkoContractGroups ? Object.values(checkoContractGroups).flatMap((group) => toCheckoRecords(group)) : [];
+  const contractRowsDetailed = checkoContractGroups
+    ? Object.entries(checkoContractGroups).flatMap(([groupKey, groupValue]) =>
+        toCheckoRecords(groupValue).map((item) => ({ item, groupKey })),
+      )
+    : [];
 
   const now = dayjs();
   let periodFrom = now.startOf("year");
@@ -1763,11 +1800,15 @@ export function DealDetailPage() {
   const inspectionItems = inspectionRawItems.filter(inPeriod).slice(0, 10);
   const timelineItems = timelineRawItems.filter(inPeriod).slice(0, 30);
   const contractItemsFiltered = contractRawItems.filter(inPeriod);
+  const contractRowsFiltered = contractRowsDetailed.filter((x) => inPeriod(x.item));
   const contractItems = contractItemsFiltered.slice(0, 20);
   const contractsTotalAmount = contractItemsFiltered.reduce((sum, row) => {
     const n = Number(String(row["Цена"] ?? row["Сумма"] ?? "").replace(/\s+/g, "").replace(",", "."));
     return Number.isFinite(n) ? sum + n : sum;
   }, 0);
+  const contractsPurchaseCount = contractRowsFiltered.filter((x) => x.groupKey.includes("_customer")).length;
+  const contractsSalesCount = contractRowsFiltered.filter((x) => x.groupKey.includes("_supplier")).length;
+  const financeHighlights = extractFinanceHighlights(deal?.expand?.company_id?.checko_finance_json);
 
 
   async function changeResponsible(nextUserId: string) {
@@ -2602,6 +2643,7 @@ export function DealDetailPage() {
                         <div>
                           <div className="text-[11px] text-text2">Закупки за период</div>
                           <div className="mt-1 text-xs text-text">{contractItemsFiltered.length} контр. / {formatMoneyRu(contractsTotalAmount)}</div>
+                          <div className="text-[11px] text-text2">Закупки: {contractsPurchaseCount} · Продажи: {contractsSalesCount}</div>
                         </div>
                       </div>
                     </div>
@@ -2621,6 +2663,14 @@ export function DealDetailPage() {
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">ОКПО / ОКАТО / ОКТМО</div><div className="text-sm">{deal?.expand?.company_id?.checko_okpo || "—"} / {deal?.expand?.company_id?.checko_okato || "—"} / {deal?.expand?.company_id?.checko_oktmo || "—"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Руководство / Учредители</div><div className="text-sm">{Array.isArray(deal?.expand?.company_id?.checko_management_json) ? String((deal?.expand?.company_id?.checko_management_json as unknown[]).length) : "0"} / {deal?.expand?.company_id?.checko_founders_json && typeof deal?.expand?.company_id?.checko_founders_json === "object" ? "есть" : "—"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Лицензии / Финансы / Налоги</div><div className="text-sm">{Array.isArray(deal?.expand?.company_id?.checko_licenses_json) ? String((deal?.expand?.company_id?.checko_licenses_json as unknown[]).length) : "0"} / {deal?.expand?.company_id?.checko_finance_json && typeof deal?.expand?.company_id?.checko_finance_json === "object" ? "есть" : "—"} / {deal?.expand?.company_id?.checko_taxes_json && typeof deal?.expand?.company_id?.checko_taxes_json === "object" ? "есть" : "—"}</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
+                        <div className="text-[11px] text-text2">Итоги финотчетности</div>
+                        <div className="text-sm">
+                          {financeHighlights.length
+                            ? financeHighlights.map((x) => `${x.label}: ${x.value}`).join(" · ")
+                            : "Не удалось извлечь ключевые итоги"}
+                        </div>
+                      </div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Риски</div><div className="text-sm">{deal?.expand?.company_id?.checko_risk_flags_json && typeof deal?.expand?.company_id?.checko_risk_flags_json === "object" ? "есть" : "—"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Арбитраж / ИП / Проверки / История</div><div className="text-sm">{legalCaseItems.length} / {enforcementItems.length} / {inspectionItems.length} / {timelineItems.length}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Search / Физлица</div><div className="text-sm">{searchCount} / {personsCount}</div></div>
@@ -2649,6 +2699,7 @@ export function DealDetailPage() {
                       </details>
                       <details className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
                         <summary className="cursor-pointer text-sm font-medium">Проверки ({inspectionItems.length})</summary>
+                        <div className="mt-1 text-[11px] text-text2">Показываются контрольные мероприятия из реестров надзора (тип/статус/номер, если есть в источнике).</div>
                         <div className="mt-2 grid gap-2">
                           {inspectionItems.length ? inspectionItems.map((item, idx) => (
                             <CheckoRecordCard key={`insp-${idx}`} item={item} />
@@ -2657,6 +2708,7 @@ export function DealDetailPage() {
                       </details>
                       <details className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
                         <summary className="cursor-pointer text-sm font-medium">История изменений ({timelineItems.length})</summary>
+                        <div className="mt-1 text-[11px] text-text2">Лента изменений за выбранный период (регистрация, смена директора, адреса, отчетность и т.п.).</div>
                         <div className="mt-2 grid gap-2">
                           {timelineItems.length ? timelineItems.map((item, idx) => (
                             <CheckoRecordCard key={`tl-${idx}`} item={item} />
@@ -2673,6 +2725,7 @@ export function DealDetailPage() {
                       </details>
                       <details className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
                         <summary className="cursor-pointer text-sm font-medium">Физлица и связи ({personsCount})</summary>
+                        <div className="mt-1 text-[11px] text-text2">Если показано `meta: объект`, это служебный контейнер ответа. Ключевая информация — в полях ФИО/ИНН/связи.</div>
                         <div className="mt-2 grid gap-2">
                           {personItems.length ? personItems.map((item, idx) => (
                             <CheckoRecordCard key={`person-${idx}`} item={item} />
@@ -2681,14 +2734,19 @@ export function DealDetailPage() {
                       </details>
                       <details className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
                         <summary className="cursor-pointer text-sm font-medium">Госконтракты (до 20 записей)</summary>
+                        <div className="mt-1 text-[11px] text-text2">Каждая запись помечена как закупка или продажа и законом закупки (44/223/94-ФЗ).</div>
                         <div className="mt-2 grid gap-2">
-                          {contractItems.length ? contractItems.map((item, idx) => (
-                            <CheckoRecordCard key={`ctr-${idx}`} item={item} />
+                          {contractRowsFiltered.slice(0, 20).length ? contractRowsFiltered.slice(0, 20).map(({ item, groupKey }, idx) => (
+                            <div key={`ctr-${idx}`} className="grid gap-1">
+                              <div className="text-[11px] text-text2">{formatContractDirection(groupKey)} · {formatContractLaw(groupKey)}</div>
+                              <CheckoRecordCard item={item} />
+                            </div>
                           )) : <div className="text-xs text-text2">Нет данных</div>}
                         </div>
                       </details>
                       <details className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
                         <summary className="cursor-pointer text-sm font-medium">Ошибки загрузки источников ({checkoDatasetErrorCount})</summary>
+                        <div className="mt-1 text-[11px] text-text2">Это техстатус: какой из API-источников не ответил в срок/вернул ошибку. Основные данные компании при этом могут быть загружены.</div>
                         <div className="mt-2">
                           {checkoDatasetErrors ? (
                             <pre className="overflow-auto rounded bg-[rgba(0,0,0,0.25)] p-2 text-[11px] text-text2">{JSON.stringify(checkoDatasetErrors, null, 2)}</pre>

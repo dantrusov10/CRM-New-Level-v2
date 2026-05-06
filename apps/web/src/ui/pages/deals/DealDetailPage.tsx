@@ -123,6 +123,104 @@ function toCheckoRecords(value: unknown): Record<string, unknown>[] {
   return [];
 }
 
+function checkoValueToText(value: unknown): string {
+  if (value == null) return "—";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    const text = String(value).trim();
+    return text || "—";
+  }
+  if (Array.isArray(value)) {
+    if (!value.length) return "—";
+    return value
+      .slice(0, 4)
+      .map((v) => checkoValueToText(v))
+      .filter(Boolean)
+      .join("; ");
+  }
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const name = obj["Наим"] ?? obj["name"] ?? obj["ФИО"] ?? obj["title"];
+    if (name != null) return checkoValueToText(name);
+    return "объект";
+  }
+  return String(value);
+}
+
+const CHECKO_KEY_LABELS: Record<string, string> = {
+  Дата: "Дата",
+  Событие: "Событие",
+  Номер: "Номер",
+  РегНомер: "Рег. номер",
+  ИспПрНомер: "Номер ИП",
+  ПредмИсп: "Предмет",
+  Судисх: "Суд",
+  Цена: "Сумма",
+  СумДолг: "Сумма долга",
+  ОстЗадолж: "Остаток долга",
+  Статус: "Статус",
+  Наим: "Наименование",
+  Истец: "Истец",
+  Ответ: "Ответчик",
+  РегионКод: "Регион",
+};
+
+function checkoRecordPairs(item: Record<string, unknown>): Array<{ label: string; value: string }> {
+  const preferredOrder = [
+    "Дата",
+    "Событие",
+    "Номер",
+    "РегНомер",
+    "ИспПрНомер",
+    "ПредмИсп",
+    "Цена",
+    "СумДолг",
+    "ОстЗадолж",
+    "Истец",
+    "Ответ",
+    "Наим",
+    "Статус",
+  ];
+  const pairs: Array<{ label: string; value: string }> = [];
+  for (const key of preferredOrder) {
+    if (!(key in item)) continue;
+    const value = checkoValueToText(item[key]);
+    if (!value || value === "—") continue;
+    pairs.push({ label: CHECKO_KEY_LABELS[key] || key, value });
+  }
+  if (!pairs.length) {
+    const entries = Object.entries(item).slice(0, 6);
+    for (const [key, raw] of entries) {
+      const value = checkoValueToText(raw);
+      if (!value || value === "—") continue;
+      pairs.push({ label: CHECKO_KEY_LABELS[key] || key, value });
+    }
+  }
+  return pairs.slice(0, 8);
+}
+
+function CheckoRecordCard({ item }: { item: Record<string, unknown> }) {
+  const pairs = checkoRecordPairs(item);
+  if (!pairs.length) {
+    return (
+      <div className="rounded bg-[rgba(0,0,0,0.2)] p-2 text-[11px] text-text2">
+        Данные есть, но структура нестандартная.
+      </div>
+    );
+  }
+  return (
+    <div className="rounded bg-[rgba(0,0,0,0.2)] p-2">
+      <div className="grid gap-1">
+        {pairs.map((pair, idx) => (
+          <div key={`${pair.label}-${idx}`} className="text-[11px] leading-4">
+            <span className="text-text2">{pair.label}: </span>
+            <span className="text-text">{pair.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function InlineMdBold({ text }: { text: string }) {
   const parts = String(text || "").split(/(\*\*[^*]+\*\*)/g);
   return (
@@ -2444,7 +2542,7 @@ export function DealDetailPage() {
                         <summary className="cursor-pointer text-sm font-medium">Арбитражные дела ({legalCasesCount})</summary>
                         <div className="mt-2 grid gap-2">
                           {legalCaseItems.length ? legalCaseItems.map((item, idx) => (
-                            <pre key={`legal-${idx}`} className="overflow-auto rounded bg-[rgba(0,0,0,0.25)] p-2 text-[11px] text-text2">{JSON.stringify(item, null, 2)}</pre>
+                            <CheckoRecordCard key={`legal-${idx}`} item={item} />
                           )) : <div className="text-xs text-text2">Нет данных</div>}
                         </div>
                       </details>
@@ -2452,7 +2550,7 @@ export function DealDetailPage() {
                         <summary className="cursor-pointer text-sm font-medium">Исполнительные производства ({enforcementsCount})</summary>
                         <div className="mt-2 grid gap-2">
                           {enforcementItems.length ? enforcementItems.map((item, idx) => (
-                            <pre key={`enf-${idx}`} className="overflow-auto rounded bg-[rgba(0,0,0,0.25)] p-2 text-[11px] text-text2">{JSON.stringify(item, null, 2)}</pre>
+                            <CheckoRecordCard key={`enf-${idx}`} item={item} />
                           )) : <div className="text-xs text-text2">Нет данных</div>}
                         </div>
                       </details>
@@ -2460,7 +2558,7 @@ export function DealDetailPage() {
                         <summary className="cursor-pointer text-sm font-medium">Проверки ({inspectionsCount})</summary>
                         <div className="mt-2 grid gap-2">
                           {inspectionItems.length ? inspectionItems.map((item, idx) => (
-                            <pre key={`insp-${idx}`} className="overflow-auto rounded bg-[rgba(0,0,0,0.25)] p-2 text-[11px] text-text2">{JSON.stringify(item, null, 2)}</pre>
+                            <CheckoRecordCard key={`insp-${idx}`} item={item} />
                           )) : <div className="text-xs text-text2">Нет данных</div>}
                         </div>
                       </details>
@@ -2468,7 +2566,7 @@ export function DealDetailPage() {
                         <summary className="cursor-pointer text-sm font-medium">История изменений ({timelineCount})</summary>
                         <div className="mt-2 grid gap-2">
                           {timelineItems.length ? timelineItems.map((item, idx) => (
-                            <pre key={`tl-${idx}`} className="overflow-auto rounded bg-[rgba(0,0,0,0.25)] p-2 text-[11px] text-text2">{JSON.stringify(item, null, 2)}</pre>
+                            <CheckoRecordCard key={`tl-${idx}`} item={item} />
                           )) : <div className="text-xs text-text2">Нет данных</div>}
                         </div>
                       </details>
@@ -2476,7 +2574,7 @@ export function DealDetailPage() {
                         <summary className="cursor-pointer text-sm font-medium">Search выдача ({searchCount})</summary>
                         <div className="mt-2 grid gap-2">
                           {searchItems.length ? searchItems.map((item, idx) => (
-                            <pre key={`search-${idx}`} className="overflow-auto rounded bg-[rgba(0,0,0,0.25)] p-2 text-[11px] text-text2">{JSON.stringify(item, null, 2)}</pre>
+                            <CheckoRecordCard key={`search-${idx}`} item={item} />
                           )) : <div className="text-xs text-text2">Нет данных</div>}
                         </div>
                       </details>
@@ -2484,7 +2582,7 @@ export function DealDetailPage() {
                         <summary className="cursor-pointer text-sm font-medium">Физлица и связи ({personsCount})</summary>
                         <div className="mt-2 grid gap-2">
                           {personItems.length ? personItems.map((item, idx) => (
-                            <pre key={`person-${idx}`} className="overflow-auto rounded bg-[rgba(0,0,0,0.25)] p-2 text-[11px] text-text2">{JSON.stringify(item, null, 2)}</pre>
+                            <CheckoRecordCard key={`person-${idx}`} item={item} />
                           )) : <div className="text-xs text-text2">Нет данных</div>}
                         </div>
                       </details>
@@ -2492,7 +2590,7 @@ export function DealDetailPage() {
                         <summary className="cursor-pointer text-sm font-medium">Госконтракты (до 20 записей)</summary>
                         <div className="mt-2 grid gap-2">
                           {contractItems.length ? contractItems.map((item, idx) => (
-                            <pre key={`ctr-${idx}`} className="overflow-auto rounded bg-[rgba(0,0,0,0.25)] p-2 text-[11px] text-text2">{JSON.stringify(item, null, 2)}</pre>
+                            <CheckoRecordCard key={`ctr-${idx}`} item={item} />
                           )) : <div className="text-xs text-text2">Нет данных</div>}
                         </div>
                       </details>

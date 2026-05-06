@@ -84,6 +84,12 @@ function stripTimelineAiNoise(text: string): string {
   return humanizeSummaryForDisplay(text);
 }
 
+function toStringList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((x) => String(x || "").trim()).filter(Boolean);
+  if (typeof value === "string") return value.split(",").map((x) => x.trim()).filter(Boolean);
+  return [];
+}
+
 function InlineMdBold({ text }: { text: string }) {
   const parts = String(text || "").split(/(\*\*[^*]+\*\*)/g);
   return (
@@ -2321,6 +2327,16 @@ export function DealDetailPage() {
                     </div>
                   </div>
                 </section>
+                <DynamicEntityFormWithRef
+                  ref={formRef}
+                  entity="deal"
+                  record={deal!}
+                  excludeFieldNames={["title", "budget", "company_id"]}
+                  onSaved={async () => {
+                    await dealQ.refetch();
+                    tlQ.refetch();
+                  }}
+                />
                 <section className="board-shell neon-accent p-2.5 mb-3">
                   <div className="mb-2 flex items-center gap-2 border-b border-border/70 pb-2">
                     <span className="neon-pill">Информация из источников</span>
@@ -2341,55 +2357,30 @@ export function DealDetailPage() {
                     {checkoError ? <div className="text-xs text-danger">{checkoError}</div> : null}
                     {checkoSuccess ? <div className="text-xs text-[#22c55e]">{checkoSuccess}</div> : null}
                     <div className="grid grid-cols-1 gap-2">
-                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
-                        <div className="text-[11px] text-text2">Краткое наименование</div>
-                        <div className="text-sm">{deal?.expand?.company_id?.checko_short_name || "—"}</div>
-                      </div>
-                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
-                        <div className="text-[11px] text-text2">Полное наименование</div>
-                        <div className="text-sm">{deal?.expand?.company_id?.checko_full_name || "—"}</div>
-                      </div>
-                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
-                        <div className="text-[11px] text-text2">Статус</div>
-                        <div className="text-sm">{deal?.expand?.company_id?.checko_status || "—"}</div>
-                      </div>
-                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
-                        <div className="text-[11px] text-text2">ОГРН / КПП</div>
-                        <div className="text-sm">{deal?.expand?.company_id?.ogrn || "—"} / {deal?.expand?.company_id?.kpp || "—"}</div>
-                      </div>
-                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
-                        <div className="text-[11px] text-text2">ОКВЭД</div>
-                        <div className="text-sm">{deal?.expand?.company_id?.checko_okved || "—"}</div>
-                      </div>
-                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
-                        <div className="text-[11px] text-text2">Руководитель</div>
-                        <div className="text-sm">{deal?.expand?.company_id?.checko_ceo || "—"}</div>
-                      </div>
-                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
-                        <div className="text-[11px] text-text2">Адрес</div>
-                        <div className="text-sm">{deal?.expand?.company_id?.checko_address || "—"}</div>
-                      </div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Краткое наименование</div><div className="text-sm">{deal?.expand?.company_id?.checko_short_name || "—"}</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Полное наименование</div><div className="text-sm">{deal?.expand?.company_id?.checko_full_name || "—"}</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Статус</div><div className="text-sm">{deal?.expand?.company_id?.checko_status || "—"}</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">ОГРН / КПП</div><div className="text-sm">{deal?.expand?.company_id?.ogrn || "—"} / {deal?.expand?.company_id?.kpp || "—"}</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">ОКВЭД</div><div className="text-sm">{deal?.expand?.company_id?.checko_okved || "—"}</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Руководитель</div><div className="text-sm">{deal?.expand?.company_id?.checko_ceo || "—"}</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Адрес</div><div className="text-sm">{deal?.expand?.company_id?.checko_address || "—"}</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Регион</div><div className="text-sm">{deal?.expand?.company_id?.checko_region || "—"}</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Сайт</div><div className="text-sm">{deal?.expand?.company_id?.checko_site || "—"}</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Телефоны</div><div className="text-sm">{toStringList(deal?.expand?.company_id?.checko_contacts_phones).join(", ") || "—"}</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Email</div><div className="text-sm">{toStringList(deal?.expand?.company_id?.checko_contacts_emails).join(", ") || "—"}</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">ОКОПФ / ОКФС / ОКОГУ</div><div className="text-sm">{deal?.expand?.company_id?.checko_okopf || "—"} / {deal?.expand?.company_id?.checko_okfs || "—"} / {deal?.expand?.company_id?.checko_okogu || "—"}</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">ОКПО / ОКАТО / ОКТМО</div><div className="text-sm">{deal?.expand?.company_id?.checko_okpo || "—"} / {deal?.expand?.company_id?.checko_okato || "—"} / {deal?.expand?.company_id?.checko_oktmo || "—"}</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Руководство / Учредители</div><div className="text-sm">{Array.isArray(deal?.expand?.company_id?.checko_management_json) ? String((deal?.expand?.company_id?.checko_management_json as unknown[]).length) : "0"} / {deal?.expand?.company_id?.checko_founders_json && typeof deal?.expand?.company_id?.checko_founders_json === "object" ? "есть" : "—"}</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Лицензии / Финансы / Налоги</div><div className="text-sm">{Array.isArray(deal?.expand?.company_id?.checko_licenses_json) ? String((deal?.expand?.company_id?.checko_licenses_json as unknown[]).length) : "0"} / {deal?.expand?.company_id?.checko_finance_json && typeof deal?.expand?.company_id?.checko_finance_json === "object" ? "есть" : "—"} / {deal?.expand?.company_id?.checko_taxes_json && typeof deal?.expand?.company_id?.checko_taxes_json === "object" ? "есть" : "—"}</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Риски</div><div className="text-sm">{deal?.expand?.company_id?.checko_risk_flags_json && typeof deal?.expand?.company_id?.checko_risk_flags_json === "object" ? "есть" : "—"}</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Дата выписки / регистрации / ОГРН</div><div className="text-sm">{deal?.expand?.company_id?.checko_snapshot_date || "—"} / {deal?.expand?.company_id?.checko_registration_date || "—"} / {deal?.expand?.company_id?.checko_ogrn_date || "—"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
                         <div className="text-[11px] text-text2">Обновлено</div>
-                        <div className="text-sm">
-                          {deal?.expand?.company_id?.checko_updated_at
-                            ? dayjs(deal.expand.company_id.checko_updated_at).format("DD.MM.YYYY HH:mm")
-                            : "—"}
-                        </div>
+                        <div className="text-sm">{deal?.expand?.company_id?.checko_updated_at ? dayjs(deal.expand.company_id.checko_updated_at).format("DD.MM.YYYY HH:mm") : "—"}</div>
                       </div>
                     </div>
                   </div>
                 </section>
-                <DynamicEntityFormWithRef
-                  ref={formRef}
-                  entity="deal"
-                  record={deal!}
-                  excludeFieldNames={["title", "budget", "company_id"]}
-                  onSaved={async () => {
-                    await dealQ.refetch();
-                    tlQ.refetch();
-                  }}
-                />
               </div>
             </CardContent>
           </Card>

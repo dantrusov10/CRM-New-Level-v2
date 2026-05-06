@@ -23,6 +23,27 @@ export type Company = {
   checko_ceo?: string;
   checko_okved?: string;
   checko_updated_at?: string;
+  checko_snapshot_date?: string;
+  checko_registration_date?: string;
+  checko_ogrn_date?: string;
+  checko_region?: string;
+  checko_okopf?: string;
+  checko_okfs?: string;
+  checko_okogu?: string;
+  checko_okpo?: string;
+  checko_okato?: string;
+  checko_oktmo?: string;
+  checko_site?: string;
+  checko_contacts_phones?: unknown;
+  checko_contacts_emails?: unknown;
+  checko_management_json?: unknown;
+  checko_founders_json?: unknown;
+  checko_licenses_json?: unknown;
+  checko_finance_json?: unknown;
+  checko_taxes_json?: unknown;
+  checko_legal_cases_json?: unknown;
+  checko_contracts_json?: unknown;
+  checko_risk_flags_json?: unknown;
   checko_raw_json?: Record<string, unknown> | null;
   responsible_id?: Id; // users
   created?: string;

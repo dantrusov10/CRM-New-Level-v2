@@ -389,6 +389,277 @@
           }
         },
         {
+          "id": "chkodateout001",
+          "name": "checko_snapshot_date",
+          "type": "date",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null
+          }
+        },
+        {
+          "id": "chkodatereg001",
+          "name": "checko_registration_date",
+          "type": "date",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null
+          }
+        },
+        {
+          "id": "chkodateogr001",
+          "name": "checko_ogrn_date",
+          "type": "date",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null
+          }
+        },
+        {
+          "id": "chkoregion00001",
+          "name": "checko_region",
+          "type": "text",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
+        },
+        {
+          "id": "chkookopf00001",
+          "name": "checko_okopf",
+          "type": "text",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
+        },
+        {
+          "id": "chkookfs000001",
+          "name": "checko_okfs",
+          "type": "text",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
+        },
+        {
+          "id": "chkookogu00001",
+          "name": "checko_okogu",
+          "type": "text",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
+        },
+        {
+          "id": "chkookpo000001",
+          "name": "checko_okpo",
+          "type": "text",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
+        },
+        {
+          "id": "chkookato00001",
+          "name": "checko_okato",
+          "type": "text",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
+        },
+        {
+          "id": "chkooktmo00001",
+          "name": "checko_oktmo",
+          "type": "text",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
+        },
+        {
+          "id": "chkosite0000001",
+          "name": "checko_site",
+          "type": "text",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
+        },
+        {
+          "id": "chkophonejson01",
+          "name": "checko_contacts_phones",
+          "type": "json",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "maxSize": 2000000
+          }
+        },
+        {
+          "id": "chkoemailjson01",
+          "name": "checko_contacts_emails",
+          "type": "json",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "maxSize": 2000000
+          }
+        },
+        {
+          "id": "chkomgmtjson001",
+          "name": "checko_management_json",
+          "type": "json",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "maxSize": 2000000
+          }
+        },
+        {
+          "id": "chkofoundjson01",
+          "name": "checko_founders_json",
+          "type": "json",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "maxSize": 2000000
+          }
+        },
+        {
+          "id": "chkolicjson0001",
+          "name": "checko_licenses_json",
+          "type": "json",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "maxSize": 2000000
+          }
+        },
+        {
+          "id": "chkofinjson0001",
+          "name": "checko_finance_json",
+          "type": "json",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "maxSize": 2000000
+          }
+        },
+        {
+          "id": "chkotaxjson0001",
+          "name": "checko_taxes_json",
+          "type": "json",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "maxSize": 2000000
+          }
+        },
+        {
+          "id": "chkolegaljson01",
+          "name": "checko_legal_cases_json",
+          "type": "json",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "maxSize": 2000000
+          }
+        },
+        {
+          "id": "chkokontrjson01",
+          "name": "checko_contracts_json",
+          "type": "json",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "maxSize": 2000000
+          }
+        },
+        {
+          "id": "chkoriskjson001",
+          "name": "checko_risk_flags_json",
+          "type": "json",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "maxSize": 2000000
+          }
+        },
+        {
           "id": "chkorawjson0001",
           "name": "checko_raw_json",
           "type": "json",

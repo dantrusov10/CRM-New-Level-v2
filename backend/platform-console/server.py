@@ -1069,6 +1069,35 @@ def _build_company_checko_update(company_payload, raw_response):
     ogrn = _pick_text(company_payload, ("ogrn", "ОГРН", "ОГРНИП"))
     kpp = _pick_text(company_payload, ("kpp", "КПП"))
     okved = _extract_checko_primary_okved(company_payload)
+    region = _pick_nested_text(company_payload, "Регион", ("Наим", "name"))
+    okopf = _pick_nested_text(company_payload, "ОКОПФ", ("Наим", "name"))
+    okfs = _pick_nested_text(company_payload, "ОКФС", ("Наим", "name"))
+    okogu = _pick_nested_text(company_payload, "ОКОГУ", ("Наим", "name"))
+    okpo = _pick_text(company_payload, ("ОКПО", "okpo"))
+    okato = _pick_nested_text(company_payload, "ОКАТО", ("Код", "Наим"))
+    oktmo = _pick_nested_text(company_payload, "ОКТМО", ("Код", "Наим"))
+    contacts = company_payload.get("Контакты") if isinstance(company_payload.get("Контакты"), dict) else {}
+    phones = contacts.get("Тел") if isinstance(contacts, dict) and isinstance(contacts.get("Тел"), list) else []
+    emails = contacts.get("Емэйл") if isinstance(contacts, dict) and isinstance(contacts.get("Емэйл"), list) else []
+    site = _pick_text(contacts, ("ВебСайт", "Сайт", "site", "website")) if isinstance(contacts, dict) else ""
+    snapshot_date = _pick_text(company_payload, ("ДатаВып", "snapshot_date"))
+    reg_date = _pick_text(company_payload, ("ДатаРег", "registration_date"))
+    ogrn_date = _pick_text(company_payload, ("ДатаОГРН", "ogrn_date"))
+    leaders = company_payload.get("Руковод") if isinstance(company_payload.get("Руковод"), list) else []
+    founders = company_payload.get("Учред") if isinstance(company_payload.get("Учред"), dict) else {}
+    licenses = company_payload.get("Лиценз") if isinstance(company_payload.get("Лиценз"), list) else []
+    taxes = company_payload.get("Налоги") if isinstance(company_payload.get("Налоги"), dict) else {}
+    finance = company_payload.get("Финансы") if isinstance(company_payload.get("Финансы"), dict) else {}
+    legal_cases = company_payload.get("Арбитраж") if isinstance(company_payload.get("Арбитраж"), (list, dict)) else []
+    contracts = company_payload.get("Госконтракты") if isinstance(company_payload.get("Госконтракты"), (list, dict)) else []
+    risk_flags = {
+        "mass_head": bool(company_payload.get("МассРуковод", False)),
+        "mass_founder": bool(company_payload.get("МассУчред", False)),
+        "disqualified": bool(company_payload.get("ДисквЛица", False)),
+        "bad_supplier": bool(company_payload.get("НедобПост", False)),
+        "illegal_finance": bool(company_payload.get("НелегалФин", False)),
+        "sanctions": bool(company_payload.get("Санкции", False)),
+    }
 
     return {
         "checko_source": "checko",
@@ -1079,6 +1108,27 @@ def _build_company_checko_update(company_payload, raw_response):
         "checko_ceo": ceo,
         "checko_okved": okved,
         "checko_updated_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+        "checko_snapshot_date": snapshot_date,
+        "checko_registration_date": reg_date,
+        "checko_ogrn_date": ogrn_date,
+        "checko_region": region,
+        "checko_okopf": okopf,
+        "checko_okfs": okfs,
+        "checko_okogu": okogu,
+        "checko_okpo": okpo,
+        "checko_okato": okato,
+        "checko_oktmo": oktmo,
+        "checko_site": site,
+        "checko_contacts_phones": phones,
+        "checko_contacts_emails": emails,
+        "checko_management_json": leaders,
+        "checko_founders_json": founders,
+        "checko_licenses_json": licenses,
+        "checko_finance_json": finance,
+        "checko_taxes_json": taxes,
+        "checko_legal_cases_json": legal_cases,
+        "checko_contracts_json": contracts,
+        "checko_risk_flags_json": risk_flags,
         "checko_raw_json": raw_response if isinstance(raw_response, dict) else {"raw": raw_response},
         # Keep core identifiers in canonical fields too.
         "name": company_name or full_name,

@@ -1037,6 +1037,81 @@ def _checko_request_paginated(endpoint, base_params=None, max_pages=3):
     return merged
 
 
+def _json_size_bytes(value):
+    try:
+        return len(json.dumps(value, ensure_ascii=False))
+    except Exception:
+        return 0
+
+
+def _trim_checko_records_payload(value, keep_records=50):
+    if isinstance(value, dict):
+        out = dict(value)
+        records = out.get("records")
+        if isinstance(records, list) and len(records) > keep_records:
+            out["records"] = records[:keep_records]
+            out["_trimmed"] = True
+            out["_kept_records"] = keep_records
+            out["_original_records"] = len(records)
+        data = out.get("data")
+        if isinstance(data, dict):
+            dd = dict(data)
+            recs = dd.get("Записи")
+            if isinstance(recs, list) and len(recs) > keep_records:
+                dd["Записи"] = recs[:keep_records]
+                dd["_trimmed"] = True
+                dd["_kept_records"] = keep_records
+                dd["_original_records"] = len(recs)
+            out["data"] = dd
+        return out
+    if isinstance(value, list):
+        if len(value) > keep_records:
+            return {
+                "records": value[:keep_records],
+                "_trimmed": True,
+                "_kept_records": keep_records,
+                "_original_records": len(value),
+            }
+    return value
+
+
+def _fit_checko_payloads_for_pb(update_data):
+    if not isinstance(update_data, dict):
+        return update_data
+    out = dict(update_data)
+    json_fields = (
+        "checko_legal_cases_json",
+        "checko_contracts_json",
+        "checko_raw_json",
+    )
+    limits = {
+        "checko_legal_cases_json": 1_800_000,
+        "checko_contracts_json": 1_800_000,
+        "checko_raw_json": 1_800_000,
+    }
+    for field in json_fields:
+        val = out.get(field)
+        if val is None:
+            continue
+        if _json_size_bytes(val) <= limits[field]:
+            continue
+        trimmed = _trim_checko_records_payload(val, keep_records=100)
+        if _json_size_bytes(trimmed) > limits[field]:
+            trimmed = _trim_checko_records_payload(trimmed, keep_records=30)
+        if _json_size_bytes(trimmed) > limits[field]:
+            trimmed = {
+                "_trimmed_due_to_size": True,
+                "_original_size_bytes": _json_size_bytes(val),
+                "_stored_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+                "summary": {
+                    "type": type(val).__name__,
+                    "keys": list(val.keys())[:30] if isinstance(val, dict) else [],
+                },
+            }
+        out[field] = trimmed
+    return out
+
+
 def _pick_text(obj, keys):
     if not isinstance(obj, dict):
         return ""
@@ -1285,10 +1360,10 @@ def run_checko_company_enrichment(payload):
             dataset_errors[name] = str(e)
 
     _safe_fetch("finances", lambda: _checko_request("finances", params={"inn": inn, "ogrn": ogrn_from_company, "extended": "true"}, timeout=30))
-    _safe_fetch("legal_cases", lambda: _checko_request_paginated("legal-cases", base_params={"inn": inn, "ogrn": ogrn_from_company, "limit": 100}, max_pages=5))
-    _safe_fetch("enforcements", lambda: _checko_request_paginated("enforcements", base_params={"inn": inn, "ogrn": ogrn_from_company, "limit": 100, "sort": "-date"}, max_pages=5))
+    _safe_fetch("legal_cases", lambda: _checko_request_paginated("legal-cases", base_params={"inn": inn, "ogrn": ogrn_from_company, "limit": 100}, max_pages=3))
+    _safe_fetch("enforcements", lambda: _checko_request_paginated("enforcements", base_params={"inn": inn, "ogrn": ogrn_from_company, "limit": 100, "sort": "-date"}, max_pages=3))
     _safe_fetch("timeline", lambda: _checko_request("timeline", params={"inn": inn, "ogrn": ogrn_from_company}, timeout=30))
-    _safe_fetch("inspections", lambda: _checko_request_paginated("inspections", base_params={"inn": inn, "ogrn": ogrn_from_company, "limit": 100}, max_pages=5))
+    _safe_fetch("inspections", lambda: _checko_request_paginated("inspections", base_params={"inn": inn, "ogrn": ogrn_from_company, "limit": 100}, max_pages=3))
 
     contracts_bundle = {"groups": {}, "records_total": 0}
     for law in ("44", "94", "223"):
@@ -1298,7 +1373,7 @@ def run_checko_company_enrichment(payload):
                 grp = _checko_request_paginated(
                     "contracts",
                     base_params={"inn": inn, "ogrn": ogrn_from_company, "law": law, "role": role, "limit": 100, "sort": "-date"},
-                    max_pages=5,
+                    max_pages=3,
                 )
                 contracts_bundle["groups"][key] = grp
                 contracts_bundle["records_total"] += int(grp.get("records_total", 0))
@@ -1331,6 +1406,7 @@ def run_checko_company_enrichment(payload):
     if not str(update_data.get("name", "")).strip():
         update_data["name"] = str((company_record or {}).get("name", "")).strip() or f"Компания {inn}"
     update_data["inn"] = inn
+    update_data = _fit_checko_payloads_for_pb(update_data)
 
     try:
         saved_company = _tenant_api_update(tenant_pb_url, "companies", effective_company_id, update_data, admin_token)

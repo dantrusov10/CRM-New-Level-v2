@@ -248,6 +248,157 @@
             "max": null,
             "pattern": ""
           }
+        },
+        {
+          "id": "chkogrn00000001",
+          "name": "ogrn",
+          "type": "text",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
+        },
+        {
+          "id": "chkkpp000000001",
+          "name": "kpp",
+          "type": "text",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
+        },
+        {
+          "id": "chkosrc00000001",
+          "name": "checko_source",
+          "type": "text",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
+        },
+        {
+          "id": "chkoshort000001",
+          "name": "checko_short_name",
+          "type": "text",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
+        },
+        {
+          "id": "chkofull0000001",
+          "name": "checko_full_name",
+          "type": "text",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
+        },
+        {
+          "id": "chkostatus00001",
+          "name": "checko_status",
+          "type": "text",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
+        },
+        {
+          "id": "chkoaddr0000001",
+          "name": "checko_address",
+          "type": "text",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
+        },
+        {
+          "id": "chkocreo0000001",
+          "name": "checko_ceo",
+          "type": "text",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
+        },
+        {
+          "id": "chkookved000001",
+          "name": "checko_okved",
+          "type": "text",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
+        },
+        {
+          "id": "chkoupdated0001",
+          "name": "checko_updated_at",
+          "type": "date",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null
+          }
+        },
+        {
+          "id": "chkorawjson0001",
+          "name": "checko_raw_json",
+          "type": "json",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "maxSize": 2000000
+          }
         }
       ],
       "indexes": [],

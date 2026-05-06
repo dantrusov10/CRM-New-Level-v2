@@ -18,6 +18,8 @@ Environment=TENANT_PB_ADMIN_PASSWORD=__SET_TENANT_ADMIN_PASSWORD__
 Environment=PUBLIC_AI_ALLOWED_ORIGINS=https://app.nwlvl.ru,https://nwlvl.ru,http://localhost:5173
 Environment=GIGACHAT_INSECURE_TLS=0
 Environment=AI_GATEWAY_AUDIT_LOG=/opt/pb-control/ai-gateway-audit.jsonl
+Environment=CHECKO_API_KEY=__SET_CHECKO_API_KEY__
+Environment=CHECKO_API_BASE_URL=https://api.checko.ru/v2
 ExecStart=/usr/bin/python3 /opt/pb-control/platform-console/server.py
 Restart=always
 RestartSec=5

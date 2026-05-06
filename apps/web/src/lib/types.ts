@@ -7,12 +7,23 @@ export type Company = {
   id: Id;
   name: string;
   inn?: string;
+  ogrn?: string;
+  kpp?: string;
   city?: string;
   website?: string;
   phone?: string;
   email?: string;
   address?: string;
   legal_entity?: string;
+  checko_source?: string;
+  checko_short_name?: string;
+  checko_full_name?: string;
+  checko_status?: string;
+  checko_address?: string;
+  checko_ceo?: string;
+  checko_okved?: string;
+  checko_updated_at?: string;
+  checko_raw_json?: Record<string, unknown> | null;
   responsible_id?: Id; // users
   created?: string;
   updated?: string;

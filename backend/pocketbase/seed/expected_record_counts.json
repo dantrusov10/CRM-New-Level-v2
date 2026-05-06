@@ -1,0 +1,18 @@
+{
+  "_comment": "Ожидаемое число строк в таблицах коллекций после provision + tenant_default_records (users и _superusers проверяются отдельно).",
+  "by_collection_name": {
+    "settings_funnel_stages": 7,
+    "settings_roles": 3,
+    "settings_channels": 4,
+    "settings_field_sections": 3,
+    "settings_fields": 13,
+    "settings_contact_parser": 1,
+    "settings_media_parser": 1,
+    "settings_tender_parser": 1,
+    "kp_settings": 1,
+    "semantic_packs": 2,
+    "settings_kp_templates": 1,
+    "kp_instances": 0,
+    "kp_documents": 0
+  }
+}

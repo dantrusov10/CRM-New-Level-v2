@@ -10,6 +10,12 @@ type AnalyzePayload = {
   context: Record<string, unknown>;
 };
 
+type CheckoEnrichmentPayload = {
+  dealId: string;
+  companyId?: string;
+  inn?: string;
+};
+
 type AdminDashboardAnalyzePayload = {
   userId?: string;
   promptCode?: string;
@@ -101,6 +107,40 @@ export async function analyzeAdminDashboardWithAi(payload: AdminDashboardAnalyze
   } finally {
     window.clearTimeout(timeout);
   }
+
+  const text = await response.text();
+  let data: Record<string, unknown> = {};
+  try {
+    data = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+  } catch {
+    data = { ok: false, error: text || `HTTP ${response.status}` };
+  }
+  if (!response.ok || data.ok === false) {
+    throw new Error(String(data.error ?? `HTTP ${response.status}`));
+  }
+  return data;
+}
+
+export async function enrichCompanyByInnWithChecko(payload: CheckoEnrichmentPayload) {
+  const tenantUserToken = pb.authStore.token || "";
+  if (!tenantUserToken) {
+    throw new Error("Пользователь не авторизован в CRM.");
+  }
+
+  const url = `${AI_GATEWAY_URL}/enrichment/checko/company-by-inn`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: tenantUserToken,
+    },
+    body: JSON.stringify({
+      deal_id: payload.dealId,
+      company_id: payload.companyId || "",
+      inn: payload.inn || "",
+      tenant_pb_url: resolveTenantPbUrl(),
+    }),
+  });
 
   const text = await response.text();
   let data: Record<string, unknown> = {};

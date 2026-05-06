@@ -30,7 +30,7 @@ import { DynamicEntityFormWithRef, DynamicEntityFormHandle } from "../../compone
 import { InlineConfirmActions } from "../../components/InlineConfirmActions";
 import type { AiInsight, Deal, TimelineItem } from "../../../lib/types";
 import type { ContactFound, EntityFileLink, ProductProfile } from "../../data/hooks";
-import { analyzeDealWithAi } from "../../../lib/aiGateway";
+import { analyzeDealWithAi, enrichCompanyByInnWithChecko } from "../../../lib/aiGateway";
 
 type AnyObj = Record<string, unknown>;
 type TimelinePayload = Record<string, unknown>;
@@ -1352,6 +1352,10 @@ export function DealDetailPage() {
   const [paymentReceivedDate, setPaymentReceivedDate] = React.useState<string>("");
   const [projectMapLink, setProjectMapLink] = React.useState<string>("");
   const [kaitenLink, setKaitenLink] = React.useState<string>("");
+  const [companyInnDraft, setCompanyInnDraft] = React.useState<string>("");
+  const [checkoLoading, setCheckoLoading] = React.useState(false);
+  const [checkoError, setCheckoError] = React.useState("");
+  const [checkoSuccess, setCheckoSuccess] = React.useState("");
 
   const initialRef = React.useRef<AnyObj | null>(null);
 
@@ -1381,6 +1385,9 @@ export function DealDetailPage() {
     setPaymentReceivedDate(deal.payment_received_date ?? "");
     setProjectMapLink(deal.project_map_link ?? "");
     setKaitenLink(deal.kaiten_link ?? "");
+    setCompanyInnDraft(String(deal.expand?.company_id?.inn || ""));
+    setCheckoError("");
+    setCheckoSuccess("");
 
     initialRef.current = {
       title: deal.title ?? "",
@@ -1491,6 +1498,46 @@ export function DealDetailPage() {
     await createTimelineEvent("deal_budget_updated", `Обновлен бюджет сделки: ${formatMoney(next)} ₽`);
     await dealQ.refetch();
     tlQ.refetch();
+  }
+
+  async function saveCompanyInnInline() {
+    const companyId = String(deal?.company_id || deal?.expand?.company_id?.id || "");
+    if (!companyId) return;
+    const nextInn = companyInnDraft.replace(/[^\d]/g, "");
+    const currentInn = String(deal?.expand?.company_id?.inn || "").replace(/[^\d]/g, "");
+    if (nextInn === currentInn) return;
+    await pb.collection("companies").update(companyId, { inn: nextInn || "" }).catch(() => null);
+    await dealQ.refetch();
+  }
+
+  async function runCheckoEnrichment() {
+    const companyId = String(deal?.company_id || deal?.expand?.company_id?.id || "");
+    if (!deal?.id || !companyId) {
+      setCheckoError("Для обогащения нужна привязанная компания.");
+      return;
+    }
+    const inn = companyInnDraft.replace(/[^\d]/g, "");
+    if (!inn) {
+      setCheckoError("Укажите ИНН компании.");
+      return;
+    }
+    setCheckoError("");
+    setCheckoSuccess("");
+    setCheckoLoading(true);
+    try {
+      await enrichCompanyByInnWithChecko({
+        dealId: deal.id,
+        companyId,
+        inn,
+      });
+      await dealQ.refetch();
+      setCompanyInnDraft(String((dealQ.data as Deal | undefined)?.expand?.company_id?.inn || inn));
+      setCheckoSuccess("Данные из Checko обновлены.");
+    } catch (error) {
+      setCheckoError(error instanceof Error ? error.message : "Не удалось выполнить обогащение.");
+    } finally {
+      setCheckoLoading(false);
+    }
   }
 
 
@@ -2198,6 +2245,25 @@ export function DealDetailPage() {
                       </div>
                     </div>
                     <div className="grid grid-cols-12 gap-2 items-center rounded-md bg-[rgba(255,255,255,0.03)] p-1.5">
+                      <div className="col-span-12 md:col-span-4 xl:col-span-3 text-xs text-text2">ИНН</div>
+                      <div className="col-span-12 md:col-span-8 xl:col-span-9">
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                          <Input
+                            value={companyInnDraft}
+                            onChange={(e) => setCompanyInnDraft(e.target.value.replace(/[^\d]/g, ""))}
+                            placeholder="Введите ИНН"
+                          />
+                          {companyInnDraft.replace(/[^\d]/g, "") !== String(deal?.expand?.company_id?.inn || "").replace(/[^\d]/g, "") ? (
+                            <InlineConfirmActions
+                              onConfirm={() => void saveCompanyInnInline()}
+                              onCancel={() => setCompanyInnDraft(String(deal?.expand?.company_id?.inn || ""))}
+                              size="lg"
+                            />
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-12 gap-2 items-center rounded-md bg-[rgba(255,255,255,0.03)] p-1.5">
                       <div className="col-span-12 md:col-span-4 xl:col-span-3 text-xs text-text2">Этап</div>
                       <div className="col-span-12 md:col-span-8 xl:col-span-9">
                         <Select value={deal?.stage_id || ""} onChange={changeStage}>
@@ -2251,6 +2317,65 @@ export function DealDetailPage() {
                             </option>
                           ))}
                         </Select>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+                <section className="board-shell neon-accent p-2.5 mb-3">
+                  <div className="mb-2 flex items-center gap-2 border-b border-border/70 pb-2">
+                    <span className="neon-pill">Информация из источников</span>
+                  </div>
+                  <div className="grid gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <Button
+                        variant="secondary"
+                        onClick={() => void runCheckoEnrichment()}
+                        disabled={checkoLoading || !deal?.expand?.company_id?.id}
+                      >
+                        {checkoLoading ? "Обогащение..." : "Обогатить по ИНН"}
+                      </Button>
+                      <div className="text-xs text-text2">
+                        Источник: {deal?.expand?.company_id?.checko_source || "—"}
+                      </div>
+                    </div>
+                    {checkoError ? <div className="text-xs text-danger">{checkoError}</div> : null}
+                    {checkoSuccess ? <div className="text-xs text-[#22c55e]">{checkoSuccess}</div> : null}
+                    <div className="grid grid-cols-1 gap-2">
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
+                        <div className="text-[11px] text-text2">Краткое наименование</div>
+                        <div className="text-sm">{deal?.expand?.company_id?.checko_short_name || "—"}</div>
+                      </div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
+                        <div className="text-[11px] text-text2">Полное наименование</div>
+                        <div className="text-sm">{deal?.expand?.company_id?.checko_full_name || "—"}</div>
+                      </div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
+                        <div className="text-[11px] text-text2">Статус</div>
+                        <div className="text-sm">{deal?.expand?.company_id?.checko_status || "—"}</div>
+                      </div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
+                        <div className="text-[11px] text-text2">ОГРН / КПП</div>
+                        <div className="text-sm">{deal?.expand?.company_id?.ogrn || "—"} / {deal?.expand?.company_id?.kpp || "—"}</div>
+                      </div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
+                        <div className="text-[11px] text-text2">ОКВЭД</div>
+                        <div className="text-sm">{deal?.expand?.company_id?.checko_okved || "—"}</div>
+                      </div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
+                        <div className="text-[11px] text-text2">Руководитель</div>
+                        <div className="text-sm">{deal?.expand?.company_id?.checko_ceo || "—"}</div>
+                      </div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
+                        <div className="text-[11px] text-text2">Адрес</div>
+                        <div className="text-sm">{deal?.expand?.company_id?.checko_address || "—"}</div>
+                      </div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
+                        <div className="text-[11px] text-text2">Обновлено</div>
+                        <div className="text-sm">
+                          {deal?.expand?.company_id?.checko_updated_at
+                            ? dayjs(deal.expand.company_id.checko_updated_at).format("DD.MM.YYYY HH:mm")
+                            : "—"}
+                        </div>
                       </div>
                     </div>
                   </div>

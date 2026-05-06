@@ -1,0 +1,457 @@
+{
+  "version": 1,
+  "description": "Конфигурационные строки для нового тенанта (без компаний/сделок/ПДн). Порядок шагов важен из-за section_ref.",
+  "steps": [
+    {
+      "collection": "settings_funnel_stages",
+      "items": [
+        {
+          "stage_name": "Лид",
+          "position": 0,
+          "color": "#6366F1",
+          "active": true,
+          "is_final": false,
+          "final_type": "none",
+          "default_prob": 0.1
+        },
+        {
+          "stage_name": "Квалификация",
+          "position": 1,
+          "color": "#0EA5E9",
+          "active": true,
+          "is_final": false,
+          "final_type": "none",
+          "default_prob": 0.25
+        },
+        {
+          "stage_name": "Презентация / КП",
+          "position": 2,
+          "color": "#004EEB",
+          "active": true,
+          "is_final": false,
+          "final_type": "none",
+          "default_prob": 0.4
+        },
+        {
+          "stage_name": "Переговоры",
+          "position": 3,
+          "color": "#F59E0B",
+          "active": true,
+          "is_final": false,
+          "final_type": "none",
+          "default_prob": 0.55
+        },
+        {
+          "stage_name": "Согласование договора",
+          "position": 4,
+          "color": "#8B5CF6",
+          "active": true,
+          "is_final": false,
+          "final_type": "none",
+          "default_prob": 0.75
+        },
+        {
+          "stage_name": "Выиграна",
+          "position": 5,
+          "color": "#22C55E",
+          "active": true,
+          "is_final": true,
+          "final_type": "won",
+          "default_prob": 1
+        },
+        {
+          "stage_name": "Проиграна",
+          "position": 6,
+          "color": "#EF4444",
+          "active": true,
+          "is_final": true,
+          "final_type": "lost",
+          "default_prob": 0
+        }
+      ]
+    },
+    {
+      "collection": "settings_roles",
+      "items": [
+        {
+          "role_name": "admin",
+          "can_read_all": true,
+          "can_edit_own": true,
+          "can_edit_all": true,
+          "can_manage_roles": true,
+          "can_configure_fields": true,
+          "perms": {
+            "deals": { "read": true, "create": true, "update": true, "delete": true },
+            "companies": { "read": true, "create": true, "update": true, "delete": true },
+            "import_export": { "read": true, "create": true, "update": true, "delete": true },
+            "admin": { "read": true, "create": true, "update": true, "delete": true }
+          }
+        },
+        {
+          "role_name": "manager",
+          "can_read_all": true,
+          "can_edit_own": true,
+          "can_edit_all": false,
+          "can_manage_roles": false,
+          "can_configure_fields": false,
+          "perms": {
+            "deals": { "read": true, "create": true, "update": true },
+            "companies": { "read": true, "create": true, "update": true },
+            "import_export": { "read": true, "create": true },
+            "admin": { "read": false }
+          }
+        },
+        {
+          "role_name": "viewer",
+          "can_read_all": true,
+          "can_edit_own": false,
+          "can_edit_all": false,
+          "can_manage_roles": false,
+          "can_configure_fields": false,
+          "perms": {
+            "deals": { "read": true },
+            "companies": { "read": true },
+            "import_export": { "read": true },
+            "admin": { "read": false }
+          }
+        }
+      ]
+    },
+    {
+      "collection": "settings_channels",
+      "items": [
+        { "channel_name": "Входящий лид", "active": true },
+        { "channel_name": "Партнёр", "active": true },
+        { "channel_name": "Повторная продажа", "active": true },
+        { "channel_name": "Холодный контакт", "active": true }
+      ]
+    },
+    {
+      "collection": "settings_field_sections",
+      "items": [
+        {
+          "_ref": "sec_company_main",
+          "entity_type": "company",
+          "key": "main",
+          "title": "Дополнительно о компании",
+          "order": 1,
+          "collapsed": false
+        },
+        {
+          "_ref": "sec_company_sources",
+          "entity_type": "company",
+          "key": "sources",
+          "title": "Информация из источников",
+          "order": 2,
+          "collapsed": false
+        },
+        {
+          "_ref": "sec_deal_commercial",
+          "entity_type": "deal",
+          "key": "commercial",
+          "title": "Коммерческий контекст",
+          "order": 1,
+          "collapsed": false
+        }
+      ]
+    },
+    {
+      "collection": "settings_fields",
+      "items": [
+        {
+          "collection": "companies",
+          "entity_type": "company",
+          "section_ref": "sec_company_main",
+          "field_name": "inn",
+          "label": "ИНН",
+          "field_type": "text",
+          "value_type": "text",
+          "visible": true,
+          "required": false,
+          "options": {},
+          "sort_order": 1,
+          "order": 1,
+          "system": false,
+          "help_text": "",
+          "role_visibility": {}
+        },
+        {
+          "collection": "companies",
+          "entity_type": "company",
+          "section_ref": "sec_company_main",
+          "field_name": "industry",
+          "label": "Отрасль",
+          "field_type": "text",
+          "value_type": "text",
+          "visible": true,
+          "required": false,
+          "options": {},
+          "sort_order": 2,
+          "order": 2,
+          "system": false,
+          "help_text": "",
+          "role_visibility": {}
+        },
+        {
+          "collection": "companies",
+          "entity_type": "company",
+          "section_ref": "sec_company_main",
+          "field_name": "segment",
+          "label": "Сегмент",
+          "field_type": "text",
+          "value_type": "text",
+          "visible": true,
+          "required": false,
+          "options": {},
+          "sort_order": 3,
+          "order": 3,
+          "system": false,
+          "help_text": "",
+          "role_visibility": {}
+        },
+        {
+          "collection": "companies",
+          "entity_type": "company",
+          "section_ref": "sec_company_sources",
+          "field_name": "checko_status",
+          "label": "Статус (Checko)",
+          "field_type": "text",
+          "value_type": "text",
+          "visible": true,
+          "required": false,
+          "options": {},
+          "sort_order": 1,
+          "order": 1,
+          "system": false,
+          "help_text": "",
+          "role_visibility": {}
+        },
+        {
+          "collection": "companies",
+          "entity_type": "company",
+          "section_ref": "sec_company_sources",
+          "field_name": "ogrn",
+          "label": "ОГРН",
+          "field_type": "text",
+          "value_type": "text",
+          "visible": true,
+          "required": false,
+          "options": {},
+          "sort_order": 2,
+          "order": 2,
+          "system": false,
+          "help_text": "",
+          "role_visibility": {}
+        },
+        {
+          "collection": "companies",
+          "entity_type": "company",
+          "section_ref": "sec_company_sources",
+          "field_name": "kpp",
+          "label": "КПП",
+          "field_type": "text",
+          "value_type": "text",
+          "visible": true,
+          "required": false,
+          "options": {},
+          "sort_order": 3,
+          "order": 3,
+          "system": false,
+          "help_text": "",
+          "role_visibility": {}
+        },
+        {
+          "collection": "companies",
+          "entity_type": "company",
+          "section_ref": "sec_company_sources",
+          "field_name": "checko_okved",
+          "label": "Основной ОКВЭД",
+          "field_type": "text",
+          "value_type": "text",
+          "visible": true,
+          "required": false,
+          "options": {},
+          "sort_order": 4,
+          "order": 4,
+          "system": false,
+          "help_text": "",
+          "role_visibility": {}
+        },
+        {
+          "collection": "companies",
+          "entity_type": "company",
+          "section_ref": "sec_company_sources",
+          "field_name": "checko_ceo",
+          "label": "Руководитель",
+          "field_type": "text",
+          "value_type": "text",
+          "visible": true,
+          "required": false,
+          "options": {},
+          "sort_order": 5,
+          "order": 5,
+          "system": false,
+          "help_text": "",
+          "role_visibility": {}
+        },
+        {
+          "collection": "companies",
+          "entity_type": "company",
+          "section_ref": "sec_company_sources",
+          "field_name": "checko_address",
+          "label": "Адрес (Checko)",
+          "field_type": "textarea",
+          "value_type": "text",
+          "visible": true,
+          "required": false,
+          "options": {},
+          "sort_order": 6,
+          "order": 6,
+          "system": false,
+          "help_text": "",
+          "role_visibility": {}
+        },
+        {
+          "collection": "companies",
+          "entity_type": "company",
+          "section_ref": "sec_company_sources",
+          "field_name": "checko_updated_at",
+          "label": "Дата обновления источника",
+          "field_type": "date",
+          "value_type": "date",
+          "visible": true,
+          "required": false,
+          "options": {},
+          "sort_order": 7,
+          "order": 7,
+          "system": false,
+          "help_text": "",
+          "role_visibility": {}
+        },
+        {
+          "collection": "companies",
+          "entity_type": "company",
+          "section_ref": "sec_company_sources",
+          "field_name": "checko_raw_json",
+          "label": "Сырой ответ источника (JSON)",
+          "field_type": "textarea",
+          "value_type": "json",
+          "visible": true,
+          "required": false,
+          "options": {},
+          "sort_order": 8,
+          "order": 8,
+          "system": false,
+          "help_text": "",
+          "role_visibility": {}
+        },
+        {
+          "collection": "deals",
+          "entity_type": "deal",
+          "section_ref": "sec_deal_commercial",
+          "field_name": "competitors_note",
+          "label": "Конкуренты / альтернативы",
+          "field_type": "textarea",
+          "value_type": "text",
+          "visible": true,
+          "required": false,
+          "options": {},
+          "sort_order": 1,
+          "order": 1,
+          "system": false,
+          "help_text": "",
+          "role_visibility": {}
+        },
+        {
+          "collection": "deals",
+          "entity_type": "deal",
+          "section_ref": "sec_deal_commercial",
+          "field_name": "calc_note",
+          "label": "Примечание к расчёту",
+          "field_type": "textarea",
+          "value_type": "text",
+          "visible": true,
+          "required": false,
+          "options": {},
+          "sort_order": 2,
+          "order": 2,
+          "system": false,
+          "help_text": "",
+          "role_visibility": {}
+        }
+      ]
+    },
+    {
+      "collection": "settings_contact_parser",
+      "items": [
+        {
+          "enabled": false,
+          "schedule_cron": "0 9 * * *",
+          "sources_policy": "official_only"
+        }
+      ]
+    },
+    {
+      "collection": "settings_media_parser",
+      "items": [
+        {
+          "enabled": false,
+          "schedule_cron": "0 9 * * *",
+          "keywords": { "phrases": [] }
+        }
+      ]
+    },
+    {
+      "collection": "settings_tender_parser",
+      "items": [
+        {
+          "enabled": false,
+          "schedule_cron": "0 9 * * *",
+          "keywords": { "phrases": [] },
+          "platform_tokens": {}
+        }
+      ]
+    },
+    {
+      "collection": "kp_settings",
+      "items": [
+        {
+          "disclaimer": "Коммерческое предложение не является офертой.",
+          "currency": "RUB",
+          "vat_percent": 20,
+          "template_config": {}
+        }
+      ]
+    },
+    {
+      "collection": "semantic_packs",
+      "items": [
+        {
+          "type": "deal",
+          "model": "deal_analysis_prompt",
+          "base_text": "Ты — аналитик B2B-продаж. Проанализируй сделку по переданному JSON-контексту: этап, бюджет, сроки, компания, история активности. Дай краткие выводы: риски, следующий шаг, красные флаги. Пиши на русском, без выдуманных фактов.",
+          "language": "ru",
+          "variants": {}
+        },
+        {
+          "type": "company",
+          "model": "company_research_prompt",
+          "base_text": "Ты — аналитик по компаниям. По переданным данным опиши профиль организации: отрасль (если следует из данных), масштаб, точки контакта для продаж. Не придумывай ИНН, выручку и контакты, если их нет в данных.",
+          "language": "ru",
+          "variants": {}
+        }
+      ]
+    },
+    {
+      "collection": "settings_kp_templates",
+      "items": [
+        {
+          "name": "КП — Стандарт",
+          "is_active": true,
+          "is_default": true,
+          "template_json_file": "default_kp_template.json"
+        }
+      ]
+    }
+  ]
+}

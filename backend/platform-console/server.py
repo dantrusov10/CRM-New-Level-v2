@@ -29,6 +29,8 @@ PUBLIC_AI_ALLOWED_ORIGINS = os.getenv(
 )
 GIGACHAT_INSECURE_TLS = os.getenv("GIGACHAT_INSECURE_TLS", "0")
 AI_GATEWAY_AUDIT_LOG = os.getenv("AI_GATEWAY_AUDIT_LOG", "/opt/pb-control/ai-gateway-audit.jsonl")
+CHECKO_API_KEY = os.getenv("CHECKO_API_KEY", "").strip()
+CHECKO_API_BASE_URL = os.getenv("CHECKO_API_BASE_URL", "https://api.checko.ru/v2").strip().rstrip("/")
 
 SESSIONS = {}
 PUBLIC_AI_RATE_LIMIT = {}
@@ -953,6 +955,211 @@ def _check_rate_limit(user_id):
         return False
     slot.append(now)
     return True
+
+
+def _extract_checko_company_payload(raw):
+    if not isinstance(raw, dict):
+        return {}
+    if isinstance(raw.get("data"), dict):
+        return raw.get("data") or {}
+    for key in ("result", "company", "item"):
+        if isinstance(raw.get(key), dict):
+            return raw.get(key) or {}
+    for key in ("results", "items", "companies"):
+        val = raw.get(key)
+        if isinstance(val, list) and val and isinstance(val[0], dict):
+            return val[0]
+    return raw
+
+
+def _pick_text(obj, keys):
+    if not isinstance(obj, dict):
+        return ""
+    for key in keys:
+        val = obj.get(key)
+        if val is None:
+            continue
+        if isinstance(val, (str, int, float)):
+            text = str(val).strip()
+            if text:
+                return text
+        if isinstance(val, dict):
+            for nested_key in ("name", "full_name", "value", "title"):
+                nested = val.get(nested_key)
+                if nested is None:
+                    continue
+                nested_text = str(nested).strip()
+                if nested_text:
+                    return nested_text
+    return ""
+
+
+def _extract_checko_primary_okved(company_payload):
+    if not isinstance(company_payload, dict):
+        return ""
+    primary = company_payload.get("okved")
+    if isinstance(primary, dict):
+        code = str(primary.get("code", "")).strip()
+        name = str(primary.get("name", "")).strip()
+        if code and name:
+            return f"{code} — {name}"
+        return code or name
+    if isinstance(primary, str):
+        return primary.strip()
+    all_okved = company_payload.get("okveds")
+    if isinstance(all_okved, list) and all_okved:
+        item = all_okved[0]
+        if isinstance(item, dict):
+            code = str(item.get("code", "")).strip()
+            name = str(item.get("name", "")).strip()
+            if code and name:
+                return f"{code} — {name}"
+            return code or name
+    return ""
+
+
+def _build_company_checko_update(company_payload, raw_response):
+    company_name = _pick_text(company_payload, ("short_name", "name", "company_name", "НаимСокрЮЛ", "НаимЮЛПолн"))
+    full_name = _pick_text(company_payload, ("full_name", "name_full", "НаимПолнЮЛ", "legal_name"))
+    status = _pick_text(company_payload, ("status", "state", "Статус"))
+    address = _pick_text(
+        company_payload,
+        (
+            "address",
+            "address_full",
+            "ЮрАдрес",
+            "addr",
+            "legal_address",
+        ),
+    )
+    ceo = _pick_text(
+        company_payload,
+        (
+            "chief_name",
+            "director",
+            "ГенДиректор",
+            "head_name",
+            "ceo_name",
+        ),
+    )
+    ogrn = _pick_text(company_payload, ("ogrn", "ОГРН", "ОГРНИП"))
+    kpp = _pick_text(company_payload, ("kpp", "КПП"))
+    okved = _extract_checko_primary_okved(company_payload)
+
+    return {
+        "checko_source": "checko",
+        "checko_short_name": company_name,
+        "checko_full_name": full_name,
+        "checko_status": status,
+        "checko_address": address,
+        "checko_ceo": ceo,
+        "checko_okved": okved,
+        "checko_updated_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+        "checko_raw_json": raw_response if isinstance(raw_response, dict) else {"raw": raw_response},
+        # Keep core identifiers in canonical fields too.
+        "name": company_name or full_name,
+        "legal_entity": full_name or company_name,
+        "address": address,
+        "ogrn": ogrn,
+        "kpp": kpp,
+    }
+
+
+def run_checko_company_enrichment(payload):
+    tenant_pb_url = str(payload.get("tenant_pb_url", "")).strip().rstrip("/")
+    tenant_user_token = str(payload.get("tenant_user_token", "")).strip()
+    deal_id = str(payload.get("deal_id", "")).strip()
+    company_id = str(payload.get("company_id", "")).strip()
+    inn = re.sub(r"\D+", "", str(payload.get("inn", "") or "")).strip()
+
+    if not CHECKO_API_KEY:
+        return {"ok": False, "error": "checko is not configured on server"}
+    if not tenant_pb_url:
+        return {"ok": False, "error": "tenant_pb_url is required"}
+    if not _validate_tenant_pb_url(tenant_pb_url):
+        return {"ok": False, "error": "tenant_pb_url is not allowed"}
+    if not tenant_user_token:
+        return {"ok": False, "error": "tenant user token is required"}
+    if not _check_rate_limit(tenant_user_token):
+        return {"ok": False, "error": "rate limit exceeded: max 20 requests/min per user"}
+
+    try:
+        tenant_user = _verify_tenant_user(tenant_pb_url, tenant_user_token)
+    except Exception as e:
+        return {"ok": False, "error": f"tenant auth failed: {e}"}
+
+    try:
+        admin_token = _auth_tenant_admin(tenant_pb_url)
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+    deal = None
+    if deal_id:
+        try:
+            _assert_user_can_access_deal(tenant_pb_url, deal_id, tenant_user, admin_token)
+            deal = _tenant_api_get(tenant_pb_url, "deals", deal_id, admin_token, {"expand": "company_id"})
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    effective_company_id = company_id
+    if not effective_company_id and isinstance(deal, dict):
+        effective_company_id = str(deal.get("company_id") or ((deal.get("expand") or {}).get("company_id") or {}).get("id") or "").strip()
+    if not effective_company_id:
+        return {"ok": False, "error": "company_id is required"}
+
+    try:
+        company_record = _tenant_api_get(tenant_pb_url, "companies", effective_company_id, admin_token)
+    except Exception as e:
+        return {"ok": False, "error": f"company lookup failed: {e}"}
+
+    if not inn:
+        inn = re.sub(r"\D+", "", str((company_record or {}).get("inn", "") or "")).strip()
+    if not inn:
+        return {"ok": False, "error": "inn is required"}
+    if len(inn) not in (10, 12):
+        return {"ok": False, "error": "inn must contain 10 or 12 digits"}
+
+    checko_url = f"{CHECKO_API_BASE_URL}/company?{urlencode({'key': CHECKO_API_KEY, 'inn': inn})}"
+    req = Request(
+        url=checko_url,
+        headers={"User-Agent": "NWLVL-CRM/1.0", "Accept": "application/json"},
+        method="GET",
+    )
+    try:
+        with urlopen(req, timeout=30) as r:
+            raw = r.read().decode("utf-8")
+        checko_response = json.loads(raw) if raw else {}
+    except Exception as e:
+        return {"ok": False, "error": f"checko request failed: {e}"}
+
+    company_payload = _extract_checko_company_payload(checko_response)
+    update_data = _build_company_checko_update(company_payload, checko_response)
+    if not str(update_data.get("name", "")).strip():
+        update_data["name"] = str((company_record or {}).get("name", "")).strip() or f"Компания {inn}"
+    update_data["inn"] = inn
+
+    try:
+        saved_company = _tenant_api_update(tenant_pb_url, "companies", effective_company_id, update_data, admin_token)
+    except Exception as e:
+        return {"ok": False, "error": f"failed to save company enrichment: {e}"}
+
+    _audit_log(
+        "checko_enrichment_success",
+        {
+            "tenant_pb_url": tenant_pb_url,
+            "deal_id": deal_id,
+            "company_id": effective_company_id,
+            "inn": inn,
+        },
+    )
+    return {
+        "ok": True,
+        "company_id": effective_company_id,
+        "deal_id": deal_id,
+        "inn": inn,
+        "company": saved_company if isinstance(saved_company, dict) else {},
+        "source": "checko",
+    }
 
 
 def _check_login_rate(identity):
@@ -3942,6 +4149,17 @@ class Handler(BaseHTTPRequestHandler):
                         },
                     )
                     result = {"ok": False, "error": f"internal gateway error: {e}"}
+                self._send(
+                    200 if result.get("ok") else 400,
+                    json.dumps(result, ensure_ascii=False),
+                    "application/json; charset=utf-8",
+                    headers=self._public_headers(origin),
+                )
+                return
+            if path == "/api/public/enrichment/checko/company-by-inn":
+                origin = self.headers.get("Origin", "")
+                payload["tenant_user_token"] = self.headers.get("Authorization", "")
+                result = run_checko_company_enrichment(payload if isinstance(payload, dict) else {})
                 self._send(
                     200 if result.get("ok") else 400,
                     json.dumps(result, ensure_ascii=False),

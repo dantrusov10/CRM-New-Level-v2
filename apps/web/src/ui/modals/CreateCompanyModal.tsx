@@ -5,6 +5,7 @@ import { Button } from "../components/Button";
 import { pb, getAuthUser } from "../../lib/pb";
 import { useNavigate } from "react-router-dom";
 import { notifyPbError } from "../../lib/pbError";
+import { enrichCompanyByInnWithChecko } from "../../lib/aiGateway";
 
 export function CreateCompanyModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [name, setName] = React.useState("");
@@ -34,6 +35,13 @@ export function CreateCompanyModal({ open, onClose }: { open: boolean; onClose: 
       const uid = getAuthUser()?.id;
       if (uid) data.responsible_id = uid;
       const rec = await pb.collection("companies").create(data);
+      const cleanInn = inn.replace(/[^\d]/g, "");
+      if (cleanInn) {
+        await enrichCompanyByInnWithChecko({
+          companyId: String(rec.id || ""),
+          inn: cleanInn,
+        }).catch(() => null);
+      }
       onClose();
       nav(`/companies/${rec.id}`);
     } catch (e) {

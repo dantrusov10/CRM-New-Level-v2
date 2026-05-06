@@ -11,7 +11,7 @@ type AnalyzePayload = {
 };
 
 type CheckoEnrichmentPayload = {
-  dealId: string;
+  dealId?: string;
   companyId?: string;
   inn?: string;
 };
@@ -135,7 +135,7 @@ export async function enrichCompanyByInnWithChecko(payload: CheckoEnrichmentPayl
       Authorization: tenantUserToken,
     },
     body: JSON.stringify({
-      deal_id: payload.dealId,
+      deal_id: payload.dealId || "",
       company_id: payload.companyId || "",
       inn: payload.inn || "",
       tenant_pb_url: resolveTenantPbUrl(),

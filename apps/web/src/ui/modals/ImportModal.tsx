@@ -6,6 +6,7 @@ import { Input } from "../components/Input";
 import { parseTabularFile, downloadCsv, downloadXlsx, guessMapping } from "../../lib/importExport";
 import { pb } from "../../lib/pb";
 import { useAuth } from "../../app/AuthProvider";
+import { enrichCompanyByInnWithChecko } from "../../lib/aiGateway";
 
 type EntityType = "deal" | "company" | "bundle";
 
@@ -427,6 +428,7 @@ export function ImportModal({
     const companyByInn = new Map<string, string>();
     const companyByName = new Map<string, string>();
     const salesChannelByKey = new Map<string, string>();
+    const enrichedCompanyInn = new Set<string>();
 
 
     // Active deal fields (for dynamic import + template parity)
@@ -465,6 +467,13 @@ export function ImportModal({
       if (!col) return "";
       return r[col];
     };
+
+    async function enrichCompanyIfPossible(companyId: string, innRaw: string) {
+      const inn = String(innRaw || "").replace(/[^\d]/g, "");
+      if (!companyId || !inn || enrichedCompanyInn.has(`${companyId}:${inn}`)) return;
+      enrichedCompanyInn.add(`${companyId}:${inn}`);
+      await enrichCompanyByInnWithChecko({ companyId, inn }).catch(() => null);
+    }
 
     async function resolveStageId(stageName: string): Promise<string | ""> {
       const s = (stageName || "").toString().trim();
@@ -556,6 +565,7 @@ export function ImportModal({
         inn: i || undefined,
         responsible_id: user?.id || undefined,
       });
+      await enrichCompanyIfPossible(created.id, i);
       if (i) companyByInn.set(i, created.id);
       if (n) companyByName.set(n, created.id);
       return created.id;
@@ -584,7 +594,11 @@ export function ImportModal({
             responsible_id: user?.id || undefined,
           };
           if (id) await pb.collection("companies").update(id, payload);
-          else await pb.collection("companies").create(payload);
+          else {
+            const created = await pb.collection("companies").create(payload);
+            await enrichCompanyIfPossible(String(created.id || ""), String(payload.inn || ""));
+          }
+          if (id) await enrichCompanyIfPossible(id, String(payload.inn || ""));
         
         } else if (entity === "bundle") {
           // Bundle import: 1 row = 1 company + 1 deal + 0..3 contacts (all linked)
@@ -655,9 +669,11 @@ export function ImportModal({
           }
           if (companyId) {
             await pb.collection("companies").update(companyId, companyPayload);
+            await enrichCompanyIfPossible(companyId, companyInn);
           } else {
             const created = await pb.collection("companies").create(companyPayload);
             companyId = created.id;
+            await enrichCompanyIfPossible(companyId, companyInn);
           }
           if (companyInn) companyByInn.set(companyInn, companyId);
           if (companyName) companyByName.set(companyName, companyId);

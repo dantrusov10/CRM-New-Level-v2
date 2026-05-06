@@ -90,6 +90,23 @@ function toStringList(value: unknown): string[] {
   return [];
 }
 
+function asObject(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function countCheckoRecords(value: unknown): number {
+  if (!value) return 0;
+  if (Array.isArray(value)) return value.length;
+  const obj = asObject(value);
+  if (!obj) return 0;
+  const records = obj.records;
+  if (Array.isArray(records)) return records.length;
+  const data = asObject(obj.data);
+  if (data && Array.isArray(data["Записи"])) return (data["Записи"] as unknown[]).length;
+  return 0;
+}
+
 function InlineMdBold({ text }: { text: string }) {
   const parts = String(text || "").split(/(\*\*[^*]+\*\*)/g);
   return (
@@ -1546,6 +1563,18 @@ export function DealDetailPage() {
     }
   }
 
+  const companyRaw = asObject(deal?.expand?.company_id?.checko_raw_json);
+  const checkoDatasets = asObject(companyRaw?.datasets);
+  const checkoContracts = asObject(checkoDatasets?.contracts);
+  const checkoContractGroups = asObject(checkoContracts?.groups);
+  const contractsGroupCount = checkoContractGroups ? Object.keys(checkoContractGroups).length : 0;
+  const legalCasesCount = countCheckoRecords(checkoDatasets?.legal_cases);
+  const enforcementsCount = countCheckoRecords(checkoDatasets?.enforcements);
+  const inspectionsCount = countCheckoRecords(checkoDatasets?.inspections);
+  const timelineCount = countCheckoRecords(checkoDatasets?.timeline);
+  const checkoDatasetErrors = asObject(companyRaw?.dataset_errors);
+  const checkoDatasetErrorCount = checkoDatasetErrors ? Object.keys(checkoDatasetErrors).length : 0;
+
 
   async function changeResponsible(nextUserId: string) {
     if (!id || !nextUserId) return;
@@ -2373,6 +2402,9 @@ export function DealDetailPage() {
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Руководство / Учредители</div><div className="text-sm">{Array.isArray(deal?.expand?.company_id?.checko_management_json) ? String((deal?.expand?.company_id?.checko_management_json as unknown[]).length) : "0"} / {deal?.expand?.company_id?.checko_founders_json && typeof deal?.expand?.company_id?.checko_founders_json === "object" ? "есть" : "—"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Лицензии / Финансы / Налоги</div><div className="text-sm">{Array.isArray(deal?.expand?.company_id?.checko_licenses_json) ? String((deal?.expand?.company_id?.checko_licenses_json as unknown[]).length) : "0"} / {deal?.expand?.company_id?.checko_finance_json && typeof deal?.expand?.company_id?.checko_finance_json === "object" ? "есть" : "—"} / {deal?.expand?.company_id?.checko_taxes_json && typeof deal?.expand?.company_id?.checko_taxes_json === "object" ? "есть" : "—"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Риски</div><div className="text-sm">{deal?.expand?.company_id?.checko_risk_flags_json && typeof deal?.expand?.company_id?.checko_risk_flags_json === "object" ? "есть" : "—"}</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Арбитраж / ИП / Проверки / История</div><div className="text-sm">{legalCasesCount} / {enforcementsCount} / {inspectionsCount} / {timelineCount}</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Госконтракты (групп)</div><div className="text-sm">{contractsGroupCount || "0"}</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Ошибки источников</div><div className="text-sm">{checkoDatasetErrorCount ? `есть (${checkoDatasetErrorCount})` : "нет"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Дата выписки / регистрации / ОГРН</div><div className="text-sm">{deal?.expand?.company_id?.checko_snapshot_date || "—"} / {deal?.expand?.company_id?.checko_registration_date || "—"} / {deal?.expand?.company_id?.checko_ogrn_date || "—"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
                         <div className="text-[11px] text-text2">Обновлено</div>

@@ -972,6 +972,71 @@ def _extract_checko_company_payload(raw):
     return raw
 
 
+def _checko_request(endpoint, params=None, timeout=30):
+    query = {"key": CHECKO_API_KEY}
+    if isinstance(params, dict):
+        for key, val in params.items():
+            if val is None:
+                continue
+            text = str(val).strip()
+            if not text:
+                continue
+            query[key] = text
+    req = Request(
+        url=f"{CHECKO_API_BASE_URL}/{endpoint}?{urlencode(query)}",
+        headers={"User-Agent": "NWLVL-CRM/1.0", "Accept": "application/json"},
+        method="GET",
+    )
+    with urlopen(req, timeout=timeout) as r:
+        raw = r.read().decode("utf-8")
+    return json.loads(raw) if raw else {}
+
+
+def _extract_checko_records(raw):
+    if not isinstance(raw, dict):
+        return []
+    data = raw.get("data")
+    if isinstance(data, dict):
+        records = data.get("Записи")
+        if isinstance(records, list):
+            return records
+    if isinstance(data, list):
+        return data
+    return []
+
+
+def _checko_request_paginated(endpoint, base_params=None, max_pages=3):
+    merged = {"records": [], "pages": []}
+    pages_total = 1
+    for page in range(1, max_pages + 1):
+        params = dict(base_params or {})
+        params["page"] = page
+        raw = _checko_request(endpoint, params=params, timeout=30)
+        records = _extract_checko_records(raw)
+        merged["pages"].append(
+            {
+                "page": page,
+                "records_count": len(records),
+                "meta": raw.get("meta") if isinstance(raw, dict) else {},
+            }
+        )
+        if records:
+            merged["records"].extend(records)
+        if isinstance(raw, dict):
+            data = raw.get("data")
+            if isinstance(data, dict):
+                pages_total_raw = data.get("СтрВсего")
+                try:
+                    pages_total = int(pages_total_raw)
+                except Exception:
+                    pages_total = 1
+        if page >= pages_total:
+            break
+    merged["pages_total"] = pages_total
+    merged["records_total"] = len(merged["records"])
+    return merged
+
+
 def _pick_text(obj, keys):
     if not isinstance(obj, dict):
         return ""
@@ -1034,7 +1099,7 @@ def _extract_checko_primary_okved(company_payload):
     return ""
 
 
-def _build_company_checko_update(company_payload, raw_response):
+def _build_company_checko_update(company_payload, raw_response, datasets=None):
     company_name = _pick_text(company_payload, ("short_name", "name", "company_name", "НаимСокр", "НаимСокрЮЛ"))
     full_name = _pick_text(company_payload, ("full_name", "name_full", "НаимПолн", "НаимПолнЮЛ", "legal_name"))
     status = _pick_text(company_payload, ("status", "state", "Статус"))
@@ -1090,6 +1155,15 @@ def _build_company_checko_update(company_payload, raw_response):
     finance = company_payload.get("Финансы") if isinstance(company_payload.get("Финансы"), dict) else {}
     legal_cases = company_payload.get("Арбитраж") if isinstance(company_payload.get("Арбитраж"), (list, dict)) else []
     contracts = company_payload.get("Госконтракты") if isinstance(company_payload.get("Госконтракты"), (list, dict)) else []
+    datasets = datasets if isinstance(datasets, dict) else {}
+    if isinstance(datasets.get("finances"), dict):
+        fd = datasets.get("finances")
+        if isinstance(fd.get("data"), dict):
+            finance = fd.get("data")
+    if isinstance(datasets.get("legal_cases"), dict):
+        legal_cases = datasets["legal_cases"].get("records") or legal_cases
+    if isinstance(datasets.get("contracts"), dict):
+        contracts = datasets["contracts"]
     risk_flags = {
         "mass_head": bool(company_payload.get("МассРуковод", False)),
         "mass_founder": bool(company_payload.get("МассУчред", False)),
@@ -1193,21 +1267,67 @@ def run_checko_company_enrichment(payload):
     if len(inn) not in (10, 12):
         return {"ok": False, "error": "inn must contain 10 or 12 digits"}
 
-    checko_url = f"{CHECKO_API_BASE_URL}/company?{urlencode({'key': CHECKO_API_KEY, 'inn': inn})}"
-    req = Request(
-        url=checko_url,
-        headers={"User-Agent": "NWLVL-CRM/1.0", "Accept": "application/json"},
-        method="GET",
-    )
     try:
-        with urlopen(req, timeout=30) as r:
-            raw = r.read().decode("utf-8")
-        checko_response = json.loads(raw) if raw else {}
+        checko_response = _checko_request("company", params={"inn": inn}, timeout=30)
     except Exception as e:
         return {"ok": False, "error": f"checko request failed: {e}"}
 
     company_payload = _extract_checko_company_payload(checko_response)
-    update_data = _build_company_checko_update(company_payload, checko_response)
+    ogrn_from_company = _pick_text(company_payload, ("ogrn", "ОГРН", "ОГРНИП"))
+
+    datasets = {}
+    dataset_errors = {}
+
+    def _safe_fetch(name, fn):
+        try:
+            datasets[name] = fn()
+        except Exception as e:
+            dataset_errors[name] = str(e)
+
+    _safe_fetch("finances", lambda: _checko_request("finances", params={"inn": inn, "ogrn": ogrn_from_company, "extended": "true"}, timeout=30))
+    _safe_fetch("legal_cases", lambda: _checko_request_paginated("legal-cases", base_params={"inn": inn, "ogrn": ogrn_from_company, "limit": 100}, max_pages=5))
+    _safe_fetch("enforcements", lambda: _checko_request_paginated("enforcements", base_params={"inn": inn, "ogrn": ogrn_from_company, "limit": 100, "sort": "-date"}, max_pages=5))
+    _safe_fetch("timeline", lambda: _checko_request("timeline", params={"inn": inn, "ogrn": ogrn_from_company}, timeout=30))
+    _safe_fetch("inspections", lambda: _checko_request_paginated("inspections", base_params={"inn": inn, "ogrn": ogrn_from_company, "limit": 100}, max_pages=5))
+
+    contracts_bundle = {"groups": {}, "records_total": 0}
+    for law in ("44", "94", "223"):
+        for role in ("customer", "supplier"):
+            key = f"law_{law}_{role}"
+            try:
+                grp = _checko_request_paginated(
+                    "contracts",
+                    base_params={"inn": inn, "ogrn": ogrn_from_company, "law": law, "role": role, "limit": 100, "sort": "-date"},
+                    max_pages=5,
+                )
+                contracts_bundle["groups"][key] = grp
+                contracts_bundle["records_total"] += int(grp.get("records_total", 0))
+            except Exception as e:
+                dataset_errors[f"contracts_{key}"] = str(e)
+    datasets["contracts"] = contracts_bundle
+
+    full_raw = {
+        "source": "checko",
+        "requested_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+        "api_base_url": CHECKO_API_BASE_URL,
+        "identifiers": {"inn": inn, "ogrn": ogrn_from_company},
+        "datasets": {"company": checko_response, **datasets},
+        "dataset_errors": dataset_errors,
+        "field_mapping": {
+            "НаимСокр|name|short_name": "checko_short_name",
+            "НаимПолн|full_name|name_full": "checko_full_name",
+            "Статус|status|state": "checko_status",
+            "ЮрАдрес|address|address_full": "checko_address",
+            "Руковод|ГенДиректор|chief_name": "checko_ceo",
+            "ОКВЭД|okved": "checko_okved",
+            "Регион": "checko_region",
+            "ОКОПФ|ОКФС|ОКОГУ|ОКПО|ОКАТО|ОКТМО": "checko_okopf/checko_okfs/checko_okogu/checko_okpo/checko_okato/checko_oktmo",
+            "Контакты.Тел|Контакты.Емэйл|Контакты.ВебСайт": "checko_contacts_phones/checko_contacts_emails/checko_site",
+            "Руковод|Учред|Лиценз|Финансы|Налоги|Арбитраж|Госконтракты": "checko_management_json/checko_founders_json/checko_licenses_json/checko_finance_json/checko_taxes_json/checko_legal_cases_json/checko_contracts_json",
+        },
+    }
+
+    update_data = _build_company_checko_update(company_payload, full_raw, datasets=datasets)
     if not str(update_data.get("name", "")).strip():
         update_data["name"] = str((company_record or {}).get("name", "")).strip() or f"Компания {inn}"
     update_data["inn"] = inn
@@ -1224,6 +1344,8 @@ def run_checko_company_enrichment(payload):
             "deal_id": deal_id,
             "company_id": effective_company_id,
             "inn": inn,
+            "datasets": list(datasets.keys()),
+            "dataset_errors": dataset_errors,
         },
     )
     return {

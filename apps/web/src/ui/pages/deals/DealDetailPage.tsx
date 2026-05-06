@@ -1841,6 +1841,20 @@ export function DealDetailPage() {
   const contracts3mRows = rowsByMonths(3);
   const contracts6mRows = rowsByMonths(6);
   const contracts12mRows = rowsByMonths(12);
+  const splitRows = (rows: Array<{ item: Record<string, unknown>; groupKey: string }>) => {
+    const purchase = rows.filter((x) => x.groupKey.includes("_customer"));
+    const sales = rows.filter((x) => x.groupKey.includes("_supplier"));
+    return {
+      purchaseCount: purchase.length,
+      purchaseAmount: sumContracts(purchase),
+      salesCount: sales.length,
+      salesAmount: sumContracts(sales),
+    };
+  };
+  const contracts1mSplit = splitRows(contracts1mRows);
+  const contracts3mSplit = splitRows(contracts3mRows);
+  const contracts6mSplit = splitRows(contracts6mRows);
+  const contracts12mSplit = splitRows(contracts12mRows);
   const contractsTotalAmount = sumContracts(contractRowsFiltered);
   const contractsPurchaseCount = contractRowsFiltered.filter((x) => x.groupKey.includes("_customer")).length;
   const contractsSalesCount = contractRowsFiltered.filter((x) => x.groupKey.includes("_supplier")).length;
@@ -2660,10 +2674,10 @@ export function DealDetailPage() {
                       <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                         <div className="text-[11px] text-text2">Сводка по контрактам (кол-во / сумма)</div>
                         <div className="text-[11px] text-text2">Закупки: {contractsPurchaseCount} · Продажи: {contractsSalesCount}</div>
-                        <div className="text-xs text-text">За месяц: {contracts1mRows.length} / {formatMoneyRu(sumContracts(contracts1mRows))}</div>
-                        <div className="text-xs text-text">За квартал: {contracts3mRows.length} / {formatMoneyRu(sumContracts(contracts3mRows))}</div>
-                        <div className="text-xs text-text">За полгода: {contracts6mRows.length} / {formatMoneyRu(sumContracts(contracts6mRows))}</div>
-                        <div className="text-xs text-text">За год: {contracts12mRows.length} / {formatMoneyRu(sumContracts(contracts12mRows))}</div>
+                        <div className="text-xs text-text">За месяц: {contracts1mRows.length} / {formatMoneyRu(sumContracts(contracts1mRows))} (покупки {contracts1mSplit.purchaseCount} / {formatMoneyRu(contracts1mSplit.purchaseAmount)}, продажи {contracts1mSplit.salesCount} / {formatMoneyRu(contracts1mSplit.salesAmount)})</div>
+                        <div className="text-xs text-text">За квартал: {contracts3mRows.length} / {formatMoneyRu(sumContracts(contracts3mRows))} (покупки {contracts3mSplit.purchaseCount} / {formatMoneyRu(contracts3mSplit.purchaseAmount)}, продажи {contracts3mSplit.salesCount} / {formatMoneyRu(contracts3mSplit.salesAmount)})</div>
+                        <div className="text-xs text-text">За полгода: {contracts6mRows.length} / {formatMoneyRu(sumContracts(contracts6mRows))} (покупки {contracts6mSplit.purchaseCount} / {formatMoneyRu(contracts6mSplit.purchaseAmount)}, продажи {contracts6mSplit.salesCount} / {formatMoneyRu(contracts6mSplit.salesAmount)})</div>
+                        <div className="text-xs text-text">За год: {contracts12mRows.length} / {formatMoneyRu(sumContracts(contracts12mRows))} (покупки {contracts12mSplit.purchaseCount} / {formatMoneyRu(contracts12mSplit.purchaseAmount)}, продажи {contracts12mSplit.salesCount} / {formatMoneyRu(contracts12mSplit.salesAmount)})</div>
                         <div className="text-xs text-text md:col-span-2">Всего доступно: {contractRowsFiltered.length} / {formatMoneyRu(contractsTotalAmount)}</div>
                       </div>
                     </div>

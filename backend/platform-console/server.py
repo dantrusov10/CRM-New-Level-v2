@@ -1083,11 +1083,15 @@ def _fit_checko_payloads_for_pb(update_data):
     json_fields = (
         "checko_legal_cases_json",
         "checko_contracts_json",
+        "checko_search_json",
+        "checko_persons_json",
         "checko_raw_json",
     )
     limits = {
         "checko_legal_cases_json": 1_800_000,
         "checko_contracts_json": 1_800_000,
+        "checko_search_json": 1_800_000,
+        "checko_persons_json": 1_800_000,
         "checko_raw_json": 1_800_000,
     }
     for field in json_fields:
@@ -1332,6 +1336,8 @@ def _build_company_checko_update(company_payload, raw_response, datasets=None):
     finance = company_payload.get("Финансы") if isinstance(company_payload.get("Финансы"), dict) else {}
     legal_cases = company_payload.get("Арбитраж") if isinstance(company_payload.get("Арбитраж"), (list, dict)) else []
     contracts = company_payload.get("Госконтракты") if isinstance(company_payload.get("Госконтракты"), (list, dict)) else []
+    search_results = {}
+    persons_results = {}
     datasets = datasets if isinstance(datasets, dict) else {}
     if isinstance(datasets.get("finances"), dict):
         fd = datasets.get("finances")
@@ -1341,6 +1347,10 @@ def _build_company_checko_update(company_payload, raw_response, datasets=None):
         legal_cases = datasets["legal_cases"].get("records") or legal_cases
     if isinstance(datasets.get("contracts"), dict):
         contracts = datasets["contracts"]
+    if isinstance(datasets.get("search"), dict):
+        search_results = datasets.get("search") or {}
+    if isinstance(datasets.get("persons"), dict):
+        persons_results = datasets.get("persons") or {}
     risk_flags = {
         "mass_head": bool(company_payload.get("МассРуковод", False)),
         "mass_founder": bool(company_payload.get("МассУчред", False)),
@@ -1379,6 +1389,8 @@ def _build_company_checko_update(company_payload, raw_response, datasets=None):
         "checko_taxes_json": taxes,
         "checko_legal_cases_json": legal_cases,
         "checko_contracts_json": contracts,
+        "checko_search_json": search_results,
+        "checko_persons_json": persons_results,
         "checko_risk_flags_json": risk_flags,
         "checko_raw_json": raw_response if isinstance(raw_response, dict) else {"raw": raw_response},
         # Keep core identifiers in canonical fields too.
@@ -1528,6 +1540,10 @@ def run_checko_company_enrichment(payload):
     if not str(update_data.get("name", "")).strip():
         update_data["name"] = str((company_record or {}).get("name", "")).strip() or f"Компания {inn}"
     update_data["inn"] = inn
+    known_company_fields = set((company_record or {}).keys()) if isinstance(company_record, dict) else set()
+    for optional_json_field in ("checko_search_json", "checko_persons_json"):
+        if optional_json_field not in known_company_fields:
+            update_data.pop(optional_json_field, None)
     update_data = _fit_checko_payloads_for_pb(update_data)
     if _json_size_bytes(update_data.get("checko_raw_json")) > 1_800_000:
         compact_raw = _compact_checko_raw_for_storage(update_data.get("checko_raw_json"), sample=30)

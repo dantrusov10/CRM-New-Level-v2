@@ -1581,6 +1581,8 @@ export function DealDetailPage() {
 
   const companyRaw = asObject(deal?.expand?.company_id?.checko_raw_json);
   const checkoDatasets = asObject(companyRaw?.datasets);
+  const checkoSearchSource = deal?.expand?.company_id?.checko_search_json ?? checkoDatasets?.search;
+  const checkoPersonsSource = deal?.expand?.company_id?.checko_persons_json ?? checkoDatasets?.persons;
   const checkoContracts = asObject(checkoDatasets?.contracts);
   const checkoContractGroups = asObject(checkoContracts?.groups);
   const contractsGroupCount = checkoContractGroups ? Object.keys(checkoContractGroups).length : 0;
@@ -1588,16 +1590,16 @@ export function DealDetailPage() {
   const enforcementsCount = countCheckoRecords(checkoDatasets?.enforcements);
   const inspectionsCount = countCheckoRecords(checkoDatasets?.inspections);
   const timelineCount = countCheckoRecords(checkoDatasets?.timeline);
-  const searchCount = countCheckoRecords(checkoDatasets?.search);
-  const personsCount = countCheckoRecords(checkoDatasets?.persons);
+  const searchCount = countCheckoRecords(checkoSearchSource);
+  const personsCount = countCheckoRecords(checkoPersonsSource);
   const checkoDatasetErrors = asObject(companyRaw?.dataset_errors);
   const checkoDatasetErrorCount = checkoDatasetErrors ? Object.keys(checkoDatasetErrors).length : 0;
   const legalCaseItems = toCheckoRecords(checkoDatasets?.legal_cases).slice(0, 10);
   const enforcementItems = toCheckoRecords(checkoDatasets?.enforcements).slice(0, 10);
   const inspectionItems = toCheckoRecords(checkoDatasets?.inspections).slice(0, 10);
   const timelineItems = toCheckoRecords(checkoDatasets?.timeline).slice(0, 10);
-  const searchItems = toCheckoRecords(checkoDatasets?.search).slice(0, 10);
-  const personItems = toCheckoRecords(checkoDatasets?.persons).slice(0, 10);
+  const searchItems = toCheckoRecords(checkoSearchSource).slice(0, 10);
+  const personItems = toCheckoRecords(checkoPersonsSource).slice(0, 10);
   const contractItems = checkoContractGroups
     ? Object.values(checkoContractGroups).flatMap((group) => toCheckoRecords(group)).slice(0, 20)
     : [];

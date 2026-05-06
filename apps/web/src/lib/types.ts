@@ -43,6 +43,8 @@ export type Company = {
   checko_taxes_json?: unknown;
   checko_legal_cases_json?: unknown;
   checko_contracts_json?: unknown;
+  checko_search_json?: unknown;
+  checko_persons_json?: unknown;
   checko_risk_flags_json?: unknown;
   checko_raw_json?: Record<string, unknown> | null;
   responsible_id?: Id; // users

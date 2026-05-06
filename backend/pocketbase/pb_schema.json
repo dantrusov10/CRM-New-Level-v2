@@ -747,6 +747,30 @@
       },
       {
         "system": false,
+        "id": "chkosrchjson01",
+        "name": "checko_search_json",
+        "type": "json",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 2000000
+        }
+      },
+      {
+        "system": false,
+        "id": "chkopersjson01",
+        "name": "checko_persons_json",
+        "type": "json",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 2000000
+        }
+      },
+      {
+        "system": false,
         "id": "chkoriskjson001",
         "name": "checko_risk_flags_json",
         "type": "json",

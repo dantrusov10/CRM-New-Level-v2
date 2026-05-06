@@ -994,10 +994,26 @@ def _pick_text(obj, keys):
     return ""
 
 
+def _pick_nested_text(obj, key, nested_keys):
+    if not isinstance(obj, dict):
+        return ""
+    val = obj.get(key)
+    if not isinstance(val, dict):
+        return ""
+    for nested_key in nested_keys:
+        nested = val.get(nested_key)
+        if nested is None:
+            continue
+        text = str(nested).strip()
+        if text:
+            return text
+    return ""
+
+
 def _extract_checko_primary_okved(company_payload):
     if not isinstance(company_payload, dict):
         return ""
-    primary = company_payload.get("okved")
+    primary = company_payload.get("okved") or company_payload.get("ОКВЭД")
     if isinstance(primary, dict):
         code = str(primary.get("code", "")).strip()
         name = str(primary.get("name", "")).strip()
@@ -1006,7 +1022,7 @@ def _extract_checko_primary_okved(company_payload):
         return code or name
     if isinstance(primary, str):
         return primary.strip()
-    all_okved = company_payload.get("okveds")
+    all_okved = company_payload.get("okveds") or company_payload.get("ОКВЭДДоп")
     if isinstance(all_okved, list) and all_okved:
         item = all_okved[0]
         if isinstance(item, dict):
@@ -1019,9 +1035,11 @@ def _extract_checko_primary_okved(company_payload):
 
 
 def _build_company_checko_update(company_payload, raw_response):
-    company_name = _pick_text(company_payload, ("short_name", "name", "company_name", "НаимСокрЮЛ", "НаимЮЛПолн"))
-    full_name = _pick_text(company_payload, ("full_name", "name_full", "НаимПолнЮЛ", "legal_name"))
+    company_name = _pick_text(company_payload, ("short_name", "name", "company_name", "НаимСокр", "НаимСокрЮЛ"))
+    full_name = _pick_text(company_payload, ("full_name", "name_full", "НаимПолн", "НаимПолнЮЛ", "legal_name"))
     status = _pick_text(company_payload, ("status", "state", "Статус"))
+    if not status:
+        status = _pick_nested_text(company_payload, "Статус", ("Наим", "name", "status"))
     address = _pick_text(
         company_payload,
         (
@@ -1032,6 +1050,8 @@ def _build_company_checko_update(company_payload, raw_response):
             "legal_address",
         ),
     )
+    if not address and isinstance(company_payload.get("ЮрАдрес"), dict):
+        address = _pick_nested_text(company_payload, "ЮрАдрес", ("АдресРФ", "НасПункт", "Адрес"))
     ceo = _pick_text(
         company_payload,
         (
@@ -1042,6 +1062,10 @@ def _build_company_checko_update(company_payload, raw_response):
             "ceo_name",
         ),
     )
+    if not ceo:
+        leaders = company_payload.get("Руковод")
+        if isinstance(leaders, list) and leaders and isinstance(leaders[0], dict):
+            ceo = _pick_text(leaders[0], ("ФИО", "full_name", "name"))
     ogrn = _pick_text(company_payload, ("ogrn", "ОГРН", "ОГРНИП"))
     kpp = _pick_text(company_payload, ("kpp", "КПП"))
     okved = _extract_checko_primary_okved(company_payload)

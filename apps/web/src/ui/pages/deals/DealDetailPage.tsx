@@ -104,6 +104,7 @@ function countCheckoRecords(value: unknown): number {
   if (Array.isArray(records)) return records.length;
   const data = asObject(obj.data);
   if (data && Array.isArray(data["Записи"])) return (data["Записи"] as unknown[]).length;
+  if (Array.isArray(obj.data)) return obj.data.length;
   return 0;
 }
 
@@ -118,6 +119,7 @@ function toCheckoRecords(value: unknown): Record<string, unknown>[] {
     const ds = data["Записи"];
     if (Array.isArray(ds)) return ds.filter((x) => x && typeof x === "object" && !Array.isArray(x)) as Record<string, unknown>[];
   }
+  if (Array.isArray(obj.data)) return obj.data.filter((x) => x && typeof x === "object" && !Array.isArray(x)) as Record<string, unknown>[];
   return [];
 }
 
@@ -1586,12 +1588,16 @@ export function DealDetailPage() {
   const enforcementsCount = countCheckoRecords(checkoDatasets?.enforcements);
   const inspectionsCount = countCheckoRecords(checkoDatasets?.inspections);
   const timelineCount = countCheckoRecords(checkoDatasets?.timeline);
+  const searchCount = countCheckoRecords(checkoDatasets?.search);
+  const personsCount = countCheckoRecords(checkoDatasets?.persons);
   const checkoDatasetErrors = asObject(companyRaw?.dataset_errors);
   const checkoDatasetErrorCount = checkoDatasetErrors ? Object.keys(checkoDatasetErrors).length : 0;
   const legalCaseItems = toCheckoRecords(checkoDatasets?.legal_cases).slice(0, 10);
   const enforcementItems = toCheckoRecords(checkoDatasets?.enforcements).slice(0, 10);
   const inspectionItems = toCheckoRecords(checkoDatasets?.inspections).slice(0, 10);
   const timelineItems = toCheckoRecords(checkoDatasets?.timeline).slice(0, 10);
+  const searchItems = toCheckoRecords(checkoDatasets?.search).slice(0, 10);
+  const personItems = toCheckoRecords(checkoDatasets?.persons).slice(0, 10);
   const contractItems = checkoContractGroups
     ? Object.values(checkoContractGroups).flatMap((group) => toCheckoRecords(group)).slice(0, 20)
     : [];
@@ -2424,6 +2430,7 @@ export function DealDetailPage() {
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Лицензии / Финансы / Налоги</div><div className="text-sm">{Array.isArray(deal?.expand?.company_id?.checko_licenses_json) ? String((deal?.expand?.company_id?.checko_licenses_json as unknown[]).length) : "0"} / {deal?.expand?.company_id?.checko_finance_json && typeof deal?.expand?.company_id?.checko_finance_json === "object" ? "есть" : "—"} / {deal?.expand?.company_id?.checko_taxes_json && typeof deal?.expand?.company_id?.checko_taxes_json === "object" ? "есть" : "—"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Риски</div><div className="text-sm">{deal?.expand?.company_id?.checko_risk_flags_json && typeof deal?.expand?.company_id?.checko_risk_flags_json === "object" ? "есть" : "—"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Арбитраж / ИП / Проверки / История</div><div className="text-sm">{legalCasesCount} / {enforcementsCount} / {inspectionsCount} / {timelineCount}</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Search / Физлица</div><div className="text-sm">{searchCount} / {personsCount}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Госконтракты (групп)</div><div className="text-sm">{contractsGroupCount || "0"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Ошибки источников</div><div className="text-sm">{checkoDatasetErrorCount ? `есть (${checkoDatasetErrorCount})` : "нет"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Дата выписки / регистрации / ОГРН</div><div className="text-sm">{deal?.expand?.company_id?.checko_snapshot_date || "—"} / {deal?.expand?.company_id?.checko_registration_date || "—"} / {deal?.expand?.company_id?.checko_ogrn_date || "—"}</div></div>
@@ -2460,6 +2467,22 @@ export function DealDetailPage() {
                         <div className="mt-2 grid gap-2">
                           {timelineItems.length ? timelineItems.map((item, idx) => (
                             <pre key={`tl-${idx}`} className="overflow-auto rounded bg-[rgba(0,0,0,0.25)] p-2 text-[11px] text-text2">{JSON.stringify(item, null, 2)}</pre>
+                          )) : <div className="text-xs text-text2">Нет данных</div>}
+                        </div>
+                      </details>
+                      <details className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
+                        <summary className="cursor-pointer text-sm font-medium">Search выдача ({searchCount})</summary>
+                        <div className="mt-2 grid gap-2">
+                          {searchItems.length ? searchItems.map((item, idx) => (
+                            <pre key={`search-${idx}`} className="overflow-auto rounded bg-[rgba(0,0,0,0.25)] p-2 text-[11px] text-text2">{JSON.stringify(item, null, 2)}</pre>
+                          )) : <div className="text-xs text-text2">Нет данных</div>}
+                        </div>
+                      </details>
+                      <details className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
+                        <summary className="cursor-pointer text-sm font-medium">Физлица и связи ({personsCount})</summary>
+                        <div className="mt-2 grid gap-2">
+                          {personItems.length ? personItems.map((item, idx) => (
+                            <pre key={`person-${idx}`} className="overflow-auto rounded bg-[rgba(0,0,0,0.25)] p-2 text-[11px] text-text2">{JSON.stringify(item, null, 2)}</pre>
                           )) : <div className="text-xs text-text2">Нет данных</div>}
                         </div>
                       </details>

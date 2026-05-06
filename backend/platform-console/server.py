@@ -1175,6 +1175,45 @@ def _compact_checko_raw_for_storage(raw, sample=20):
     return compact
 
 
+def _collect_checko_person_inns(company_payload):
+    found = []
+    seen = set()
+
+    def _push(raw_val):
+        text = re.sub(r"\D+", "", str(raw_val or "")).strip()
+        if len(text) != 12:
+            return
+        if text in seen:
+            return
+        seen.add(text)
+        found.append(text)
+
+    if not isinstance(company_payload, dict):
+        return found
+
+    leaders = company_payload.get("Руковод")
+    if isinstance(leaders, list):
+        for item in leaders:
+            if isinstance(item, dict):
+                for key in ("ИНН", "inn", "innfl", "ИННФЛ"):
+                    _push(item.get(key))
+
+    founders = company_payload.get("Учред")
+    founder_rows = []
+    if isinstance(founders, dict):
+        for k in ("ФЛ", "ФизЛица", "persons", "items", "Учредители"):
+            v = founders.get(k)
+            if isinstance(v, list):
+                founder_rows.extend(v)
+    elif isinstance(founders, list):
+        founder_rows = founders
+    for item in founder_rows:
+        if isinstance(item, dict):
+            for key in ("ИНН", "inn", "innfl", "ИННФЛ"):
+                _push(item.get(key))
+    return found
+
+
 def _pick_text(obj, keys):
     if not isinstance(obj, dict):
         return ""
@@ -1422,6 +1461,7 @@ def run_checko_company_enrichment(payload):
         "enforcements": lambda: _checko_request_paginated("enforcements", base_params={"inn": inn, "ogrn": ogrn_from_company, "limit": 100, "sort": "-date"}, max_pages=3),
         "timeline": lambda: _checko_request("timeline", params={"inn": inn, "ogrn": ogrn_from_company}, timeout=12),
         "inspections": lambda: _checko_request_paginated("inspections", base_params={"inn": inn, "ogrn": ogrn_from_company, "limit": 100}, max_pages=3),
+        "search": lambda: _checko_request("search", params={"query": inn, "limit": 20}, timeout=12),
     }
     contracts_bundle = {"groups": {}, "records_total": 0}
     for law in ("44", "94", "223"):
@@ -1434,6 +1474,11 @@ def run_checko_company_enrichment(payload):
                     max_pages=3,
                 )
             )
+    person_inns = _collect_checko_person_inns(company_payload)
+    for idx, person_inn in enumerate(person_inns[:10]):
+        fetch_jobs[f"person_{idx}_{person_inn}"] = (
+            lambda person_inn=person_inn: _checko_request("person", params={"inn": person_inn}, timeout=12)
+        )
 
     with ThreadPoolExecutor(max_workers=8) as pool:
         future_to_name = {pool.submit(fn): name for name, fn in fetch_jobs.items()}
@@ -1445,6 +1490,13 @@ def run_checko_company_enrichment(payload):
                     grp_key = name.replace("contracts_", "", 1)
                     contracts_bundle["groups"][grp_key] = data
                     contracts_bundle["records_total"] += int((data or {}).get("records_total", 0))
+                elif name.startswith("person_"):
+                    datasets.setdefault("persons", {"records": []})
+                    records = datasets["persons"].get("records")
+                    if not isinstance(records, list):
+                        records = []
+                        datasets["persons"]["records"] = records
+                    records.append(data if isinstance(data, dict) else {"raw": data})
                 else:
                     datasets[name] = data
             except Exception as e:

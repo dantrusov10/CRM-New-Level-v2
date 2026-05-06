@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import csv
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import io
 import json
 import os
@@ -972,7 +973,7 @@ def _extract_checko_company_payload(raw):
     return raw
 
 
-def _checko_request(endpoint, params=None, timeout=30):
+def _checko_request(endpoint, params=None, timeout=12):
     query = {"key": CHECKO_API_KEY}
     if isinstance(params, dict):
         for key, val in params.items():
@@ -1011,7 +1012,7 @@ def _checko_request_paginated(endpoint, base_params=None, max_pages=3):
     for page in range(1, max_pages + 1):
         params = dict(base_params or {})
         params["page"] = page
-        raw = _checko_request(endpoint, params=params, timeout=30)
+        raw = _checko_request(endpoint, params=params, timeout=12)
         records = _extract_checko_records(raw)
         merged["pages"].append(
             {
@@ -1353,32 +1354,39 @@ def run_checko_company_enrichment(payload):
     datasets = {}
     dataset_errors = {}
 
-    def _safe_fetch(name, fn):
-        try:
-            datasets[name] = fn()
-        except Exception as e:
-            dataset_errors[name] = str(e)
-
-    _safe_fetch("finances", lambda: _checko_request("finances", params={"inn": inn, "ogrn": ogrn_from_company, "extended": "true"}, timeout=30))
-    _safe_fetch("legal_cases", lambda: _checko_request_paginated("legal-cases", base_params={"inn": inn, "ogrn": ogrn_from_company, "limit": 100}, max_pages=3))
-    _safe_fetch("enforcements", lambda: _checko_request_paginated("enforcements", base_params={"inn": inn, "ogrn": ogrn_from_company, "limit": 100, "sort": "-date"}, max_pages=3))
-    _safe_fetch("timeline", lambda: _checko_request("timeline", params={"inn": inn, "ogrn": ogrn_from_company}, timeout=30))
-    _safe_fetch("inspections", lambda: _checko_request_paginated("inspections", base_params={"inn": inn, "ogrn": ogrn_from_company, "limit": 100}, max_pages=3))
-
+    fetch_jobs = {
+        "finances": lambda: _checko_request("finances", params={"inn": inn, "ogrn": ogrn_from_company, "extended": "true"}, timeout=12),
+        "legal_cases": lambda: _checko_request_paginated("legal-cases", base_params={"inn": inn, "ogrn": ogrn_from_company, "limit": 100}, max_pages=3),
+        "enforcements": lambda: _checko_request_paginated("enforcements", base_params={"inn": inn, "ogrn": ogrn_from_company, "limit": 100, "sort": "-date"}, max_pages=3),
+        "timeline": lambda: _checko_request("timeline", params={"inn": inn, "ogrn": ogrn_from_company}, timeout=12),
+        "inspections": lambda: _checko_request_paginated("inspections", base_params={"inn": inn, "ogrn": ogrn_from_company, "limit": 100}, max_pages=3),
+    }
     contracts_bundle = {"groups": {}, "records_total": 0}
     for law in ("44", "94", "223"):
         for role in ("customer", "supplier"):
-            key = f"law_{law}_{role}"
-            try:
-                grp = _checko_request_paginated(
+            key = f"contracts_law_{law}_{role}"
+            fetch_jobs[key] = (
+                lambda law=law, role=role: _checko_request_paginated(
                     "contracts",
                     base_params={"inn": inn, "ogrn": ogrn_from_company, "law": law, "role": role, "limit": 100, "sort": "-date"},
                     max_pages=3,
                 )
-                contracts_bundle["groups"][key] = grp
-                contracts_bundle["records_total"] += int(grp.get("records_total", 0))
+            )
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        future_to_name = {pool.submit(fn): name for name, fn in fetch_jobs.items()}
+        for future in as_completed(future_to_name):
+            name = future_to_name[future]
+            try:
+                data = future.result()
+                if name.startswith("contracts_law_"):
+                    grp_key = name.replace("contracts_", "", 1)
+                    contracts_bundle["groups"][grp_key] = data
+                    contracts_bundle["records_total"] += int((data or {}).get("records_total", 0))
+                else:
+                    datasets[name] = data
             except Exception as e:
-                dataset_errors[f"contracts_{key}"] = str(e)
+                dataset_errors[name] = str(e)
     datasets["contracts"] = contracts_bundle
 
     full_raw = {

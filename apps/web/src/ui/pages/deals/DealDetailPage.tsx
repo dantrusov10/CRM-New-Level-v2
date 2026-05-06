@@ -206,6 +206,8 @@ const CHECKO_KEY_LABELS: Record<string, string> = {
   Орган: "Орган",
   Вид: "Вид",
   Тип: "Тип",
+  ФИО: "ФИО",
+  ИНН: "ИНН",
 };
 
 function checkoRecordPairs(item: Record<string, unknown>): Array<{ label: string; value: string }> {
@@ -213,6 +215,8 @@ function checkoRecordPairs(item: Record<string, unknown>): Array<{ label: string
     "Дата",
     "Событие",
     "Номер",
+    "ФИО",
+    "ИНН",
     "РегНомер",
     "ИспПрНомер",
     "ПредмИсп",
@@ -280,8 +284,9 @@ function extractFinanceHighlights(finance: unknown): Array<{ label: string; valu
   const years = Object.keys(obj).filter((k) => /^\d{4}$/.test(k)).sort((a, b) => Number(b) - Number(a));
   if (!years.length) return [];
   const latestYear = years[0];
-  const yearData = asObject(obj[latestYear]);
-  if (!yearData) return [];
+  const rawYear = obj[latestYear];
+  const yearData = asObject(rawYear);
+  if (!yearData) return [{ label: `Отчетность (${latestYear})`, value: checkoValueToText(rawYear) }];
   const pick = (code: string) => yearData[code];
   const lines: Array<{ label: string; value: string }> = [];
   const revenue = pick("2110");
@@ -290,6 +295,12 @@ function extractFinanceHighlights(finance: unknown): Array<{ label: string; valu
   if (revenue != null) lines.push({ label: `Выручка (${latestYear})`, value: formatMoneyRu(revenue) });
   if (profit != null) lines.push({ label: `Чистая прибыль (${latestYear})`, value: formatMoneyRu(profit) });
   if (assets != null) lines.push({ label: `Активы (${latestYear})`, value: formatMoneyRu(assets) });
+  if (!lines.length) {
+    const firstNumeric = Object.entries(yearData).find(([, v]) => Number.isFinite(Number(String(v).replace(",", "."))));
+    if (firstNumeric) {
+      lines.push({ label: `Показатель ${firstNumeric[0]} (${latestYear})`, value: formatMoneyRu(firstNumeric[1]) });
+    }
+  }
   return lines;
 }
 
@@ -1753,6 +1764,7 @@ export function DealDetailPage() {
   const checkoDatasets = asObject(companyRaw?.datasets);
   const checkoSearchSource = deal?.expand?.company_id?.checko_search_json ?? checkoDatasets?.search;
   const checkoPersonsSource = deal?.expand?.company_id?.checko_persons_json ?? checkoDatasets?.persons;
+  const baseSourceDate = parseCheckoDate(companyRaw?.requested_at) || parseCheckoDate(deal?.expand?.company_id?.checko_updated_at) || dayjs();
   const checkoContracts = asObject(checkoDatasets?.contracts);
   const checkoContractGroups = asObject(checkoContracts?.groups);
   const contractsGroupCount = checkoContractGroups ? Object.keys(checkoContractGroups).length : 0;
@@ -1771,6 +1783,17 @@ export function DealDetailPage() {
     .map((item) => {
       const inner = asObject(item.data);
       return inner || item;
+    })
+    .map((item) => {
+      if (item["ФИО"]) return item;
+      const inn = String(item["ИНН"] ?? item["inn"] ?? "").trim();
+      if (!inn) return item;
+      const leaders = Array.isArray(deal?.expand?.company_id?.checko_management_json)
+        ? (deal?.expand?.company_id?.checko_management_json as Array<Record<string, unknown>>)
+        : [];
+      const found = leaders.find((x) => String(x["ИНН"] ?? x["inn"] ?? "").trim() === inn);
+      if (found?.["ФИО"]) return { ...item, ФИО: found["ФИО"] };
+      return item;
     })
     .filter((item) => Object.keys(item).some((k) => !["meta", "service", "_trimmed", "_original_records"].includes(k)))
     .slice(0, 10);
@@ -1808,10 +1831,10 @@ export function DealDetailPage() {
       return Number.isFinite(n) ? sum + n : sum;
     }, 0);
   const rowsByMonths = (months: number) => {
-    const from = dayjs().subtract(months, "month").startOf("day");
+    const from = baseSourceDate.subtract(months, "month").startOf("day");
     return contractRowsFiltered.filter((x) => {
       const d = checkoItemDate(x.item);
-      return !!d && d.isAfter(from.subtract(1, "millisecond"));
+      return !!d && d.isAfter(from.subtract(1, "millisecond")) && d.isBefore(baseSourceDate.endOf("day").add(1, "millisecond"));
     });
   };
   const contracts1mRows = rowsByMonths(1);
@@ -2727,6 +2750,7 @@ export function DealDetailPage() {
                       </details>
                       <details className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
                         <summary className="cursor-pointer text-sm font-medium">Физлица и связи ({personsCount})</summary>
+                        <div className="mt-1 text-[11px] text-text2">Показываем только значимые поля по ФЛ и его связи с компанией.</div>
                         <div className="mt-2 grid gap-2">
                           {personItems.length ? personItems.map((item, idx) => (
                             <CheckoRecordCard key={`person-${idx}`} item={item} />

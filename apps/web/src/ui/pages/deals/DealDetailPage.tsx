@@ -107,6 +107,20 @@ function countCheckoRecords(value: unknown): number {
   return 0;
 }
 
+function toCheckoRecords(value: unknown): Record<string, unknown>[] {
+  if (Array.isArray(value)) return value.filter((x) => x && typeof x === "object" && !Array.isArray(x)) as Record<string, unknown>[];
+  const obj = asObject(value);
+  if (!obj) return [];
+  const records = obj.records;
+  if (Array.isArray(records)) return records.filter((x) => x && typeof x === "object" && !Array.isArray(x)) as Record<string, unknown>[];
+  const data = asObject(obj.data);
+  if (data) {
+    const ds = data["Записи"];
+    if (Array.isArray(ds)) return ds.filter((x) => x && typeof x === "object" && !Array.isArray(x)) as Record<string, unknown>[];
+  }
+  return [];
+}
+
 function InlineMdBold({ text }: { text: string }) {
   const parts = String(text || "").split(/(\*\*[^*]+\*\*)/g);
   return (
@@ -1574,6 +1588,13 @@ export function DealDetailPage() {
   const timelineCount = countCheckoRecords(checkoDatasets?.timeline);
   const checkoDatasetErrors = asObject(companyRaw?.dataset_errors);
   const checkoDatasetErrorCount = checkoDatasetErrors ? Object.keys(checkoDatasetErrors).length : 0;
+  const legalCaseItems = toCheckoRecords(checkoDatasets?.legal_cases).slice(0, 10);
+  const enforcementItems = toCheckoRecords(checkoDatasets?.enforcements).slice(0, 10);
+  const inspectionItems = toCheckoRecords(checkoDatasets?.inspections).slice(0, 10);
+  const timelineItems = toCheckoRecords(checkoDatasets?.timeline).slice(0, 10);
+  const contractItems = checkoContractGroups
+    ? Object.values(checkoContractGroups).flatMap((group) => toCheckoRecords(group)).slice(0, 20)
+    : [];
 
 
   async function changeResponsible(nextUserId: string) {
@@ -2410,6 +2431,56 @@ export function DealDetailPage() {
                         <div className="text-[11px] text-text2">Обновлено</div>
                         <div className="text-sm">{deal?.expand?.company_id?.checko_updated_at ? dayjs(deal.expand.company_id.checko_updated_at).format("DD.MM.YYYY HH:mm") : "—"}</div>
                       </div>
+                      <details className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
+                        <summary className="cursor-pointer text-sm font-medium">Арбитражные дела ({legalCasesCount})</summary>
+                        <div className="mt-2 grid gap-2">
+                          {legalCaseItems.length ? legalCaseItems.map((item, idx) => (
+                            <pre key={`legal-${idx}`} className="overflow-auto rounded bg-[rgba(0,0,0,0.25)] p-2 text-[11px] text-text2">{JSON.stringify(item, null, 2)}</pre>
+                          )) : <div className="text-xs text-text2">Нет данных</div>}
+                        </div>
+                      </details>
+                      <details className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
+                        <summary className="cursor-pointer text-sm font-medium">Исполнительные производства ({enforcementsCount})</summary>
+                        <div className="mt-2 grid gap-2">
+                          {enforcementItems.length ? enforcementItems.map((item, idx) => (
+                            <pre key={`enf-${idx}`} className="overflow-auto rounded bg-[rgba(0,0,0,0.25)] p-2 text-[11px] text-text2">{JSON.stringify(item, null, 2)}</pre>
+                          )) : <div className="text-xs text-text2">Нет данных</div>}
+                        </div>
+                      </details>
+                      <details className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
+                        <summary className="cursor-pointer text-sm font-medium">Проверки ({inspectionsCount})</summary>
+                        <div className="mt-2 grid gap-2">
+                          {inspectionItems.length ? inspectionItems.map((item, idx) => (
+                            <pre key={`insp-${idx}`} className="overflow-auto rounded bg-[rgba(0,0,0,0.25)] p-2 text-[11px] text-text2">{JSON.stringify(item, null, 2)}</pre>
+                          )) : <div className="text-xs text-text2">Нет данных</div>}
+                        </div>
+                      </details>
+                      <details className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
+                        <summary className="cursor-pointer text-sm font-medium">История изменений ({timelineCount})</summary>
+                        <div className="mt-2 grid gap-2">
+                          {timelineItems.length ? timelineItems.map((item, idx) => (
+                            <pre key={`tl-${idx}`} className="overflow-auto rounded bg-[rgba(0,0,0,0.25)] p-2 text-[11px] text-text2">{JSON.stringify(item, null, 2)}</pre>
+                          )) : <div className="text-xs text-text2">Нет данных</div>}
+                        </div>
+                      </details>
+                      <details className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
+                        <summary className="cursor-pointer text-sm font-medium">Госконтракты (до 20 записей)</summary>
+                        <div className="mt-2 grid gap-2">
+                          {contractItems.length ? contractItems.map((item, idx) => (
+                            <pre key={`ctr-${idx}`} className="overflow-auto rounded bg-[rgba(0,0,0,0.25)] p-2 text-[11px] text-text2">{JSON.stringify(item, null, 2)}</pre>
+                          )) : <div className="text-xs text-text2">Нет данных</div>}
+                        </div>
+                      </details>
+                      <details className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
+                        <summary className="cursor-pointer text-sm font-medium">Ошибки загрузки источников ({checkoDatasetErrorCount})</summary>
+                        <div className="mt-2">
+                          {checkoDatasetErrors ? (
+                            <pre className="overflow-auto rounded bg-[rgba(0,0,0,0.25)] p-2 text-[11px] text-text2">{JSON.stringify(checkoDatasetErrors, null, 2)}</pre>
+                          ) : (
+                            <div className="text-xs text-text2">Ошибок нет</div>
+                          )}
+                        </div>
+                      </details>
                     </div>
                   </div>
                 </section>

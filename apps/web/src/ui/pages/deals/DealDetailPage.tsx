@@ -123,6 +123,28 @@ function toCheckoRecords(value: unknown): Record<string, unknown>[] {
   return [];
 }
 
+function parseCheckoDate(input: unknown): dayjs.Dayjs | null {
+  const text = String(input || "").trim();
+  if (!text) return null;
+  const parsed = dayjs(text);
+  return parsed.isValid() ? parsed : null;
+}
+
+function checkoItemDate(item: Record<string, unknown>): dayjs.Dayjs | null {
+  for (const key of ["Дата", "date", "ИспПрДата", "ДатаИсп", "created", "updated"]) {
+    if (!(key in item)) continue;
+    const parsed = parseCheckoDate(item[key]);
+    if (parsed) return parsed;
+  }
+  return null;
+}
+
+function formatMoneyRu(value: unknown): string {
+  const n = Number(String(value ?? "").replace(/\s+/g, "").replace(",", "."));
+  if (!Number.isFinite(n)) return "—";
+  return `${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(n)} ₽`;
+}
+
 function checkoValueToText(value: unknown): string {
   if (value == null) return "—";
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
@@ -162,6 +184,15 @@ const CHECKO_KEY_LABELS: Record<string, string> = {
   Истец: "Истец",
   Ответ: "Ответчик",
   РегионКод: "Регион",
+  ЦенаКонтракта: "Сумма",
+  Сумма: "Сумма",
+  Категория: "Категория",
+  Предмет: "Предмет",
+  Суть: "Суть",
+  СутьСпора: "Суть спора",
+  Орган: "Орган",
+  Вид: "Вид",
+  Тип: "Тип",
 };
 
 function checkoRecordPairs(item: Record<string, unknown>): Array<{ label: string; value: string }> {
@@ -175,6 +206,13 @@ function checkoRecordPairs(item: Record<string, unknown>): Array<{ label: string
     "Цена",
     "СумДолг",
     "ОстЗадолж",
+    "СутьСпора",
+    "Суть",
+    "Категория",
+    "Предмет",
+    "Вид",
+    "Тип",
+    "Орган",
     "Истец",
     "Ответ",
     "Наим",
@@ -183,7 +221,9 @@ function checkoRecordPairs(item: Record<string, unknown>): Array<{ label: string
   const pairs: Array<{ label: string; value: string }> = [];
   for (const key of preferredOrder) {
     if (!(key in item)) continue;
-    const value = checkoValueToText(item[key]);
+    const value = ["Цена", "СумДолг", "ОстЗадолж", "Сумма", "ЦенаКонтракта"].includes(key)
+      ? formatMoneyRu(item[key])
+      : checkoValueToText(item[key]);
     if (!value || value === "—") continue;
     pairs.push({ label: CHECKO_KEY_LABELS[key] || key, value });
   }
@@ -1493,6 +1533,9 @@ export function DealDetailPage() {
   const [checkoLoading, setCheckoLoading] = React.useState(false);
   const [checkoError, setCheckoError] = React.useState("");
   const [checkoSuccess, setCheckoSuccess] = React.useState("");
+  const [sourcePeriod, setSourcePeriod] = React.useState<"month" | "quarter" | "half_year" | "year" | "custom">("year");
+  const [sourceDateFrom, setSourceDateFrom] = React.useState("");
+  const [sourceDateTo, setSourceDateTo] = React.useState("");
 
   const initialRef = React.useRef<AnyObj | null>(null);
 
@@ -1692,15 +1735,39 @@ export function DealDetailPage() {
   const personsCount = countCheckoRecords(checkoPersonsSource);
   const checkoDatasetErrors = asObject(companyRaw?.dataset_errors);
   const checkoDatasetErrorCount = checkoDatasetErrors ? Object.keys(checkoDatasetErrors).length : 0;
-  const legalCaseItems = toCheckoRecords(checkoDatasets?.legal_cases).slice(0, 10);
-  const enforcementItems = toCheckoRecords(checkoDatasets?.enforcements).slice(0, 10);
-  const inspectionItems = toCheckoRecords(checkoDatasets?.inspections).slice(0, 10);
-  const timelineItems = toCheckoRecords(checkoDatasets?.timeline).slice(0, 10);
+  const legalCaseRawItems = toCheckoRecords(checkoDatasets?.legal_cases);
+  const enforcementRawItems = toCheckoRecords(checkoDatasets?.enforcements);
+  const inspectionRawItems = toCheckoRecords(checkoDatasets?.inspections);
+  const timelineRawItems = toCheckoRecords(checkoDatasets?.timeline);
   const searchItems = toCheckoRecords(checkoSearchSource).slice(0, 10);
   const personItems = toCheckoRecords(checkoPersonsSource).slice(0, 10);
-  const contractItems = checkoContractGroups
-    ? Object.values(checkoContractGroups).flatMap((group) => toCheckoRecords(group)).slice(0, 20)
-    : [];
+  const contractRawItems = checkoContractGroups ? Object.values(checkoContractGroups).flatMap((group) => toCheckoRecords(group)) : [];
+
+  const now = dayjs();
+  let periodFrom = now.startOf("year");
+  let periodTo = now.endOf("day");
+  if (sourcePeriod === "month") periodFrom = now.startOf("month");
+  else if (sourcePeriod === "quarter") periodFrom = now.subtract(3, "month").startOf("day");
+  else if (sourcePeriod === "half_year") periodFrom = now.subtract(6, "month").startOf("day");
+  else if (sourcePeriod === "custom") {
+    periodFrom = sourceDateFrom ? dayjs(sourceDateFrom).startOf("day") : now.subtract(1, "year").startOf("day");
+    periodTo = sourceDateTo ? dayjs(sourceDateTo).endOf("day") : now.endOf("day");
+  }
+  const inPeriod = (item: Record<string, unknown>) => {
+    const d = checkoItemDate(item);
+    if (!d) return sourcePeriod === "custom" ? false : true;
+    return d.isAfter(periodFrom.subtract(1, "millisecond")) && d.isBefore(periodTo.add(1, "millisecond"));
+  };
+  const legalCaseItems = legalCaseRawItems.filter(inPeriod).slice(0, 10);
+  const enforcementItems = enforcementRawItems.filter(inPeriod).slice(0, 10);
+  const inspectionItems = inspectionRawItems.filter(inPeriod).slice(0, 10);
+  const timelineItems = timelineRawItems.filter(inPeriod).slice(0, 30);
+  const contractItemsFiltered = contractRawItems.filter(inPeriod);
+  const contractItems = contractItemsFiltered.slice(0, 20);
+  const contractsTotalAmount = contractItemsFiltered.reduce((sum, row) => {
+    const n = Number(String(row["Цена"] ?? row["Сумма"] ?? "").replace(/\s+/g, "").replace(",", "."));
+    return Number.isFinite(n) ? sum + n : sum;
+  }, 0);
 
 
   async function changeResponsible(nextUserId: string) {
@@ -2512,6 +2579,32 @@ export function DealDetailPage() {
                     </div>
                     {checkoError ? <div className="text-xs text-danger">{checkoError}</div> : null}
                     {checkoSuccess ? <div className="text-xs text-[#22c55e]">{checkoSuccess}</div> : null}
+                    <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
+                      <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
+                        <div>
+                          <div className="text-[11px] text-text2">Период</div>
+                          <select className="mt-1 w-full rounded border border-border bg-transparent px-2 py-1 text-xs" value={sourcePeriod} onChange={(e) => setSourcePeriod(e.target.value as "month" | "quarter" | "half_year" | "year" | "custom")}>
+                            <option value="month">Месяц</option>
+                            <option value="quarter">Квартал</option>
+                            <option value="half_year">Полгода</option>
+                            <option value="year">Год</option>
+                            <option value="custom">Кастом</option>
+                          </select>
+                        </div>
+                        <div>
+                          <div className="text-[11px] text-text2">С даты</div>
+                          <input type="date" className="mt-1 w-full rounded border border-border bg-transparent px-2 py-1 text-xs" value={sourceDateFrom} onChange={(e) => setSourceDateFrom(e.target.value)} disabled={sourcePeriod !== "custom"} />
+                        </div>
+                        <div>
+                          <div className="text-[11px] text-text2">По дату</div>
+                          <input type="date" className="mt-1 w-full rounded border border-border bg-transparent px-2 py-1 text-xs" value={sourceDateTo} onChange={(e) => setSourceDateTo(e.target.value)} disabled={sourcePeriod !== "custom"} />
+                        </div>
+                        <div>
+                          <div className="text-[11px] text-text2">Закупки за период</div>
+                          <div className="mt-1 text-xs text-text">{contractItemsFiltered.length} контр. / {formatMoneyRu(contractsTotalAmount)}</div>
+                        </div>
+                      </div>
+                    </div>
                     <div className="grid grid-cols-1 gap-2">
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Краткое наименование</div><div className="text-sm">{deal?.expand?.company_id?.checko_short_name || "—"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Полное наименование</div><div className="text-sm">{deal?.expand?.company_id?.checko_full_name || "—"}</div></div>
@@ -2529,7 +2622,7 @@ export function DealDetailPage() {
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Руководство / Учредители</div><div className="text-sm">{Array.isArray(deal?.expand?.company_id?.checko_management_json) ? String((deal?.expand?.company_id?.checko_management_json as unknown[]).length) : "0"} / {deal?.expand?.company_id?.checko_founders_json && typeof deal?.expand?.company_id?.checko_founders_json === "object" ? "есть" : "—"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Лицензии / Финансы / Налоги</div><div className="text-sm">{Array.isArray(deal?.expand?.company_id?.checko_licenses_json) ? String((deal?.expand?.company_id?.checko_licenses_json as unknown[]).length) : "0"} / {deal?.expand?.company_id?.checko_finance_json && typeof deal?.expand?.company_id?.checko_finance_json === "object" ? "есть" : "—"} / {deal?.expand?.company_id?.checko_taxes_json && typeof deal?.expand?.company_id?.checko_taxes_json === "object" ? "есть" : "—"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Риски</div><div className="text-sm">{deal?.expand?.company_id?.checko_risk_flags_json && typeof deal?.expand?.company_id?.checko_risk_flags_json === "object" ? "есть" : "—"}</div></div>
-                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Арбитраж / ИП / Проверки / История</div><div className="text-sm">{legalCasesCount} / {enforcementsCount} / {inspectionsCount} / {timelineCount}</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Арбитраж / ИП / Проверки / История</div><div className="text-sm">{legalCaseItems.length} / {enforcementItems.length} / {inspectionItems.length} / {timelineItems.length}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Search / Физлица</div><div className="text-sm">{searchCount} / {personsCount}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Госконтракты (групп)</div><div className="text-sm">{contractsGroupCount || "0"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Ошибки источников</div><div className="text-sm">{checkoDatasetErrorCount ? `есть (${checkoDatasetErrorCount})` : "нет"}</div></div>
@@ -2539,7 +2632,7 @@ export function DealDetailPage() {
                         <div className="text-sm">{deal?.expand?.company_id?.checko_updated_at ? dayjs(deal.expand.company_id.checko_updated_at).format("DD.MM.YYYY HH:mm") : "—"}</div>
                       </div>
                       <details className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
-                        <summary className="cursor-pointer text-sm font-medium">Арбитражные дела ({legalCasesCount})</summary>
+                        <summary className="cursor-pointer text-sm font-medium">Арбитражные дела ({legalCaseItems.length})</summary>
                         <div className="mt-2 grid gap-2">
                           {legalCaseItems.length ? legalCaseItems.map((item, idx) => (
                             <CheckoRecordCard key={`legal-${idx}`} item={item} />
@@ -2547,7 +2640,7 @@ export function DealDetailPage() {
                         </div>
                       </details>
                       <details className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
-                        <summary className="cursor-pointer text-sm font-medium">Исполнительные производства ({enforcementsCount})</summary>
+                        <summary className="cursor-pointer text-sm font-medium">Исполнительные производства ({enforcementItems.length})</summary>
                         <div className="mt-2 grid gap-2">
                           {enforcementItems.length ? enforcementItems.map((item, idx) => (
                             <CheckoRecordCard key={`enf-${idx}`} item={item} />
@@ -2555,7 +2648,7 @@ export function DealDetailPage() {
                         </div>
                       </details>
                       <details className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
-                        <summary className="cursor-pointer text-sm font-medium">Проверки ({inspectionsCount})</summary>
+                        <summary className="cursor-pointer text-sm font-medium">Проверки ({inspectionItems.length})</summary>
                         <div className="mt-2 grid gap-2">
                           {inspectionItems.length ? inspectionItems.map((item, idx) => (
                             <CheckoRecordCard key={`insp-${idx}`} item={item} />
@@ -2563,7 +2656,7 @@ export function DealDetailPage() {
                         </div>
                       </details>
                       <details className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
-                        <summary className="cursor-pointer text-sm font-medium">История изменений ({timelineCount})</summary>
+                        <summary className="cursor-pointer text-sm font-medium">История изменений ({timelineItems.length})</summary>
                         <div className="mt-2 grid gap-2">
                           {timelineItems.length ? timelineItems.map((item, idx) => (
                             <CheckoRecordCard key={`tl-${idx}`} item={item} />

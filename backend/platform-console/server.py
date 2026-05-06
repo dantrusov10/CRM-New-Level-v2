@@ -1113,6 +1113,68 @@ def _fit_checko_payloads_for_pb(update_data):
     return out
 
 
+def _compact_checko_dataset_for_storage(value, sample=20):
+    if isinstance(value, dict):
+        out = {}
+        if "records_total" in value:
+            out["records_total"] = value.get("records_total")
+        if "pages_total" in value:
+            out["pages_total"] = value.get("pages_total")
+        if "pages" in value and isinstance(value.get("pages"), list):
+            out["pages"] = value.get("pages")[:5]
+        if isinstance(value.get("records"), list):
+            recs = value.get("records") or []
+            out["records"] = recs[:sample]
+            out["_original_records"] = len(recs)
+            out["_trimmed"] = len(recs) > sample
+        if isinstance(value.get("data"), dict):
+            data = dict(value.get("data") or {})
+            rows = data.get("Записи")
+            if isinstance(rows, list):
+                data["Записи"] = rows[:sample]
+                data["_original_records"] = len(rows)
+                data["_trimmed"] = len(rows) > sample
+            out["data"] = data
+        if not out:
+            out = value
+        return out
+    if isinstance(value, list):
+        return {
+            "records": value[:sample],
+            "_original_records": len(value),
+            "_trimmed": len(value) > sample,
+        }
+    return value
+
+
+def _compact_checko_raw_for_storage(raw, sample=20):
+    if not isinstance(raw, dict):
+        return raw
+    compact = {
+        "source": raw.get("source"),
+        "requested_at": raw.get("requested_at"),
+        "api_base_url": raw.get("api_base_url"),
+        "identifiers": raw.get("identifiers"),
+        "dataset_errors": raw.get("dataset_errors") if isinstance(raw.get("dataset_errors"), dict) else {},
+        "field_mapping": raw.get("field_mapping") if isinstance(raw.get("field_mapping"), dict) else {},
+        "datasets": {},
+        "_compacted_for_storage": True,
+    }
+    datasets = raw.get("datasets")
+    if isinstance(datasets, dict):
+        for key, val in datasets.items():
+            if key == "contracts" and isinstance(val, dict):
+                c = {"groups": {}, "records_total": val.get("records_total", 0)}
+                groups = val.get("groups")
+                if isinstance(groups, dict):
+                    for gk, gv in groups.items():
+                        c["groups"][gk] = _compact_checko_dataset_for_storage(gv, sample=sample)
+                compact["datasets"][key] = c
+            else:
+                compact["datasets"][key] = _compact_checko_dataset_for_storage(val, sample=sample)
+    return compact
+
+
 def _pick_text(obj, keys):
     if not isinstance(obj, dict):
         return ""
@@ -1415,6 +1477,11 @@ def run_checko_company_enrichment(payload):
         update_data["name"] = str((company_record or {}).get("name", "")).strip() or f"Компания {inn}"
     update_data["inn"] = inn
     update_data = _fit_checko_payloads_for_pb(update_data)
+    if _json_size_bytes(update_data.get("checko_raw_json")) > 1_800_000:
+        compact_raw = _compact_checko_raw_for_storage(update_data.get("checko_raw_json"), sample=30)
+        if _json_size_bytes(compact_raw) > 1_800_000:
+            compact_raw = _compact_checko_raw_for_storage(update_data.get("checko_raw_json"), sample=10)
+        update_data["checko_raw_json"] = compact_raw
 
     try:
         saved_company = _tenant_api_update(tenant_pb_url, "companies", effective_company_id, update_data, admin_token)

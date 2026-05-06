@@ -1565,9 +1565,6 @@ export function DealDetailPage() {
   const [checkoLoading, setCheckoLoading] = React.useState(false);
   const [checkoError, setCheckoError] = React.useState("");
   const [checkoSuccess, setCheckoSuccess] = React.useState("");
-  const [sourcePeriod, setSourcePeriod] = React.useState<"month" | "quarter" | "half_year" | "year" | "custom">("year");
-  const [sourceDateFrom, setSourceDateFrom] = React.useState("");
-  const [sourceDateTo, setSourceDateTo] = React.useState("");
 
   const initialRef = React.useRef<AnyObj | null>(null);
 
@@ -1765,47 +1762,63 @@ export function DealDetailPage() {
   const timelineCount = countCheckoRecords(checkoDatasets?.timeline);
   const searchCount = countCheckoRecords(checkoSearchSource);
   const personsCount = countCheckoRecords(checkoPersonsSource);
-  const checkoDatasetErrors = asObject(companyRaw?.dataset_errors);
-  const checkoDatasetErrorCount = checkoDatasetErrors ? Object.keys(checkoDatasetErrors).length : 0;
   const legalCaseRawItems = toCheckoRecords(checkoDatasets?.legal_cases);
   const enforcementRawItems = toCheckoRecords(checkoDatasets?.enforcements);
   const inspectionRawItems = toCheckoRecords(checkoDatasets?.inspections);
   const timelineRawItems = toCheckoRecords(checkoDatasets?.timeline);
   const searchItems = toCheckoRecords(checkoSearchSource).slice(0, 10);
-  const personItems = toCheckoRecords(checkoPersonsSource).slice(0, 10);
-  const contractRawItems = checkoContractGroups ? Object.values(checkoContractGroups).flatMap((group) => toCheckoRecords(group)) : [];
+  const personItems = toCheckoRecords(checkoPersonsSource)
+    .map((item) => {
+      const inner = asObject(item.data);
+      return inner || item;
+    })
+    .filter((item) => Object.keys(item).some((k) => !["meta", "service", "_trimmed", "_original_records"].includes(k)))
+    .slice(0, 10);
   const contractRowsDetailed = checkoContractGroups
     ? Object.entries(checkoContractGroups).flatMap(([groupKey, groupValue]) =>
         toCheckoRecords(groupValue).map((item) => ({ item, groupKey })),
       )
     : [];
-
-  const now = dayjs();
-  let periodFrom = now.startOf("year");
-  let periodTo = now.endOf("day");
-  if (sourcePeriod === "month") periodFrom = now.startOf("month");
-  else if (sourcePeriod === "quarter") periodFrom = now.subtract(3, "month").startOf("day");
-  else if (sourcePeriod === "half_year") periodFrom = now.subtract(6, "month").startOf("day");
-  else if (sourcePeriod === "custom") {
-    periodFrom = sourceDateFrom ? dayjs(sourceDateFrom).startOf("day") : now.subtract(1, "year").startOf("day");
-    periodTo = sourceDateTo ? dayjs(sourceDateTo).endOf("day") : now.endOf("day");
-  }
-  const inPeriod = (item: Record<string, unknown>) => {
-    const d = checkoItemDate(item);
-    if (!d) return sourcePeriod === "custom" ? false : true;
-    return d.isAfter(periodFrom.subtract(1, "millisecond")) && d.isBefore(periodTo.add(1, "millisecond"));
+  const legalCaseItems = legalCaseRawItems.slice(0, 10);
+  const enforcementItems = enforcementRawItems.slice(0, 10);
+  const inspectionItems = inspectionRawItems.slice(0, 10);
+  const timelineItems = [...timelineRawItems]
+    .sort((a, b) => {
+      const ad = checkoItemDate(a);
+      const bd = checkoItemDate(b);
+      if (!ad && !bd) return 0;
+      if (!ad) return 1;
+      if (!bd) return -1;
+      return bd.valueOf() - ad.valueOf();
+    })
+    .slice(0, 30);
+  const contractRowsFiltered = [...contractRowsDetailed]
+    .sort((a, b) => {
+      const ad = checkoItemDate(a.item);
+      const bd = checkoItemDate(b.item);
+      if (!ad && !bd) return 0;
+      if (!ad) return 1;
+      if (!bd) return -1;
+      return bd.valueOf() - ad.valueOf();
+    });
+  const contractItems = contractRowsFiltered.map((x) => x.item).slice(0, 20);
+  const sumContracts = (rows: Array<{ item: Record<string, unknown>; groupKey: string }>) =>
+    rows.reduce((sum, row) => {
+      const n = Number(String(row.item["Цена"] ?? row.item["Сумма"] ?? "").replace(/\s+/g, "").replace(",", "."));
+      return Number.isFinite(n) ? sum + n : sum;
+    }, 0);
+  const rowsByMonths = (months: number) => {
+    const from = dayjs().subtract(months, "month").startOf("day");
+    return contractRowsFiltered.filter((x) => {
+      const d = checkoItemDate(x.item);
+      return !!d && d.isAfter(from.subtract(1, "millisecond"));
+    });
   };
-  const legalCaseItems = legalCaseRawItems.filter(inPeriod).slice(0, 10);
-  const enforcementItems = enforcementRawItems.filter(inPeriod).slice(0, 10);
-  const inspectionItems = inspectionRawItems.filter(inPeriod).slice(0, 10);
-  const timelineItems = timelineRawItems.filter(inPeriod).slice(0, 30);
-  const contractItemsFiltered = contractRawItems.filter(inPeriod);
-  const contractRowsFiltered = contractRowsDetailed.filter((x) => inPeriod(x.item));
-  const contractItems = contractItemsFiltered.slice(0, 20);
-  const contractsTotalAmount = contractItemsFiltered.reduce((sum, row) => {
-    const n = Number(String(row["Цена"] ?? row["Сумма"] ?? "").replace(/\s+/g, "").replace(",", "."));
-    return Number.isFinite(n) ? sum + n : sum;
-  }, 0);
+  const contracts1mRows = rowsByMonths(1);
+  const contracts3mRows = rowsByMonths(3);
+  const contracts6mRows = rowsByMonths(6);
+  const contracts12mRows = rowsByMonths(12);
+  const contractsTotalAmount = sumContracts(contractRowsFiltered);
   const contractsPurchaseCount = contractRowsFiltered.filter((x) => x.groupKey.includes("_customer")).length;
   const contractsSalesCount = contractRowsFiltered.filter((x) => x.groupKey.includes("_supplier")).length;
   const financeHighlights = extractFinanceHighlights(deal?.expand?.company_id?.checko_finance_json);
@@ -2621,30 +2634,14 @@ export function DealDetailPage() {
                     {checkoError ? <div className="text-xs text-danger">{checkoError}</div> : null}
                     {checkoSuccess ? <div className="text-xs text-[#22c55e]">{checkoSuccess}</div> : null}
                     <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
-                      <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
-                        <div>
-                          <div className="text-[11px] text-text2">Период</div>
-                          <select className="mt-1 w-full rounded border border-border bg-transparent px-2 py-1 text-xs" value={sourcePeriod} onChange={(e) => setSourcePeriod(e.target.value as "month" | "quarter" | "half_year" | "year" | "custom")}>
-                            <option value="month">Месяц</option>
-                            <option value="quarter">Квартал</option>
-                            <option value="half_year">Полгода</option>
-                            <option value="year">Год</option>
-                            <option value="custom">Кастом</option>
-                          </select>
-                        </div>
-                        <div>
-                          <div className="text-[11px] text-text2">С даты</div>
-                          <input type="date" className="mt-1 w-full rounded border border-border bg-transparent px-2 py-1 text-xs" value={sourceDateFrom} onChange={(e) => setSourceDateFrom(e.target.value)} disabled={sourcePeriod !== "custom"} />
-                        </div>
-                        <div>
-                          <div className="text-[11px] text-text2">По дату</div>
-                          <input type="date" className="mt-1 w-full rounded border border-border bg-transparent px-2 py-1 text-xs" value={sourceDateTo} onChange={(e) => setSourceDateTo(e.target.value)} disabled={sourcePeriod !== "custom"} />
-                        </div>
-                        <div>
-                          <div className="text-[11px] text-text2">Закупки за период</div>
-                          <div className="mt-1 text-xs text-text">{contractItemsFiltered.length} контр. / {formatMoneyRu(contractsTotalAmount)}</div>
-                          <div className="text-[11px] text-text2">Закупки: {contractsPurchaseCount} · Продажи: {contractsSalesCount}</div>
-                        </div>
+                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                        <div className="text-[11px] text-text2">Сводка по контрактам (кол-во / сумма)</div>
+                        <div className="text-[11px] text-text2">Закупки: {contractsPurchaseCount} · Продажи: {contractsSalesCount}</div>
+                        <div className="text-xs text-text">За месяц: {contracts1mRows.length} / {formatMoneyRu(sumContracts(contracts1mRows))}</div>
+                        <div className="text-xs text-text">За квартал: {contracts3mRows.length} / {formatMoneyRu(sumContracts(contracts3mRows))}</div>
+                        <div className="text-xs text-text">За полгода: {contracts6mRows.length} / {formatMoneyRu(sumContracts(contracts6mRows))}</div>
+                        <div className="text-xs text-text">За год: {contracts12mRows.length} / {formatMoneyRu(sumContracts(contracts12mRows))}</div>
+                        <div className="text-xs text-text md:col-span-2">Всего доступно: {contractRowsFiltered.length} / {formatMoneyRu(contractsTotalAmount)}</div>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 gap-2">
@@ -2659,6 +2656,7 @@ export function DealDetailPage() {
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Сайт</div><div className="text-sm">{deal?.expand?.company_id?.checko_site || "—"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Телефоны</div><div className="text-sm">{toStringList(deal?.expand?.company_id?.checko_contacts_phones).join(", ") || "—"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Email</div><div className="text-sm">{toStringList(deal?.expand?.company_id?.checko_contacts_emails).join(", ") || "—"}</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Примечание по контактам</div><div className="text-sm">Это контакты компании в целом. Привязка к конкретному ФЛ в ответе Checko обычно отсутствует.</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">ОКОПФ / ОКФС / ОКОГУ</div><div className="text-sm">{deal?.expand?.company_id?.checko_okopf || "—"} / {deal?.expand?.company_id?.checko_okfs || "—"} / {deal?.expand?.company_id?.checko_okogu || "—"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">ОКПО / ОКАТО / ОКТМО</div><div className="text-sm">{deal?.expand?.company_id?.checko_okpo || "—"} / {deal?.expand?.company_id?.checko_okato || "—"} / {deal?.expand?.company_id?.checko_oktmo || "—"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Руководство / Учредители</div><div className="text-sm">{Array.isArray(deal?.expand?.company_id?.checko_management_json) ? String((deal?.expand?.company_id?.checko_management_json as unknown[]).length) : "0"} / {deal?.expand?.company_id?.checko_founders_json && typeof deal?.expand?.company_id?.checko_founders_json === "object" ? "есть" : "—"}</div></div>
@@ -2675,7 +2673,6 @@ export function DealDetailPage() {
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Арбитраж / ИП / Проверки / История</div><div className="text-sm">{legalCaseItems.length} / {enforcementItems.length} / {inspectionItems.length} / {timelineItems.length}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Search / Физлица</div><div className="text-sm">{searchCount} / {personsCount}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Госконтракты (групп)</div><div className="text-sm">{contractsGroupCount || "0"}</div></div>
-                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Ошибки источников</div><div className="text-sm">{checkoDatasetErrorCount ? `есть (${checkoDatasetErrorCount})` : "нет"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Дата выписки / регистрации / ОГРН</div><div className="text-sm">{deal?.expand?.company_id?.checko_snapshot_date || "—"} / {deal?.expand?.company_id?.checko_registration_date || "—"} / {deal?.expand?.company_id?.checko_ogrn_date || "—"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
                         <div className="text-[11px] text-text2">Обновлено</div>
@@ -2702,13 +2699,18 @@ export function DealDetailPage() {
                         <div className="mt-1 text-[11px] text-text2">Показываются контрольные мероприятия из реестров надзора (тип/статус/номер, если есть в источнике).</div>
                         <div className="mt-2 grid gap-2">
                           {inspectionItems.length ? inspectionItems.map((item, idx) => (
-                            <CheckoRecordCard key={`insp-${idx}`} item={item} />
+                            <div key={`insp-${idx}`} className="rounded bg-[rgba(0,0,0,0.2)] p-2">
+                              <div className="text-[11px]"><span className="text-text2">Тип: </span><span>{checkoValueToText(item["Тип"] ?? item["Вид"] ?? "не найдено")}</span></div>
+                              <div className="text-[11px]"><span className="text-text2">Дата: </span><span>{checkoValueToText(item["Дата"] ?? item["ДатаНач"] ?? item["ДатаПров"] ?? "не найдено")}</span></div>
+                              <div className="text-[11px]"><span className="text-text2">Статус: </span><span>{checkoValueToText(item["Статус"] ?? "не найдено")}</span></div>
+                              <div className="text-[11px]"><span className="text-text2">Номер: </span><span>{checkoValueToText(item["Номер"] ?? item["РегНомер"] ?? "не найдено")}</span></div>
+                            </div>
                           )) : <div className="text-xs text-text2">Нет данных</div>}
                         </div>
                       </details>
                       <details className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
                         <summary className="cursor-pointer text-sm font-medium">История изменений ({timelineItems.length})</summary>
-                        <div className="mt-1 text-[11px] text-text2">Лента изменений за выбранный период (регистрация, смена директора, адреса, отчетность и т.п.).</div>
+                        <div className="mt-1 text-[11px] text-text2">Показываются последние 30 событий, отсортированных от новых к старым.</div>
                         <div className="mt-2 grid gap-2">
                           {timelineItems.length ? timelineItems.map((item, idx) => (
                             <CheckoRecordCard key={`tl-${idx}`} item={item} />
@@ -2725,7 +2727,6 @@ export function DealDetailPage() {
                       </details>
                       <details className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
                         <summary className="cursor-pointer text-sm font-medium">Физлица и связи ({personsCount})</summary>
-                        <div className="mt-1 text-[11px] text-text2">Если показано `meta: объект`, это служебный контейнер ответа. Ключевая информация — в полях ФИО/ИНН/связи.</div>
                         <div className="mt-2 grid gap-2">
                           {personItems.length ? personItems.map((item, idx) => (
                             <CheckoRecordCard key={`person-${idx}`} item={item} />
@@ -2742,17 +2743,6 @@ export function DealDetailPage() {
                               <CheckoRecordCard item={item} />
                             </div>
                           )) : <div className="text-xs text-text2">Нет данных</div>}
-                        </div>
-                      </details>
-                      <details className="rounded-md bg-[rgba(255,255,255,0.03)] p-2">
-                        <summary className="cursor-pointer text-sm font-medium">Ошибки загрузки источников ({checkoDatasetErrorCount})</summary>
-                        <div className="mt-1 text-[11px] text-text2">Это техстатус: какой из API-источников не ответил в срок/вернул ошибку. Основные данные компании при этом могут быть загружены.</div>
-                        <div className="mt-2">
-                          {checkoDatasetErrors ? (
-                            <pre className="overflow-auto rounded bg-[rgba(0,0,0,0.25)] p-2 text-[11px] text-text2">{JSON.stringify(checkoDatasetErrors, null, 2)}</pre>
-                          ) : (
-                            <div className="text-xs text-text2">Ошибок нет</div>
-                          )}
                         </div>
                       </details>
                     </div>

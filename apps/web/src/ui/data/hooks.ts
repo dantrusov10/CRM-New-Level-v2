@@ -149,19 +149,50 @@ export function useDeals(params?: { search?: string; filter?: string; sort?: str
  * Paged list for table views (so we can render pagination UI).
  * Returns PocketBase list result: { page, perPage, totalItems, totalPages, items }.
  */
-export function useDealsList(params?: { search?: string; filter?: string; sort?: string; page?: number; perPage?: number }) {
-  const { search, filter, sort, page = 1, perPage = 25 } = params ?? {};
+export function useDealsList(params?: {
+  search?: string;
+  filter?: string;
+  /** URL sort param: column id or -column (e.g. budget, -title). */
+  sortParam?: string;
+  page?: number;
+  perPage?: number;
+}) {
+  const { search, filter, sortParam, page = 1, perPage = 25 } = params ?? {};
   const q = search ? `title~"${search.replace(/\"/g, "\\\"")}"` : "";
   const f = [filter, q].filter(Boolean).join(" && ");
   return useQuery({
-    queryKey: ["dealsList", f, sort, page, perPage],
+    queryKey: ["dealsList", f, sortParam ?? "-updated", page, perPage],
     queryFn: async () => {
-      const options: Record<string, unknown> = {
-        sort: sort ?? "-updated",
-        expand: "company_id,stage_id,responsible_id",
+      const expand = "company_id,stage_id,responsible_id";
+      const listOpts: Record<string, unknown> = { expand };
+      if (f && String(f).trim().length) listOpts.filter = f;
+
+      const { hasCustomDealSort, sortDealsGlobal } = await import("../pages/deals/dealsTableSort");
+
+      if (!hasCustomDealSort(sortParam)) {
+        return pb.collection("deals").getList(page, perPage, {
+          ...listOpts,
+          sort: sortParam?.trim() || "-updated",
+        });
+      }
+
+      const all = await pb.collection("deals").getFullList<Deal>({
+        ...listOpts,
+        batch: 500,
+        sort: "-updated",
+      });
+      const sorted = sortDealsGlobal(all, sortParam);
+      const totalItems = sorted.length;
+      const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
+      const safePage = Math.min(Math.max(1, page), totalPages);
+      const start = (safePage - 1) * perPage;
+      return {
+        page: safePage,
+        perPage,
+        totalItems,
+        totalPages,
+        items: sorted.slice(start, start + perPage),
       };
-      if (f && String(f).trim().length) options.filter = f;
-      return pb.collection("deals").getList(page, perPage, options);
     },
   });
 }

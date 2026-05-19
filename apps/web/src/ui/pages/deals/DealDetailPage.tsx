@@ -26,6 +26,7 @@ import {
   useUsers,
 } from "../../data/hooks";
 import { DealKpModule } from "../../modules/kp/DealKpModule";
+import { DealCommandCenter } from "./DealCommandCenter";
 import { DynamicEntityFormWithRef, DynamicEntityFormHandle } from "../../components/DynamicEntityForm";
 import { InlineConfirmActions } from "../../components/InlineConfirmActions";
 import type { AiInsight, Deal, TimelineItem } from "../../../lib/types";
@@ -2336,6 +2337,11 @@ export function DealDetailPage() {
     () => extractActionItems(latestAi?.suggestions || latestAi?.recommendations || ""),
     [latestAi],
   );
+  const aiOneLiner = React.useMemo(() => {
+    const raw = String(deal?.current_recommendations || latestAi?.summary || latestAi?.recommendations || "").trim();
+    const line = humanizeSummaryForDisplay(raw).split("\n").map((s) => s.trim()).find(Boolean);
+    return line ? line.slice(0, 240) : "";
+  }, [deal?.current_recommendations, latestAi?.summary, latestAi?.recommendations]);
   const researchSections = React.useMemo(
     () => buildResearchTemplate(latestAi, aiHistory, tlAll, dynamicSections, nextActions, score),
     [latestAi, aiHistory, tlAll, dynamicSections, nextActions, score],
@@ -2524,6 +2530,35 @@ export function DealDetailPage() {
           </div>
         </CardHeader>
       </Card>
+
+      {deal ? (
+        <DealCommandCenter
+          title={titleDraft || deal.title || ""}
+          companyName={deal.expand?.company_id?.name}
+          stageName={deal.expand?.stage_id?.stage_name}
+          score={score}
+          scoreLabel={sb.label}
+          aiOneLiner={aiOneLiner}
+          nextStep={nextActions[0]}
+          aiLoading={aiRunLoading}
+          onRunAi={() => {
+            setAnalysisMode("full");
+            setAnalysisSelection(selectedProductIds);
+            setAnalysisPickerOpen(true);
+          }}
+          onCreateTaskFromStep={() => {
+            if (nextActions[0]) void createTaskFromAction(nextActions[0]);
+          }}
+          onOpenKp={() => setTab("kp")}
+          onOpenAiTab={() => setTab("ai")}
+          onAddNote={async () => {
+            const text = window.prompt("Заметка по сделке");
+            if (!text?.trim()) return;
+            await createTimelineEvent("note", text.trim());
+            tlQ.refetch();
+          }}
+        />
+      ) : null}
 
       {/* MAIN AREA */}
       <div className="grid grid-cols-12 gap-4">

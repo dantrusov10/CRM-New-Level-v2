@@ -14,12 +14,7 @@ import { DealsFiltersModal } from "./DealsFiltersModal";
 import { DealsBulkActionsModal } from "./DealsBulkActionsModal";
 import { toast } from "../../../lib/toast";
 import { buildDealsFilter, countActiveDealFilters } from "./dealsFilters";
-import {
-  needsClientSort,
-  nextSortParam,
-  pocketBaseSortFromParam,
-  sortDealsClient,
-} from "./dealsTableSort";
+import { nextSortParam } from "./dealsTableSort";
 
 function esc(s: string) {
   return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
@@ -36,15 +31,11 @@ export function DealsTablePage() {
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const [bulkOpen, setBulkOpen] = React.useState(false);
 
-  const dealsQ = useDealsList({ search, filter, sort: pocketBaseSortFromParam(sortParam), page, perPage: 25 });
+  const dealsQ = useDealsList({ search, filter, sortParam, page, perPage: 25 });
   const stagesQ = useFunnelStages();
   const usersQ = useUsers();
 
-  const rawItems = (dealsQ.data?.items ?? []) as unknown as Deal[];
-  const items = React.useMemo(
-    () => (needsClientSort(sortParam) ? sortDealsClient(rawItems, sortParam) : rawItems),
-    [rawItems, sortParam]
-  );
+  const items = (dealsQ.data?.items ?? []) as unknown as Deal[];
 
   function setSortColumn(columnId: string) {
     const next = new URLSearchParams(sp);

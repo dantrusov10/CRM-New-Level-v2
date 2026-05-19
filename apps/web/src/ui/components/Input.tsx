@@ -1,5 +1,5 @@
 import React from "react";
-import clsx from "clsx";
+import { cn } from "../../lib/cn";
 
 type Props = React.InputHTMLAttributes<HTMLInputElement> & {
   error?: string;
@@ -9,7 +9,7 @@ export function Input({ className, error, ...rest }: Props) {
   return (
     <div className="w-full">
       <input
-        className={clsx(
+        className={cn(
           "ui-input text-sm",
           error ? "border-[rgba(239,68,68,0.55)] bg-[rgba(239,68,68,0.08)]" : "",
           className

@@ -1,6 +1,6 @@
 import React from "react";
 import { X } from "lucide-react";
-import clsx from "clsx";
+import { cn } from "../../lib/cn";
 
 export function Modal({
   open,
@@ -23,7 +23,7 @@ export function Modal({
       onMouseDown={onClose}
     >
       <div
-        className={clsx(
+        className={cn(
           "w-full rounded-card border border-[rgba(51,215,255,0.45)] bg-[#0f2644] max-h-[calc(100vh-140px)] overflow-hidden shadow-[0_0_26px_rgba(51,215,255,0.2)]",
           widthClass
         )}

@@ -1,5 +1,5 @@
 import React from "react";
-import { TrendingUp, CircleDot, Percent, Clock, Settings2, BarChart3, Download, Sparkles, type LucideProps } from "lucide-react";
+import { TrendingUp, CircleDot, Percent, Clock, Settings2, BarChart3, Download } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useDeals, useFunnelStages, useUsers, useCompanies } from "../data/hooks";
 import type { Deal, FunnelStage, UserSummary, Company } from "../../lib/types";
@@ -8,6 +8,9 @@ import { Modal } from "../components/Modal";
 import { pb } from "../../lib/pb";
 import { analyzeAdminDashboardWithAi } from "../../lib/aiGateway";
 import { useAuth } from "../../app/AuthProvider";
+import { StatCard } from "../components/dashboard/StatCard";
+import { DynamicsBarChart, WinRateDonutChart, BudgetByStageChart } from "../components/dashboard/DashboardCharts";
+import { AiInsightCard } from "../components/AiInsightCard";
 
 function money(n: number) {
   if (!Number.isFinite(n)) return "0";
@@ -17,68 +20,6 @@ function money(n: number) {
 function daysBetween(a: Date, b: Date) {
   const ms = Math.abs(a.getTime() - b.getTime());
   return Math.round(ms / (1000 * 60 * 60 * 24));
-}
-
-function MiniBars({ values }: { values: number[] }) {
-  const max = Math.max(...values, 1);
-  return (
-    <div className="flex items-end gap-1 h-14">
-      {values.map((v, i) => (
-        <div
-          key={i}
-          className="flex-1 rounded-md"
-          style={{
-            height: `${Math.round((v / max) * 100)}%`,
-            background: "linear-gradient(180deg, rgba(87,183,255,0.95), rgba(44,158,255,0.38))",
-            border: "1px solid rgba(255,255,255,0.10)",
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
-function Donut({ value }: { value: number }) {
-  const size = 90;
-  const stroke = 10;
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const clamped = Math.max(0, Math.min(100, value));
-  const dash = (clamped / 100) * c;
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={r}
-        stroke="rgba(255,255,255,0.12)"
-        strokeWidth={stroke}
-        fill="transparent"
-      />
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={r}
-        stroke="rgba(87,183,255,0.95)"
-        strokeWidth={stroke}
-        strokeLinecap="round"
-        fill="transparent"
-        strokeDasharray={`${dash} ${c - dash}`}
-        transform={`rotate(-90 ${size / 2} ${size / 2})`}
-      />
-      <text
-        x="50%"
-        y="50%"
-        textAnchor="middle"
-        dominantBaseline="middle"
-        fill="rgba(255,255,255,0.92)"
-        fontSize="16"
-        fontWeight="800"
-      >
-        {Math.round(clamped)}%
-      </text>
-    </svg>
-  );
 }
 
 function SortableReportItem({
@@ -131,31 +72,6 @@ function SortableReportItem({
     </div>
   );
 }
-
-const StatCard = ({
-  title,
-  value,
-  icon: Icon,
-  hint,
-}: {
-  title: string;
-  value: string;
-  icon: React.ComponentType<LucideProps>;
-  hint?: string;
-}) => (
-  <div className="ui-card p-3.5 neon-accent">
-    <div className="flex items-start justify-between gap-3">
-      <div>
-        <div className="text-xs text-text2 font-semibold">{title}</div>
-        <div className="mt-1 text-xl font-extrabold text-text">{value}</div>
-        {hint ? <div className="mt-1 text-xs text-text2">{hint}</div> : null}
-      </div>
-      <div className="w-9 h-9 rounded-xl flex items-center justify-center border border-[rgba(51,215,255,0.45)] bg-[rgba(51,215,255,0.12)] shadow-[0_0_16px_rgba(51,215,255,0.22)]">
-        <Icon size={18} className="text-text" />
-      </div>
-    </div>
-  </div>
-);
 
 function dealAmount(d: Partial<Deal>) {
   const b = Number(d?.budget ?? 0);
@@ -1143,16 +1059,16 @@ export function DashboardPage() {
       return (
         <WidgetFrame title="Ключевые метрики" subtitle={`Период: последние ${cfg.widgets.statCards.filters.rangeDays || 30} дней`} widgetId="statCards">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-            <StatCard title="Pipeline" value={`${money(sStat.pipeline)} ₽`} icon={TrendingUp} hint="Сумма активных сделок (budget/turnover)" />
-            <StatCard title="Взвешенный" value={`${money(sStat.weighted)} ₽`} icon={Percent} hint={`Δ ${deltaWeighted >= 0 ? "+" : ""}${deltaWeighted.toFixed(1)}%`} />
-            <StatCard title="Сделки" value={`${sStat.dealsCount}`} icon={CircleDot} hint={`Δ ${deltaDeals >= 0 ? "+" : ""}${deltaDeals.toFixed(1)}%`} />
-            <StatCard title="Цикл" value={`${sStat.cycle} д`} icon={Clock} hint={`Δ ${deltaCycle >= 0 ? "+" : ""}${deltaCycle.toFixed(1)}%`} />
+            <StatCard title="Pipeline" value={`${money(sStat.pipeline)} ₽`} numericValue={Math.round(sStat.pipeline)} suffix=" ₽" icon={TrendingUp} hint="Сумма активных сделок (budget/turnover)" />
+            <StatCard title="Взвешенный" value={`${money(sStat.weighted)} ₽`} numericValue={Math.round(sStat.weighted)} suffix=" ₽" icon={Percent} hint={`Δ ${deltaWeighted >= 0 ? "+" : ""}${deltaWeighted.toFixed(1)}%`} />
+            <StatCard title="Сделки" value={`${sStat.dealsCount}`} numericValue={sStat.dealsCount} icon={CircleDot} hint={`Δ ${deltaDeals >= 0 ? "+" : ""}${deltaDeals.toFixed(1)}%`} />
+            <StatCard title="Цикл" value={`${sStat.cycle} д`} numericValue={sStat.cycle} suffix=" д" icon={Clock} hint={`Δ ${deltaCycle >= 0 ? "+" : ""}${deltaCycle.toFixed(1)}%`} />
           </div>
         </WidgetFrame>
       );
     }
-    if (wid === "dynamics") return <WidgetFrame title="Динамика входящих" subtitle="Новые сделки по неделям (8 недель)" widgetId="dynamics"><MiniBars values={dynBars} /></WidgetFrame>;
-    if (wid === "winRate") return <WidgetFrame title="Доля побед" subtitle={`Вариант 2: победы/(победы+потери) за ${cfg.widgets.winRate.filters.rangeDays || 30} дней`} widgetId="winRate"><div className="flex items-center justify-center"><div><div className="flex items-center justify-center"><Donut value={wr2.rate} /></div><div className="mt-2 text-xs text-text2 text-center">Won: {wr2.won} · Lost: {wr2.lost}</div></div></div></WidgetFrame>;
+    if (wid === "dynamics") return <WidgetFrame title="Динамика входящих" subtitle="Новые сделки по неделям (8 недель)" widgetId="dynamics"><DynamicsBarChart values={dynBars} /></WidgetFrame>;
+    if (wid === "winRate") return <WidgetFrame title="Доля побед" subtitle={`Вариант 2: победы/(победы+потери) за ${cfg.widgets.winRate.filters.rangeDays || 30} дней`} widgetId="winRate"><WinRateDonutChart rate={wr2.rate} won={wr2.won} lost={wr2.lost} /></WidgetFrame>;
     if (wid === "funnel") {
       return (
         <WidgetFrame title="Воронка" subtitle="Количество и сумма по этапам (клик по этапу → сделки)" widgetId="funnel">
@@ -1172,14 +1088,11 @@ export function DashboardPage() {
     if (wid === "budgetByStage") {
       return (
         <WidgetFrame title="Бюджет по этапам" subtitle="Горизонтальные бары по сумме (клик → сделки)" widgetId="budgetByStage">
-          <div className="space-y-2">
-            {budgetRows.map((r) => (
-              <button key={r.id} className="w-full text-left" onClick={() => drillToDeals({ ...cfg.widgets.budgetByStage.filters, stageId: r.id })}>
-                <div className="flex items-center justify-between text-xs"><span className="font-semibold">{r.name}</span><span className="text-text2">{money(r.sum)} ₽</span></div>
-                <div className="mt-1 h-2 rounded-full bg-[rgba(255,255,255,0.10)] overflow-hidden"><div className="h-2 rounded-full" style={{ width: `${Math.round((r.sum / maxBudget) * 100)}%`, background: "linear-gradient(90deg, rgba(87,183,255,0.95), rgba(44,158,255,0.38))" }} /></div>
-              </button>
-            ))}
-          </div>
+          <BudgetByStageChart
+            rows={budgetRows}
+            maxSum={maxBudget}
+            onStageClick={(id) => drillToDeals({ ...cfg.widgets.budgetByStage.filters, stageId: id })}
+          />
         </WidgetFrame>
       );
     }
@@ -1285,21 +1198,14 @@ export function DashboardPage() {
           <div className="mt-6 text-sm text-text2">Загрузка данных...</div>
         ) : (
           <>
-            <div className="mt-6 ui-card p-4 neon-accent">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-extrabold inline-flex items-center gap-2"><Sparkles size={16} /> {isAdmin ? "ИИ-вывод для руководителя" : "ИИ-вывод для менеджера"}</div>
-                  <div className="text-xs text-text2 mt-1">
-                    Режим: {isAdmin ? "админ/руководитель" : "менеджер"} · prompt `{isAdmin ? "founder_dashboard_brief_v1" : "manager_dashboard_brief_v1"}`.
-                  </div>
-                </div>
-                <Button small variant="secondary" onClick={() => void refreshAdminAiSummary()} disabled={aiSummaryLoading}>
-                  {aiSummaryLoading ? "Обновление..." : "Обновить AI-вывод"}
-                </Button>
-              </div>
-              {aiSummaryError ? <div className="mt-2 text-xs text-danger">{aiSummaryError}</div> : null}
-              <div className="mt-3 whitespace-pre-wrap text-sm">{aiSummaryText || "Готовим вывод..."}</div>
-            </div>
+            <AiInsightCard
+              title={isAdmin ? "ИИ-вывод для руководителя" : "ИИ-вывод для менеджера"}
+              subtitle={`Режим: ${isAdmin ? "админ/руководитель" : "менеджер"} · prompt \`${isAdmin ? "founder_dashboard_brief_v1" : "manager_dashboard_brief_v1"}\``}
+              text={aiSummaryText}
+              loading={aiSummaryLoading}
+              error={aiSummaryError}
+              onRefresh={() => void refreshAdminAiSummary()}
+            />
 
             <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
               <WidgetFrame title="Ключевые сигналы" subtitle="Быстрые сигналы по данным" widgetId="insights">

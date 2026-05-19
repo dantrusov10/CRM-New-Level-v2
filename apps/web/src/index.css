@@ -544,3 +544,24 @@ body:after{
   border-color: rgba(255,255,255,.14) !important;
 }
 .theme-cockpit .kanban-card *{ color: rgba(255,255,255,.86) !important; }
+
+/* AI insight card — magicui-inspired accents */
+@keyframes ai-border-beam-spin {
+  to { transform: rotate(360deg); }
+}
+.ai-border-beam {
+  background: conic-gradient(from 0deg, transparent, rgba(51, 215, 255, 0.85), transparent 30%);
+  animation: ai-border-beam-spin 4s linear infinite;
+}
+@keyframes ai-shimmer {
+  0% { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+.ai-shimmer-text {
+  background: linear-gradient(90deg, rgba(236, 244, 255, 0.55) 0%, rgba(51, 215, 255, 1) 50%, rgba(236, 244, 255, 0.55) 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: ai-shimmer 2.5s linear infinite;
+}

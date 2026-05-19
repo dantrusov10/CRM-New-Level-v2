@@ -8,6 +8,7 @@ import { Button } from "../../components/Button";
 import dayjs from "dayjs";
 import { pb } from "../../../lib/pb";
 import type { Deal, FunnelStage, UserSummary } from "../../../lib/types";
+import { DealsDataTable } from "./DealsDataTable";
 
 export function DealsTablePage() {
   const nav = useNavigate();
@@ -174,56 +175,14 @@ export function DealsTablePage() {
               </div>
             </div>
 
-            <table className="min-w-[1100px] w-full text-sm">
-              <thead>
-                <tr className="h-10 bg-[#EEF1F6] text-[#374151] font-semibold">
-                  <th className="text-left px-3 w-10">
-                    <input
-                      type="checkbox"
-                      checked={allPageSelected}
-                      onChange={(e) => togglePage(e.target.checked)}
-                      aria-label="Выбрать все на странице"
-                    />
-                  </th>
-                  <th className="text-left px-3">Сделка</th>
-                  <th className="text-left px-3">Компания</th>
-                  <th className="text-left px-3">Ответственный</th>
-                  <th className="text-left px-3">Этап</th>
-                  <th className="text-right px-3">Бюджет</th>
-                  <th className="text-right px-3">Оборот</th>
-                  <th className="text-right px-3">Маржа %</th>
-                  <th className="text-left px-3">Канал</th>
-                  <th className="text-left px-3">Обновлено</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((d: Deal) => (
-                  <tr
-                    key={d.id}
-                    className="h-11 border-b border-border hover:bg-rowHover cursor-pointer"
-                    onClick={() => nav(`/deals/${d.id}`)}
-                  >
-                    <td className="px-3" onClick={(e) => e.stopPropagation()}>
-                      <input type="checkbox" checked={selected.has(String(d.id))} onChange={(e) => toggleOne(String(d.id), e.target.checked)} aria-label="Выбрать сделку" />
-                    </td>
-                    <td className="px-3 font-medium">{d.title}</td>
-                    <td className="px-3 text-text2">{d.expand?.company_id?.name ?? "—"}</td>
-                    <td className="px-3 text-text2">{d.expand?.responsible_id?.full_name ?? d.expand?.responsible_id?.email ?? "—"}</td>
-                    <td className="px-3">
-                      <span className="inline-flex items-center gap-2">
-                        <span className="inline-block h-2 w-2 rounded-full" style={{ background: d.expand?.stage_id?.color ?? "#9CA3AF" }} />
-                        <span className="text-text2">{d.expand?.stage_id?.stage_name ?? "—"}</span>
-                      </span>
-                    </td>
-                    <td className="px-3 text-right tabular-nums">{d.budget ? d.budget.toLocaleString("ru-RU") : "—"}</td>
-                    <td className="px-3 text-right tabular-nums">{d.turnover ? d.turnover.toLocaleString("ru-RU") : "—"}</td>
-                    <td className="px-3 text-right tabular-nums">{typeof d.margin_percent === "number" ? `${d.margin_percent}%` : "—"}</td>
-                    <td className="px-3 text-text2">{d.sales_channel ?? "—"}</td>
-                    <td className="px-3 text-text2">{d.updated ? dayjs(d.updated).format("DD.MM.YYYY HH:mm") : "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <DealsDataTable
+              items={items}
+              selected={selected}
+              allPageSelected={allPageSelected}
+              onToggleOne={toggleOne}
+              onTogglePage={togglePage}
+              onRowClick={(id) => nav(`/deals/${id}`)}
+            />
             {!(dealsQ.data?.items ?? []).length ? <div className="text-sm text-text2 py-6">Сделок пока нет.</div> : null}
 
             <Pagination

@@ -8,9 +8,9 @@ import {
   type ColumnSizingState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import dayjs from "dayjs";
 import type { Deal } from "../../../lib/types";
 import { cn } from "../../../lib/cn";
+import { buildDealColumns, DEAL_COLUMN_META, DEFAULT_COLUMN_VISIBILITY } from "./dealsTableColumns";
 
 const STORAGE_KEY = "nwlvl_deals_table_v1";
 
@@ -23,7 +23,7 @@ type TablePrefs = {
 const DEFAULT_PREFS: TablePrefs = {
   columnSizing: {},
   columnPinning: { left: ["select", "title"], right: [] },
-  columnVisibility: {},
+  columnVisibility: { ...DEFAULT_COLUMN_VISIBILITY },
 };
 
 function loadPrefs(): TablePrefs {
@@ -45,6 +45,8 @@ export function DealsDataTable({
   onToggleOne,
   onTogglePage,
   onRowClick,
+  visibilityOverride,
+  onVisibilityChange,
 }: {
   items: Deal[];
   selected: Set<string>;
@@ -52,6 +54,8 @@ export function DealsDataTable({
   onToggleOne: (id: string, next?: boolean) => void;
   onTogglePage: (next?: boolean) => void;
   onRowClick: (id: string) => void;
+  visibilityOverride?: VisibilityState | null;
+  onVisibilityChange?: (v: VisibilityState) => void;
 }) {
   const [prefs, setPrefs] = React.useState<TablePrefs>(loadPrefs);
   const [showColumns, setShowColumns] = React.useState(false);
@@ -61,6 +65,15 @@ export function DealsDataTable({
       localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
     } catch {}
   }, [prefs]);
+
+  const mergedVisibility = React.useMemo(
+    () => ({
+      ...DEFAULT_COLUMN_VISIBILITY,
+      ...prefs.columnVisibility,
+      ...(visibilityOverride ?? {}),
+    }),
+    [prefs.columnVisibility, visibilityOverride]
+  );
 
   const columns = React.useMemo(
     () => [
@@ -92,75 +105,7 @@ export function DealsDataTable({
           />
         ),
       }),
-      columnHelper.accessor("title", {
-        header: "Сделка",
-        size: 220,
-        minSize: 140,
-        enablePinning: true,
-        cell: (info) => <span className="font-medium">{info.getValue()}</span>,
-      }),
-      columnHelper.accessor((d) => d.expand?.company_id?.name ?? "—", {
-        id: "company",
-        header: "Компания",
-        size: 160,
-        cell: (info) => <span className="text-text2">{info.getValue()}</span>,
-      }),
-      columnHelper.accessor((d) => d.expand?.responsible_id?.full_name ?? d.expand?.responsible_id?.email ?? "—", {
-        id: "owner",
-        header: "Ответственный",
-        size: 150,
-        cell: (info) => <span className="text-text2">{info.getValue()}</span>,
-      }),
-      columnHelper.accessor((d) => d.expand?.stage_id?.stage_name ?? "—", {
-        id: "stage",
-        header: "Этап",
-        size: 140,
-        cell: ({ row }) => {
-          const d = row.original;
-          return (
-            <span className="inline-flex items-center gap-2">
-              <span
-                className="inline-block h-2 w-2 rounded-full shrink-0"
-                style={{ background: d.expand?.stage_id?.color ?? "#9CA3AF" }}
-              />
-              <span className="text-text2">{d.expand?.stage_id?.stage_name ?? "—"}</span>
-            </span>
-          );
-        },
-      }),
-      columnHelper.accessor("budget", {
-        header: "Бюджет",
-        size: 110,
-        cell: (info) => (
-          <span className="tabular-nums">{info.getValue() ? info.getValue()!.toLocaleString("ru-RU") : "—"}</span>
-        ),
-      }),
-      columnHelper.accessor("turnover", {
-        header: "Оборот",
-        size: 110,
-        cell: (info) => (
-          <span className="tabular-nums">{info.getValue() ? info.getValue()!.toLocaleString("ru-RU") : "—"}</span>
-        ),
-      }),
-      columnHelper.accessor("margin_percent", {
-        header: "Маржа %",
-        size: 90,
-        cell: (info) => (
-          <span className="tabular-nums">{typeof info.getValue() === "number" ? `${info.getValue()}%` : "—"}</span>
-        ),
-      }),
-      columnHelper.accessor("sales_channel", {
-        header: "Канал",
-        size: 120,
-        cell: (info) => <span className="text-text2">{info.getValue() ?? "—"}</span>,
-      }),
-      columnHelper.accessor("updated", {
-        header: "Обновлено",
-        size: 140,
-        cell: (info) => (
-          <span className="text-text2">{info.getValue() ? dayjs(info.getValue()).format("DD.MM.YYYY HH:mm") : "—"}</span>
-        ),
-      }),
+      ...buildDealColumns(),
     ],
     [allPageSelected, onToggleOne, onTogglePage, selected]
   );
@@ -171,7 +116,7 @@ export function DealsDataTable({
     state: {
       columnSizing: prefs.columnSizing,
       columnPinning: prefs.columnPinning,
-      columnVisibility: prefs.columnVisibility,
+      columnVisibility: mergedVisibility,
     },
     onColumnSizingChange: (updater) => {
       setPrefs((p) => ({
@@ -186,10 +131,11 @@ export function DealsDataTable({
       }));
     },
     onColumnVisibilityChange: (updater) => {
-      setPrefs((p) => ({
-        ...p,
-        columnVisibility: typeof updater === "function" ? updater(p.columnVisibility) : updater,
-      }));
+      setPrefs((p) => {
+        const nextVisibility = typeof updater === "function" ? updater(mergedVisibility) : updater;
+        onVisibilityChange?.(nextVisibility);
+        return { ...p, columnVisibility: nextVisibility };
+      });
     },
     columnResizeMode: "onChange",
     enableColumnResizing: true,
@@ -231,18 +177,26 @@ export function DealsDataTable({
         </button>
       </div>
       {showColumns ? (
-        <div className="mb-3 flex flex-wrap gap-2 p-2 rounded-card border border-border bg-[rgba(255,255,255,0.04)]">
-          {table.getAllLeafColumns().map((col) => {
-            if (col.id === "select") return null;
+        <div className="mb-3 space-y-2 p-2 rounded-card border border-border bg-[rgba(255,255,255,0.04)] max-h-56 overflow-auto">
+          {(["основное", "финансы", "коммерция", "даты", "ai", "ссылки"] as const).map((group) => {
+            const cols = DEAL_COLUMN_META.filter((c) => c.group === group);
+            if (!cols.length) return null;
             return (
-              <label key={col.id} className="inline-flex items-center gap-1.5 text-xs text-text2">
-                <input
-                  type="checkbox"
-                  checked={col.getIsVisible()}
-                  onChange={col.getToggleVisibilityHandler()}
-                />
-                {typeof col.columnDef.header === "string" ? col.columnDef.header : col.id}
-              </label>
+              <div key={group}>
+                <div className="text-[10px] uppercase tracking-wide text-text2 mb-1">{group}</div>
+                <div className="flex flex-wrap gap-2">
+                  {cols.map((meta) => {
+                    const col = table.getColumn(meta.id);
+                    if (!col) return null;
+                    return (
+                      <label key={meta.id} className="inline-flex items-center gap-1.5 text-xs text-text2">
+                        <input type="checkbox" checked={col.getIsVisible()} onChange={col.getToggleVisibilityHandler()} />
+                        {meta.label}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </div>

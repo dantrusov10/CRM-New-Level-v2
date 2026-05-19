@@ -1,5 +1,6 @@
 import React from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import type { VisibilityState } from "@tanstack/react-table";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import { useDealsList, useFunnelStages, useUsers } from "../../data/hooks";
 import { Badge } from "../../components/Badge";
@@ -9,36 +10,56 @@ import dayjs from "dayjs";
 import { pb } from "../../../lib/pb";
 import type { Deal, FunnelStage, UserSummary } from "../../../lib/types";
 import { DealsDataTable } from "./DealsDataTable";
+import { DealsTableViewsBar } from "./DealsTableViewsBar";
+import { toast } from "../../../lib/toast";
+
+function esc(s: string) {
+  return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function buildDealsFilter(sp: URLSearchParams) {
+  const stage = sp.get("stage") ?? "";
+  const owner = sp.get("owner") ?? "";
+  const channel = sp.get("channel") ?? "";
+  const partner = sp.get("partner") ?? "";
+  const distributor = sp.get("distributor") ?? "";
+  const activity = sp.get("activity") ?? "";
+  const budgetMin = sp.get("budgetMin") ?? "";
+  const budgetMax = sp.get("budgetMax") ?? "";
+  const scoreMin = sp.get("scoreMin") ?? "";
+  const scoreMax = sp.get("scoreMax") ?? "";
+  const endpointsMin = sp.get("endpointsMin") ?? "";
+  const endpointsMax = sp.get("endpointsMax") ?? "";
+  const fromIso = sp.get("from") ?? "";
+  const createdFrom = fromIso ? new Date(fromIso) : null;
+
+  return [
+    stage ? `stage_id="${stage}"` : "",
+    owner ? `responsible_id="${owner}"` : "",
+    channel ? `sales_channel="${esc(channel)}"` : "",
+    partner ? `partner~"${esc(partner)}"` : "",
+    distributor ? `distributor~"${esc(distributor)}"` : "",
+    activity ? `activity_type~"${esc(activity)}"` : "",
+    budgetMin ? `budget >= ${Number(budgetMin)}` : "",
+    budgetMax ? `budget <= ${Number(budgetMax)}` : "",
+    scoreMin ? `current_score >= ${Number(scoreMin)}` : "",
+    scoreMax ? `current_score <= ${Number(scoreMax)}` : "",
+    endpointsMin ? `endpoints >= ${Number(endpointsMin)}` : "",
+    endpointsMax ? `endpoints <= ${Number(endpointsMax)}` : "",
+    createdFrom ? `created >= "${dayjs(createdFrom).format("YYYY-MM-DD HH:mm:ss")}"` : "",
+  ]
+    .filter(Boolean)
+    .join(" && ");
+}
 
 export function DealsTablePage() {
   const nav = useNavigate();
   const [sp, setSp] = useSearchParams();
   const search = sp.get("search") ?? undefined;
   const page = Math.max(1, Number(sp.get("page") ?? 1) || 1);
-
-  const stage = sp.get("stage") ?? "";
-  const owner = sp.get("owner") ?? "";
-  const channel = sp.get("channel") ?? "";
-  const budgetMin = sp.get("budgetMin") ?? "";
-  const budgetMax = sp.get("budgetMax") ?? "";
-  const scoreMin = sp.get("scoreMin") ?? "";
-  const scoreMax = sp.get("scoreMax") ?? "";
-  const fromIso = sp.get("from") ?? "";
-
-  // PocketBase filter uses datetime strings; keep it simple with ISO.
-  const createdFrom = fromIso ? new Date(fromIso) : null;
-
-  const filter = [
-    // PocketBase schema
-    stage ? `stage_id="${stage}"` : "",
-    owner ? `responsible_id="${owner}"` : "",
-    channel ? `sales_channel="${channel.replace(/\"/g, "\\\"")}"` : "",
-    budgetMin ? `budget >= ${Number(budgetMin)}` : "",
-    budgetMax ? `budget <= ${Number(budgetMax)}` : "",
-    scoreMin ? `current_score >= ${Number(scoreMin)}` : "",
-    scoreMax ? `current_score <= ${Number(scoreMax)}` : "",
-    createdFrom ? `created >= "${dayjs(createdFrom).format("YYYY-MM-DD HH:mm:ss")}"` : "",
-  ].filter(Boolean).join(" && ");
+  const filter = buildDealsFilter(sp);
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState | null>(null);
+  const [showFilters, setShowFilters] = React.useState(false);
 
   const dealsQ = useDealsList({ search, filter, page, perPage: 25 });
   const stagesQ = useFunnelStages();
@@ -51,9 +72,16 @@ export function DealsTablePage() {
   const allPageSelected = items.length > 0 && items.every((d: Deal) => selected.has(String(d.id)));
 
   React.useEffect(() => {
-    // If page/search/filter changes → reset selection (avoid accidental bulk operations)
     setSelected(new Set());
   }, [page, search, filter]);
+
+  function setParam(key: string, value: string) {
+    const next = new URLSearchParams(sp);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    next.set("page", "1");
+    setSp(next, { replace: true });
+  }
 
   function toggleOne(id: string, next?: boolean) {
     setSelected((prev) => {
@@ -77,14 +105,13 @@ export function DealsTablePage() {
   }
 
   async function selectAllMatching() {
-    // selects all deals matching current filters + search
-    const q = search ? `title~"${search.replace(/\"/g, "\\\"")}"` : "";
+    const q = search ? `title~"${esc(search)}"` : "";
     const fAll = [filter, q].filter(Boolean).join(" && ");
     const options: Record<string, unknown> = { fields: "id", batch: 500 };
-    if (fAll && String(fAll).trim().length) options.filter = fAll;
+    if (fAll.trim()) options.filter = fAll;
     const res = await pb.collection("deals").getFullList<Pick<Deal, "id">>(options);
-    const ids = res.map((r) => String(r.id));
-    setSelected(new Set(ids));
+    setSelected(new Set(res.map((r) => String(r.id))));
+    toast.success(`Выбрано ${res.length} сделок по фильтру`);
   }
 
   const [stageTo, setStageTo] = React.useState("");
@@ -92,48 +119,84 @@ export function DealsTablePage() {
 
   async function bulkDelete() {
     if (!selectedCount) return;
-    if (!confirm(`Удалить сделки: ${selectedCount} шт.?`)) return;
+    if (!window.confirm(`Удалить сделки: ${selectedCount} шт.?`)) return;
     const ids = Array.from(selected);
     await Promise.allSettled(ids.map((id) => pb.collection("deals").delete(id)));
     setSelected(new Set());
     await dealsQ.refetch();
+    toast.success("Сделки удалены");
   }
 
   async function bulkStage() {
     if (!selectedCount) return;
-    if (!stageTo) return alert("Выбери этап");
+    if (!stageTo) return toast.warning("Выбери этап");
     const ids = Array.from(selected);
     await Promise.allSettled(ids.map((id) => pb.collection("deals").update(id, { stage_id: stageTo })));
     setSelected(new Set());
     setStageTo("");
     await dealsQ.refetch();
+    toast.success("Этап обновлён");
   }
 
   async function bulkOwner() {
     if (!selectedCount) return;
-    if (!ownerTo) return alert("Выбери ответственного");
+    if (!ownerTo) return toast.warning("Выбери ответственного");
     const ids = Array.from(selected);
     await Promise.allSettled(ids.map((id) => pb.collection("deals").update(id, { responsible_id: ownerTo })));
     setSelected(new Set());
     setOwnerTo("");
     await dealsQ.refetch();
+    toast.success("Ответственный обновлён");
   }
+
+  const activeFilterCount = ["stage", "owner", "channel", "partner", "distributor", "activity", "budgetMin", "budgetMax", "scoreMin", "scoreMax", "endpointsMin", "endpointsMax", "from"].filter(
+    (k) => sp.get(k)
+  ).length;
 
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="text-sm font-semibold">Сделки</div>
-            <div className="text-xs text-text2 mt-1">Табличный вид (колонки по ТЗ, упрощённая настраиваемость в MVP)</div>
+            <div className="text-xs text-text2 mt-1">Умная таблица: колонки, виды, фильтры по всем полям</div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap justify-end">
-            {search ? <Badge>поиск: {search}</Badge> : null}
-            {stage ? <Badge>этап</Badge> : null}
-            {owner ? <Badge>ответственный</Badge> : null}
-            {channel ? <Badge>канал: {channel}</Badge> : null}
+          <div className="flex items-center gap-2 flex-wrap">
+            {search ? <Badge>поиск</Badge> : null}
+            {activeFilterCount ? <Badge>фильтров: {activeFilterCount}</Badge> : null}
+            <Button small variant="secondary" onClick={() => setShowFilters((v) => !v)}>
+              {showFilters ? "Скрыть фильтры" : "Фильтры"}
+            </Button>
           </div>
         </div>
+        {showFilters ? (
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
+            <select className="ui-input h-9" value={sp.get("stage") ?? ""} onChange={(e) => setParam("stage", e.target.value)}>
+              <option value="">Все этапы</option>
+              {(stagesQ.data ?? []).map((s: FunnelStage) => (
+                <option key={s.id} value={s.id}>{s.stage_name}</option>
+              ))}
+            </select>
+            <select className="ui-input h-9" value={sp.get("owner") ?? ""} onChange={(e) => setParam("owner", e.target.value)}>
+              <option value="">Все ответственные</option>
+              {(usersQ.data ?? []).map((u: UserSummary) => (
+                <option key={u.id} value={u.id}>{u.full_name ?? u.name ?? u.email}</option>
+              ))}
+            </select>
+            <input className="ui-input h-9" placeholder="Канал" value={sp.get("channel") ?? ""} onChange={(e) => setParam("channel", e.target.value)} />
+            <input className="ui-input h-9" placeholder="Партнёр" value={sp.get("partner") ?? ""} onChange={(e) => setParam("partner", e.target.value)} />
+            <input className="ui-input h-9" placeholder="Дистрибьютор" value={sp.get("distributor") ?? ""} onChange={(e) => setParam("distributor", e.target.value)} />
+            <input className="ui-input h-9" placeholder="Тип активности" value={sp.get("activity") ?? ""} onChange={(e) => setParam("activity", e.target.value)} />
+            <input className="ui-input h-9" placeholder="Бюджет от" value={sp.get("budgetMin") ?? ""} onChange={(e) => setParam("budgetMin", e.target.value)} />
+            <input className="ui-input h-9" placeholder="Бюджет до" value={sp.get("budgetMax") ?? ""} onChange={(e) => setParam("budgetMax", e.target.value)} />
+            <input className="ui-input h-9" placeholder="AI скор от" value={sp.get("scoreMin") ?? ""} onChange={(e) => setParam("scoreMin", e.target.value)} />
+            <input className="ui-input h-9" placeholder="AI скор до" value={sp.get("scoreMax") ?? ""} onChange={(e) => setParam("scoreMax", e.target.value)} />
+            <input className="ui-input h-9" placeholder="Эндпоинты от" value={sp.get("endpointsMin") ?? ""} onChange={(e) => setParam("endpointsMin", e.target.value)} />
+            <input className="ui-input h-9" placeholder="Эндпоинты до" value={sp.get("endpointsMax") ?? ""} onChange={(e) => setParam("endpointsMax", e.target.value)} />
+            <input className="ui-input h-9" type="date" value={sp.get("from") ?? ""} onChange={(e) => setParam("from", e.target.value)} />
+            <Button small variant="ghost" onClick={() => setSp(new URLSearchParams({ page: "1" }), { replace: true })}>Сбросить фильтры</Button>
+          </div>
+        ) : null}
       </CardHeader>
       <CardContent>
         {dealsQ.isLoading ? (
@@ -141,37 +204,39 @@ export function DealsTablePage() {
         ) : dealsQ.error ? (
           <div className="text-sm text-danger">Ошибка загрузки</div>
         ) : (
-          <div className="overflow-auto">
-            {/* Bulk actions bar (always visible so it’s obvious) */}
-            <div className="mb-3 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 rounded-card border border-border bg-white p-3">
+          <div className="overflow-auto -mx-1 px-1">
+            <DealsTableViewsBar
+              currentParams={sp}
+              columnVisibility={columnVisibility ?? {}}
+              onApplyView={(params, visibility) => {
+                setSp(params, { replace: true });
+                setColumnVisibility(visibility);
+              }}
+              onColumnVisibilityChange={setColumnVisibility}
+            />
+
+            <div className="mb-3 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 rounded-card border border-border bg-[rgba(255,255,255,0.04)] p-3">
               <div className="text-sm">
                 Выбрано: <span className="font-semibold">{selectedCount}</span>
-                {selectedCount > 0 && selectedCount === items.length ? <span className="text-text2"> (страница)</span> : null}
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Button variant="secondary" onClick={() => togglePage(true)} disabled={!items.length}>Выбрать страницу</Button>
-                <Button variant="secondary" onClick={selectAllMatching} disabled={dealsQ.isLoading}>Выбрать все по фильтру</Button>
-                <div className="w-px h-6 bg-border mx-1" />
-
+                <Button variant="secondary" onClick={() => togglePage(true)} disabled={!items.length}>Страница</Button>
+                <Button variant="secondary" onClick={selectAllMatching} disabled={dealsQ.isLoading}>Все по фильтру</Button>
                 <Button variant="danger" onClick={bulkDelete} disabled={!selectedCount}>Удалить</Button>
-                <div className="flex items-center gap-2">
-                  <select className="h-9 rounded-card border border-[#9CA3AF] bg-white px-2 text-sm" value={stageTo} onChange={(e) => setStageTo(e.target.value)}>
-                    <option value="">Сменить этап…</option>
-                    {(stagesQ.data ?? []).map((s: FunnelStage) => (
-                      <option key={s.id} value={s.id}>{s.stage_name ?? "Этап"}</option>
-                    ))}
-                  </select>
-                  <Button variant="secondary" onClick={bulkStage} disabled={!selectedCount}>Применить</Button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <select className="h-9 rounded-card border border-[#9CA3AF] bg-white px-2 text-sm" value={ownerTo} onChange={(e) => setOwnerTo(e.target.value)}>
-                    <option value="">Сменить ответственного…</option>
-                    {(usersQ.data ?? []).map((u: UserSummary) => (
-                      <option key={u.id} value={u.id}>{u.name ?? u.email}</option>
-                    ))}
-                  </select>
-                  <Button variant="secondary" onClick={bulkOwner} disabled={!selectedCount}>Применить</Button>
-                </div>
+                <select className="ui-input h-9 min-w-[140px]" value={stageTo} onChange={(e) => setStageTo(e.target.value)}>
+                  <option value="">Этап…</option>
+                  {(stagesQ.data ?? []).map((s: FunnelStage) => (
+                    <option key={s.id} value={s.id}>{s.stage_name ?? "Этап"}</option>
+                  ))}
+                </select>
+                <Button variant="secondary" onClick={bulkStage} disabled={!selectedCount}>Этап</Button>
+                <select className="ui-input h-9 min-w-[140px]" value={ownerTo} onChange={(e) => setOwnerTo(e.target.value)}>
+                  <option value="">Ответственный…</option>
+                  {(usersQ.data ?? []).map((u: UserSummary) => (
+                    <option key={u.id} value={u.id}>{u.name ?? u.email}</option>
+                  ))}
+                </select>
+                <Button variant="secondary" onClick={bulkOwner} disabled={!selectedCount}>Ответственный</Button>
               </div>
             </div>
 
@@ -182,17 +247,18 @@ export function DealsTablePage() {
               onToggleOne={toggleOne}
               onTogglePage={togglePage}
               onRowClick={(id) => nav(`/deals/${id}`)}
+              visibilityOverride={columnVisibility}
+              onVisibilityChange={setColumnVisibility}
             />
-            {!(dealsQ.data?.items ?? []).length ? <div className="text-sm text-text2 py-6">Сделок пока нет.</div> : null}
+            {!items.length ? <div className="text-sm text-text2 py-6">Сделок пока нет.</div> : null}
 
             <Pagination
               page={dealsQ.data?.page ?? page}
               totalPages={dealsQ.data?.totalPages ?? 1}
               onPage={(next) => {
-                const n = String(Math.max(1, next));
-                const sp2 = new URLSearchParams(sp);
-                sp2.set("page", n);
-                setSp(sp2, { replace: true });
+                const n = new URLSearchParams(sp);
+                n.set("page", String(Math.max(1, next)));
+                setSp(n, { replace: true });
               }}
             />
           </div>

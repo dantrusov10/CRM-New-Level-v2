@@ -9,8 +9,25 @@ import { pb } from "../../lib/pb";
 import { analyzeAdminDashboardWithAi } from "../../lib/aiGateway";
 import { useAuth } from "../../app/AuthProvider";
 import { StatCard } from "../components/dashboard/StatCard";
-import { DynamicsBarChart, WinRateDonutChart, BudgetByStageChart } from "../components/dashboard/DashboardCharts";
-import { AiInsightCard } from "../components/AiInsightCard";
+
+const ChartFallback = () => <div className="h-32 flex items-center justify-center text-xs text-text2">Загрузка графика…</div>;
+
+function ChartSuspense({ children }: { children: React.ReactNode }) {
+  return <React.Suspense fallback={<ChartFallback />}>{children}</React.Suspense>;
+}
+
+const DynamicsBarChart = React.lazy(() =>
+  import("../components/dashboard/DashboardCharts").then((m) => ({ default: m.DynamicsBarChart }))
+);
+const WinRateDonutChart = React.lazy(() =>
+  import("../components/dashboard/DashboardCharts").then((m) => ({ default: m.WinRateDonutChart }))
+);
+const BudgetByStageChart = React.lazy(() =>
+  import("../components/dashboard/DashboardCharts").then((m) => ({ default: m.BudgetByStageChart }))
+);
+const AiInsightCard = React.lazy(() =>
+  import("../components/AiInsightCard").then((m) => ({ default: m.AiInsightCard }))
+);
 
 function money(n: number) {
   if (!Number.isFinite(n)) return "0";
@@ -1067,8 +1084,8 @@ export function DashboardPage() {
         </WidgetFrame>
       );
     }
-    if (wid === "dynamics") return <WidgetFrame title="Динамика входящих" subtitle="Новые сделки по неделям (8 недель)" widgetId="dynamics"><DynamicsBarChart values={dynBars} /></WidgetFrame>;
-    if (wid === "winRate") return <WidgetFrame title="Доля побед" subtitle={`Вариант 2: победы/(победы+потери) за ${cfg.widgets.winRate.filters.rangeDays || 30} дней`} widgetId="winRate"><WinRateDonutChart rate={wr2.rate} won={wr2.won} lost={wr2.lost} /></WidgetFrame>;
+    if (wid === "dynamics") return <WidgetFrame title="Динамика входящих" subtitle="Новые сделки по неделям (8 недель)" widgetId="dynamics"><ChartSuspense><DynamicsBarChart values={dynBars} /></ChartSuspense></WidgetFrame>;
+    if (wid === "winRate") return <WidgetFrame title="Доля побед" subtitle={`Вариант 2: победы/(победы+потери) за ${cfg.widgets.winRate.filters.rangeDays || 30} дней`} widgetId="winRate"><ChartSuspense><WinRateDonutChart rate={wr2.rate} won={wr2.won} lost={wr2.lost} /></ChartSuspense></WidgetFrame>;
     if (wid === "funnel") {
       return (
         <WidgetFrame title="Воронка" subtitle="Количество и сумма по этапам (клик по этапу → сделки)" widgetId="funnel">
@@ -1088,11 +1105,13 @@ export function DashboardPage() {
     if (wid === "budgetByStage") {
       return (
         <WidgetFrame title="Бюджет по этапам" subtitle="Горизонтальные бары по сумме (клик → сделки)" widgetId="budgetByStage">
-          <BudgetByStageChart
-            rows={budgetRows}
-            maxSum={maxBudget}
-            onStageClick={(id) => drillToDeals({ ...cfg.widgets.budgetByStage.filters, stageId: id })}
-          />
+          <ChartSuspense>
+            <BudgetByStageChart
+              rows={budgetRows}
+              maxSum={maxBudget}
+              onStageClick={(id) => drillToDeals({ ...cfg.widgets.budgetByStage.filters, stageId: id })}
+            />
+          </ChartSuspense>
         </WidgetFrame>
       );
     }
@@ -1198,14 +1217,16 @@ export function DashboardPage() {
           <div className="mt-6 text-sm text-text2">Загрузка данных...</div>
         ) : (
           <>
-            <AiInsightCard
-              title={isAdmin ? "ИИ-вывод для руководителя" : "ИИ-вывод для менеджера"}
-              subtitle={`Режим: ${isAdmin ? "админ/руководитель" : "менеджер"} · prompt \`${isAdmin ? "founder_dashboard_brief_v1" : "manager_dashboard_brief_v1"}\``}
-              text={aiSummaryText}
-              loading={aiSummaryLoading}
-              error={aiSummaryError}
-              onRefresh={() => void refreshAdminAiSummary()}
-            />
+            <ChartSuspense>
+              <AiInsightCard
+                title={isAdmin ? "ИИ-вывод для руководителя" : "ИИ-вывод для менеджера"}
+                subtitle={`Режим: ${isAdmin ? "админ/руководитель" : "менеджер"} · prompt \`${isAdmin ? "founder_dashboard_brief_v1" : "manager_dashboard_brief_v1"}\``}
+                text={aiSummaryText}
+                loading={aiSummaryLoading}
+                error={aiSummaryError}
+                onRefresh={() => void refreshAdminAiSummary()}
+              />
+            </ChartSuspense>
 
             <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
               <WidgetFrame title="Ключевые сигналы" subtitle="Быстрые сигналы по данным" widgetId="insights">

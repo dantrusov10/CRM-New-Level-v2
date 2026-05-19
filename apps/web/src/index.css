@@ -557,6 +557,19 @@ body:after{
   0% { background-position: 200% center; }
   100% { background-position: -200% center; }
 }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Mobile layout helpers */
+@media (max-width: 768px) {
+  .theme-cockpit .crm-main-scroll {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+}
+
 .ai-shimmer-text {
   background: linear-gradient(90deg, rgba(236, 244, 255, 0.55) 0%, rgba(51, 215, 255, 1) 50%, rgba(236, 244, 255, 0.55) 100%);
   background-size: 200% auto;

@@ -1,24 +1,33 @@
-import React from "react";
+import React, { Suspense } from "react";
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppLayout } from "./ui/layout/AppLayout";
 import { LoginPage } from "./ui/pages/LoginPage";
 import { RegisterTenantPage } from "./ui/pages/RegisterTenantPage";
-import { DashboardPage } from "./ui/pages/DashboardPage";
-import { DealsTablePage } from "./ui/pages/deals/DealsTablePage";
-import { DealsKanbanPage } from "./ui/pages/deals/DealsKanbanPage";
-import { DealDetailPage } from "./ui/pages/deals/DealDetailPage";
-import { CompaniesPage } from "./ui/pages/companies/CompaniesPage";
-import { CompanyDetailPage } from "./ui/pages/companies/CompanyDetailPage";
-import { AdminUsersPage } from "./ui/pages/admin/AdminUsersPage";
-import { AdminFunnelPage } from "./ui/pages/admin/AdminFunnelPage";
-import { AdminFieldsPage } from "./ui/pages/admin/AdminFieldsPage";
-import { AdminParsersPage } from "./ui/pages/admin/AdminParsersPage";
-import { AdminProductsPage } from "./ui/pages/admin/AdminProductsPage";
-import { ImportExportPage } from "./ui/pages/ImportExportPage";
-import { CalendarPage } from "./ui/pages/CalendarPage";
-import { GlobalSearchPage } from "./ui/pages/GlobalSearchPage";
 import { Protected } from "./ui/layout/Protected";
 import { AdminOnly } from "./ui/layout/AdminOnly";
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-[40vh] text-sm text-text2">
+      <div className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 bg-[rgba(255,255,255,0.06)]">
+        <span className="inline-block h-2 w-2 rounded-full bg-primary animate-pulse" />
+        Загрузка…
+      </div>
+    </div>
+  );
+}
+
+function lazyNamed<T extends Record<string, React.ComponentType<object>>>(
+  factory: () => Promise<T>,
+  name: keyof T
+) {
+  const Comp = React.lazy(() => factory().then((m) => ({ default: m[name] as React.ComponentType<object> })));
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <Comp />
+    </Suspense>
+  );
+}
 
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -32,20 +41,20 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
-      { path: "dashboard", element: <DashboardPage /> },
-      { path: "deals", element: <DealsTablePage /> },
-      { path: "kanban", element: <DealsKanbanPage /> },
-      { path: "deals/:id", element: <DealDetailPage /> },
-      { path: "companies", element: <CompaniesPage /> },
-      { path: "companies/:id", element: <CompanyDetailPage /> },
-      { path: "import-export", element: <ImportExportPage /> },
-      { path: "calendar", element: <CalendarPage /> },
-      { path: "search", element: <GlobalSearchPage /> },
-      { path: "admin/users", element: <AdminOnly><AdminUsersPage /></AdminOnly> },
-      { path: "admin/funnel", element: <AdminOnly><AdminFunnelPage /></AdminOnly> },
-      { path: "admin/fields", element: <AdminOnly><AdminFieldsPage /></AdminOnly> },
-      { path: "admin/parsers", element: <AdminOnly><AdminParsersPage /></AdminOnly> },
-      { path: "admin/products", element: <AdminOnly><AdminProductsPage /></AdminOnly> },
+      { path: "dashboard", element: lazyNamed(() => import("./ui/pages/DashboardPage"), "DashboardPage") },
+      { path: "deals", element: lazyNamed(() => import("./ui/pages/deals/DealsTablePage"), "DealsTablePage") },
+      { path: "kanban", element: lazyNamed(() => import("./ui/pages/deals/DealsKanbanPage"), "DealsKanbanPage") },
+      { path: "deals/:id", element: lazyNamed(() => import("./ui/pages/deals/DealDetailPage"), "DealDetailPage") },
+      { path: "companies", element: lazyNamed(() => import("./ui/pages/companies/CompaniesPage"), "CompaniesPage") },
+      { path: "companies/:id", element: lazyNamed(() => import("./ui/pages/companies/CompanyDetailPage"), "CompanyDetailPage") },
+      { path: "import-export", element: lazyNamed(() => import("./ui/pages/ImportExportPage"), "ImportExportPage") },
+      { path: "calendar", element: lazyNamed(() => import("./ui/pages/CalendarPage"), "CalendarPage") },
+      { path: "search", element: lazyNamed(() => import("./ui/pages/GlobalSearchPage"), "GlobalSearchPage") },
+      { path: "admin/users", element: <AdminOnly>{lazyNamed(() => import("./ui/pages/admin/AdminUsersPage"), "AdminUsersPage")}</AdminOnly> },
+      { path: "admin/funnel", element: <AdminOnly>{lazyNamed(() => import("./ui/pages/admin/AdminFunnelPage"), "AdminFunnelPage")}</AdminOnly> },
+      { path: "admin/fields", element: <AdminOnly>{lazyNamed(() => import("./ui/pages/admin/AdminFieldsPage"), "AdminFieldsPage")}</AdminOnly> },
+      { path: "admin/parsers", element: <AdminOnly>{lazyNamed(() => import("./ui/pages/admin/AdminParsersPage"), "AdminParsersPage")}</AdminOnly> },
+      { path: "admin/products", element: <AdminOnly>{lazyNamed(() => import("./ui/pages/admin/AdminProductsPage"), "AdminProductsPage")}</AdminOnly> },
     ],
   },
   { path: "*", element: <Navigate to="/" replace /> },

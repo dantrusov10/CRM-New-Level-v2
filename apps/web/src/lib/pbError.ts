@@ -51,7 +51,6 @@ export function humanizePbError(err: unknown, fallback = "Не удалось в
 
 export function notifyPbError(err: unknown, fallback?: string) {
   const msg = humanizePbError(err, fallback);
-  // MVP: use native alert (guaranteed not to show JSON objects)
-  // Later we can заменить на toast.
-  window.alert(msg);
+  // Dynamic import avoids circular deps at module init.
+  void import("./toast").then(({ toast }) => toast.error(msg, "Ошибка"));
 }

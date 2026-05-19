@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Filter, Search, Plus, Upload, Download, LogOut } from "lucide-react";
+import { Filter, Search, Plus, Upload, Download, LogOut, Menu } from "lucide-react";
 import { Input } from "../components/Input";
 import { Button } from "../components/Button";
 import { useAuth } from "../../app/AuthProvider";
@@ -25,6 +25,7 @@ export function Header({
   onCreateDeal,
   onImport,
   onExport,
+  onMenuOpen,
   perms,
 }: {
   pathname: string;
@@ -32,6 +33,7 @@ export function Header({
   onCreateDeal: () => void;
   onImport: () => void;
   onExport: () => void;
+  onMenuOpen?: () => void;
   perms: PermissionMatrix;
 }) {
   const [filtersOpen, setFiltersOpen] = React.useState(false);
@@ -41,13 +43,18 @@ export function Header({
 
   return (
     <header className="cockpit-topbar">
-      <div className="flex items-center gap-2 px-5 py-3 border-b border-[rgba(51,215,255,0.18)] bg-[linear-gradient(90deg,rgba(17,24,39,0.46),rgba(30,58,138,0.24),rgba(17,24,39,0.46))]">
-        <div className="text-xs font-extrabold tracking-wide uppercase w-[170px] flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 px-3 sm:px-5 py-2 sm:py-3 border-b border-[rgba(51,215,255,0.18)] bg-[linear-gradient(90deg,rgba(17,24,39,0.46),rgba(30,58,138,0.24),rgba(17,24,39,0.46))]">
+        {onMenuOpen ? (
+          <button type="button" className="ui-btn ui-icon-btn md:hidden" onClick={onMenuOpen} aria-label="Меню">
+            <Menu size={18} />
+          </button>
+        ) : null}
+        <div className="text-xs font-extrabold tracking-wide uppercase min-w-0 flex-1 sm:flex-none sm:w-[170px] flex items-center gap-2">
           <span className="brand-dot" />
           {titleByPath(pathname)}
         </div>
-        <div className="flex-1 flex items-center gap-2">
-          <div className="relative w-full max-w-[520px]">
+        <div className="order-3 w-full sm:order-none sm:flex-1 flex items-center gap-2 min-w-0">
+          <div className="relative w-full sm:max-w-[520px]">
             <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[rgba(226,232,240,0.72)]">
               <Search size={16} />
             </div>
@@ -74,30 +81,30 @@ export function Header({
           {/* Кнопку "Настройки" убрали из хедера (дублировала левое меню и путала) */}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 ml-auto">
           <NotificationsBell />
           {can(perms, "import_export", "read") ? (
-            <Button small variant="secondary" onClick={onImport} disabled={!can(perms, "import_export", "create")}>
+            <Button small variant="secondary" onClick={onImport} disabled={!can(perms, "import_export", "create")} title="Импорт">
               <Upload size={16} />
-              Импорт
+              <span className="hidden lg:inline">Импорт</span>
             </Button>
           ) : null}
           {can(perms, "import_export", "read") ? (
-            <Button small variant="secondary" onClick={onExport}>
+            <Button small variant="secondary" onClick={onExport} title="Экспорт">
               <Download size={16} />
-              Экспорт
+              <span className="hidden lg:inline">Экспорт</span>
             </Button>
           ) : null}
           {can(perms, "companies", "create") ? (
-            <Button small variant="secondary" onClick={onCreateCompany}>
+            <Button small variant="secondary" onClick={onCreateCompany} title="Компания">
               <Plus size={16} />
-              Компания
+              <span className="hidden lg:inline">Компания</span>
             </Button>
           ) : null}
           {can(perms, "deals", "create") ? (
-            <Button small onClick={onCreateDeal}>
+            <Button small onClick={onCreateDeal} title="Сделка">
               <Plus size={16} />
-              Сделка
+              <span className="hidden sm:inline">Сделка</span>
             </Button>
           ) : null}
           <button className="ui-btn ui-icon-btn border-[rgba(239,68,68,0.45)] bg-[rgba(239,68,68,0.18)]" title="Выйти" onClick={logout} aria-label="Выйти">

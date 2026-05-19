@@ -515,7 +515,7 @@ export function DealsKanbanPage() {
               {/* Horizontal scroll only inside the kanban strip */}
               <div
                 ref={kanbanScrollRef}
-                className="min-w-0 overflow-x-auto overflow-y-hidden neon-scroll rounded-card border border-border bg-[rgba(17,24,39,0.18)] p-3"
+                className="min-w-0 overflow-x-auto overflow-y-hidden neon-scroll rounded-card border border-border bg-[rgba(17,24,39,0.18)] p-3 snap-x snap-mandatory touch-pan-x"
               >
                 <div className="grid auto-cols-[320px] grid-flow-col gap-4 min-w-max">
                   {stages.map((s) => (

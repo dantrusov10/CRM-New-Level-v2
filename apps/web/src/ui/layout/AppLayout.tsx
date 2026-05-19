@@ -9,11 +9,13 @@ import { ExportModal } from "../modals/ExportModal";
 import { useAuth } from "../../app/AuthProvider";
 import { usePermissions } from "../data/hooks";
 import { can } from "../../lib/rbac";
+import { cn } from "../../lib/cn";
 
 const SIDEBAR_W = 228;
 const SIDEBAR_COLLAPSED_W = 76;
 
 export function AppLayout() {
+  const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem("crm_sidebar_collapsed") === "1";
@@ -63,25 +65,40 @@ export function AppLayout() {
     window.localStorage.setItem("crm_sidebar_collapsed", sidebarCollapsed ? "1" : "0");
   }, [sidebarCollapsed]);
 
+  React.useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
+
+  const sidebarW = sidebarCollapsed ? SIDEBAR_COLLAPSED_W : SIDEBAR_W;
+
   return (
     <div className="min-h-screen w-full theme-cockpit">
-      {/* Sidebar is fixed, content scrolls independently */}
-      <div className="fixed left-0 top-0 h-screen" style={{ width: sidebarCollapsed ? SIDEBAR_COLLAPSED_W : SIDEBAR_W }}>
+      {mobileNavOpen ? (
+        <button type="button" className="fixed inset-0 z-30 bg-black/60 md:hidden" aria-label="Закрыть меню" onClick={() => setMobileNavOpen(false)} />
+      ) : null}
+
+      <div
+        className={cn(
+          "fixed left-0 top-0 z-40 h-screen transition-transform duration-200 md:translate-x-0",
+          mobileNavOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        )}
+        style={{ width: sidebarW }}
+      >
         <Sidebar perms={perms} collapsed={sidebarCollapsed} onToggleCollapsed={() => setSidebarCollapsed((v) => !v)} />
       </div>
 
-      <div className="min-h-screen relative" style={{ marginLeft: sidebarCollapsed ? SIDEBAR_COLLAPSED_W : SIDEBAR_W }}>
+      <div className={cn("min-h-screen relative", sidebarCollapsed ? "md:ml-[76px]" : "md:ml-[228px]")}>
         <Header
           pathname={location.pathname}
           onCreateCompany={() => setOpenCompany(true)}
           onCreateDeal={() => setOpenDeal(true)}
           onImport={() => setOpenImport(true)}
           onExport={() => setOpenExport(true)}
+          onMenuOpen={() => setMobileNavOpen(true)}
           perms={perms}
         />
 
-        {/* Page content scrolls; header stays sticky */}
-        <main className="p-5 min-w-0 relative">
+        <main className="p-3 sm:p-5 min-w-0 relative">
           <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(700px_280px_at_60%_0%,rgba(51,215,255,0.12),transparent_70%)]" />
           <Outlet />
         </main>

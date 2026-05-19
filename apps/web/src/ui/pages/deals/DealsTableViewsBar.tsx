@@ -88,10 +88,10 @@ export function DealsTableViewsBar({
   }
 
   return (
-    <div className="mb-3 flex flex-col lg:flex-row lg:items-center gap-2 rounded-card border border-border bg-[rgba(255,255,255,0.04)] p-3">
-      <div className="text-xs text-text2 font-semibold shrink-0">Сохранённые виды</div>
+    <div className="mb-2 flex flex-wrap items-center gap-2">
+      <span className="text-xs text-text2 shrink-0">Виды</span>
       <select
-        className="ui-input h-9 min-w-[180px] flex-1"
+        className="ui-input h-8 min-w-[140px] flex-1 max-w-xs text-sm"
         value={activeId}
         onChange={(e) => {
           const id = e.target.value;

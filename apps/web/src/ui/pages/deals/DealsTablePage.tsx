@@ -14,6 +14,12 @@ import { DealsFiltersModal } from "./DealsFiltersModal";
 import { DealsBulkActionsModal } from "./DealsBulkActionsModal";
 import { toast } from "../../../lib/toast";
 import { buildDealsFilter, countActiveDealFilters } from "./dealsFilters";
+import {
+  needsClientSort,
+  nextSortParam,
+  pocketBaseSortFromParam,
+  sortDealsClient,
+} from "./dealsTableSort";
 
 function esc(s: string) {
   return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
@@ -24,16 +30,28 @@ export function DealsTablePage() {
   const [sp, setSp] = useSearchParams();
   const search = sp.get("search") ?? undefined;
   const page = Math.max(1, Number(sp.get("page") ?? 1) || 1);
+  const sortParam = sp.get("sort") ?? "-updated";
   const filter = buildDealsFilter(sp);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState | null>(null);
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const [bulkOpen, setBulkOpen] = React.useState(false);
 
-  const dealsQ = useDealsList({ search, filter, page, perPage: 25 });
+  const dealsQ = useDealsList({ search, filter, sort: pocketBaseSortFromParam(sortParam), page, perPage: 25 });
   const stagesQ = useFunnelStages();
   const usersQ = useUsers();
 
-  const items = (dealsQ.data?.items ?? []) as unknown as Deal[];
+  const rawItems = (dealsQ.data?.items ?? []) as unknown as Deal[];
+  const items = React.useMemo(
+    () => (needsClientSort(sortParam) ? sortDealsClient(rawItems, sortParam) : rawItems),
+    [rawItems, sortParam]
+  );
+
+  function setSortColumn(columnId: string) {
+    const next = new URLSearchParams(sp);
+    next.set("sort", nextSortParam(sortParam, columnId));
+    next.set("page", "1");
+    setSp(next, { replace: true });
+  }
 
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const selectedCount = selected.size;
@@ -156,6 +174,8 @@ export function DealsTablePage() {
               onRowClick={(id) => nav(`/deals/${id}`)}
               visibilityOverride={columnVisibility}
               onVisibilityChange={setColumnVisibility}
+              sortParam={sortParam}
+              onSortColumn={setSortColumn}
             />
             {!items.length ? <div className="text-sm text-text2 py-6">Сделок пока нет.</div> : null}
 

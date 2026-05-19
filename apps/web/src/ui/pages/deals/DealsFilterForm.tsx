@@ -1,6 +1,8 @@
 import React from "react";
 import { pb } from "../../../lib/pb";
 import { Input } from "../../components/Input";
+import { DatePicker } from "../../components/DatePicker";
+import { MoneyInput, DecimalInput } from "../../components/MoneyInput";
 import { Combobox, type ComboOption } from "../../components/Combobox";
 import type { DealFilterParams } from "./dealsFilters";
 
@@ -84,7 +86,7 @@ export function DealsFilterForm({
   }, [values.stage, values.owner, values.company]);
 
   return (
-    <div className="grid gap-3 max-h-[min(70vh,640px)] overflow-y-auto pr-1">
+    <div className="grid gap-3 max-h-[min(70vh,640px)] overflow-y-auto crm-scrollbar pr-2">
       <Section title="Основное">
         <Field label="Название сделки">
           <Input value={values.title ?? ""} onChange={(e) => set("title", e.target.value)} placeholder="Содержит…" />
@@ -112,31 +114,31 @@ export function DealsFilterForm({
       </Section>
 
       <Section title="Финансы и AI">
-        <Field label="Бюджет от"><Input type="number" value={values.budgetMin ?? ""} onChange={(e) => set("budgetMin", e.target.value)} /></Field>
-        <Field label="Бюджет до"><Input type="number" value={values.budgetMax ?? ""} onChange={(e) => set("budgetMax", e.target.value)} /></Field>
-        <Field label="Оборот от"><Input type="number" value={values.turnoverMin ?? ""} onChange={(e) => set("turnoverMin", e.target.value)} /></Field>
-        <Field label="Оборот до"><Input type="number" value={values.turnoverMax ?? ""} onChange={(e) => set("turnoverMax", e.target.value)} /></Field>
-        <Field label="Маржа % от"><Input type="number" value={values.marginMin ?? ""} onChange={(e) => set("marginMin", e.target.value)} /></Field>
-        <Field label="Маржа % до"><Input type="number" value={values.marginMax ?? ""} onChange={(e) => set("marginMax", e.target.value)} /></Field>
-        <Field label="Скидка % от"><Input type="number" value={values.discountMin ?? ""} onChange={(e) => set("discountMin", e.target.value)} /></Field>
-        <Field label="Скидка % до"><Input type="number" value={values.discountMax ?? ""} onChange={(e) => set("discountMax", e.target.value)} /></Field>
-        <Field label="AI скор от"><Input type="number" value={values.scoreMin ?? ""} onChange={(e) => set("scoreMin", e.target.value)} /></Field>
-        <Field label="AI скор до"><Input type="number" value={values.scoreMax ?? ""} onChange={(e) => set("scoreMax", e.target.value)} /></Field>
-        <Field label="Эндпоинты от"><Input type="number" value={values.endpointsMin ?? ""} onChange={(e) => set("endpointsMin", e.target.value)} /></Field>
-        <Field label="Эндпоинты до"><Input type="number" value={values.endpointsMax ?? ""} onChange={(e) => set("endpointsMax", e.target.value)} /></Field>
+        <Field label="Бюджет от"><MoneyInput value={values.budgetMin ?? ""} onChange={(v) => set("budgetMin", v)} placeholder="0" /></Field>
+        <Field label="Бюджет до"><MoneyInput value={values.budgetMax ?? ""} onChange={(v) => set("budgetMax", v)} placeholder="без лимита" /></Field>
+        <Field label="Оборот от"><MoneyInput value={values.turnoverMin ?? ""} onChange={(v) => set("turnoverMin", v)} /></Field>
+        <Field label="Оборот до"><MoneyInput value={values.turnoverMax ?? ""} onChange={(v) => set("turnoverMax", v)} /></Field>
+        <Field label="Маржа % от"><DecimalInput value={values.marginMin ?? ""} onChange={(v) => set("marginMin", v)} /></Field>
+        <Field label="Маржа % до"><DecimalInput value={values.marginMax ?? ""} onChange={(v) => set("marginMax", v)} /></Field>
+        <Field label="Скидка % от"><DecimalInput value={values.discountMin ?? ""} onChange={(v) => set("discountMin", v)} /></Field>
+        <Field label="Скидка % до"><DecimalInput value={values.discountMax ?? ""} onChange={(v) => set("discountMax", v)} /></Field>
+        <Field label="AI скор от"><DecimalInput value={values.scoreMin ?? ""} onChange={(v) => set("scoreMin", v)} /></Field>
+        <Field label="AI скор до"><DecimalInput value={values.scoreMax ?? ""} onChange={(v) => set("scoreMax", v)} /></Field>
+        <Field label="Эндпоинты от"><DecimalInput value={values.endpointsMin ?? ""} onChange={(v) => set("endpointsMin", v)} /></Field>
+        <Field label="Эндпоинты до"><DecimalInput value={values.endpointsMax ?? ""} onChange={(v) => set("endpointsMax", v)} /></Field>
       </Section>
 
       <Section title="Даты">
-        <Field label="Создано с"><Input type="date" value={values.from ?? ""} onChange={(e) => set("from", e.target.value)} /></Field>
-        <Field label="Создано по"><Input type="date" value={values.to ?? ""} onChange={(e) => set("to", e.target.value)} /></Field>
-        <Field label="Обновлено с"><Input type="date" value={values.updatedFrom ?? ""} onChange={(e) => set("updatedFrom", e.target.value)} /></Field>
-        <Field label="Обновлено по"><Input type="date" value={values.updatedTo ?? ""} onChange={(e) => set("updatedTo", e.target.value)} /></Field>
-        <Field label="Поставка с"><Input type="date" value={values.deliveryFrom ?? ""} onChange={(e) => set("deliveryFrom", e.target.value)} /></Field>
-        <Field label="Поставка по"><Input type="date" value={values.deliveryTo ?? ""} onChange={(e) => set("deliveryTo", e.target.value)} /></Field>
-        <Field label="Ожид. оплата с"><Input type="date" value={values.expectedPaymentFrom ?? ""} onChange={(e) => set("expectedPaymentFrom", e.target.value)} /></Field>
-        <Field label="Ожид. оплата по"><Input type="date" value={values.expectedPaymentTo ?? ""} onChange={(e) => set("expectedPaymentTo", e.target.value)} /></Field>
-        <Field label="Тест с"><Input type="date" value={values.testStartFrom ?? ""} onChange={(e) => set("testStartFrom", e.target.value)} /></Field>
-        <Field label="Тест по"><Input type="date" value={values.testEndTo ?? ""} onChange={(e) => set("testEndTo", e.target.value)} /></Field>
+        <Field label="Создано с"><DatePicker value={values.from ?? ""} onChange={(v) => set("from", v)} /></Field>
+        <Field label="Создано по"><DatePicker value={values.to ?? ""} onChange={(v) => set("to", v)} /></Field>
+        <Field label="Обновлено с"><DatePicker value={values.updatedFrom ?? ""} onChange={(v) => set("updatedFrom", v)} /></Field>
+        <Field label="Обновлено по"><DatePicker value={values.updatedTo ?? ""} onChange={(v) => set("updatedTo", v)} /></Field>
+        <Field label="Поставка с"><DatePicker value={values.deliveryFrom ?? ""} onChange={(v) => set("deliveryFrom", v)} /></Field>
+        <Field label="Поставка по"><DatePicker value={values.deliveryTo ?? ""} onChange={(v) => set("deliveryTo", v)} /></Field>
+        <Field label="Ожид. оплата с"><DatePicker value={values.expectedPaymentFrom ?? ""} onChange={(v) => set("expectedPaymentFrom", v)} /></Field>
+        <Field label="Ожид. оплата по"><DatePicker value={values.expectedPaymentTo ?? ""} onChange={(v) => set("expectedPaymentTo", v)} /></Field>
+        <Field label="Тест с"><DatePicker value={values.testStartFrom ?? ""} onChange={(v) => set("testStartFrom", v)} /></Field>
+        <Field label="Тест по"><DatePicker value={values.testEndTo ?? ""} onChange={(v) => set("testEndTo", v)} /></Field>
       </Section>
     </div>
   );

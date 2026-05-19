@@ -8,9 +8,11 @@ import {
   type ColumnSizingState,
   type VisibilityState,
 } from "@tanstack/react-table";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import type { Deal } from "../../../lib/types";
 import { cn } from "../../../lib/cn";
 import { buildDealColumns, DEAL_COLUMN_META, DEFAULT_COLUMN_VISIBILITY } from "./dealsTableColumns";
+import { isSortableColumn, parseDealSortParam } from "./dealsTableSort";
 
 const STORAGE_KEY = "nwlvl_deals_table_v1";
 
@@ -38,6 +40,12 @@ function loadPrefs(): TablePrefs {
 
 const columnHelper = createColumnHelper<Deal>();
 
+function SortIcon({ columnId, sortParam }: { columnId: string; sortParam?: string | null }) {
+  const parsed = parseDealSortParam(sortParam);
+  if (parsed?.columnId !== columnId) return <ArrowUpDown size={12} className="opacity-40" />;
+  return parsed.dir === "asc" ? <ArrowUp size={12} className="text-primary" /> : <ArrowDown size={12} className="text-primary" />;
+}
+
 export function DealsDataTable({
   items,
   selected,
@@ -47,6 +55,8 @@ export function DealsDataTable({
   onRowClick,
   visibilityOverride,
   onVisibilityChange,
+  sortParam,
+  onSortColumn,
 }: {
   items: Deal[];
   selected: Set<string>;
@@ -56,6 +66,8 @@ export function DealsDataTable({
   onRowClick: (id: string) => void;
   visibilityOverride?: VisibilityState | null;
   onVisibilityChange?: (v: VisibilityState) => void;
+  sortParam?: string | null;
+  onSortColumn?: (columnId: string) => void;
 }) {
   const [prefs, setPrefs] = React.useState<TablePrefs>(loadPrefs);
   const [showColumns, setShowColumns] = React.useState(false);
@@ -177,7 +189,7 @@ export function DealsDataTable({
         </button>
       </div>
       {showColumns ? (
-        <div className="mb-3 space-y-2 p-2 rounded-card border border-border bg-[rgba(255,255,255,0.04)] max-h-56 overflow-auto">
+        <div className="mb-3 space-y-2 p-2 rounded-card border border-border bg-[rgba(255,255,255,0.04)] max-h-56 overflow-auto crm-scrollbar">
           {(["основное", "финансы", "коммерция", "даты", "ai", "ссылки"] as const).map((group) => {
             const cols = DEAL_COLUMN_META.filter((c) => c.group === group);
             if (!cols.length) return null;
@@ -202,18 +214,34 @@ export function DealsDataTable({
         </div>
       ) : null}
 
-      <div className="overflow-auto rounded-card border border-border">
+      <div className="overflow-auto rounded-card border border-border crm-scrollbar">
         <table className="w-full text-sm" style={{ width: table.getTotalSize() }}>
           <thead>
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id} className="h-10 bg-tableHeader text-text font-semibold">
-                {hg.headers.map((header) => (
+                {hg.headers.map((header) => {
+                  const colId = header.column.id;
+                  const meta = DEAL_COLUMN_META.find((m) => m.id === colId);
+                  const sortable = Boolean(onSortColumn && isSortableColumn(colId));
+                  return (
                   <th
                     key={header.id}
                     className="text-left px-3 relative select-none"
                     style={{ width: header.getSize(), ...pinStyle(header.column.id) }}
                   >
-                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                    {header.isPlaceholder ? null : sortable ? (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 hover:text-primary max-w-full"
+                        onClick={() => onSortColumn?.(colId)}
+                        title="Сортировка: по возрастанию → по убыванию → сброс"
+                      >
+                        <span className="truncate">{meta?.label ?? colId}</span>
+                        <SortIcon columnId={colId} sortParam={sortParam} />
+                      </button>
+                    ) : (
+                      flexRender(header.column.columnDef.header, header.getContext())
+                    )}
                     {header.column.getCanResize() ? (
                       <button
                         type="button"
@@ -227,7 +255,7 @@ export function DealsDataTable({
                       />
                     ) : null}
                   </th>
-                ))}
+                );})}
               </tr>
             ))}
           </thead>
@@ -254,7 +282,7 @@ export function DealsDataTable({
         </table>
       </div>
       <p className="mt-2 text-[11px] text-text2">
-        Подсказка: тяните правый край заголовка для ширины · «Сделка» и чекбокс закреплены слева
+        Клик по заголовку — сортировка (А→Я / по возрастанию, ещё раз — обратно). Тяните правый край для ширины колонки.
       </p>
     </div>
   );

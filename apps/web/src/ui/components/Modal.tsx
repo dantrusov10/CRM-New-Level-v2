@@ -18,7 +18,6 @@ export function Modal({
   if (!open) return null;
   return (
     <div
-      // Intentionally keep the modal lower than the sticky header (so it never "hides" under it).
       className="fixed inset-0 z-[9999] flex items-start justify-center bg-black/78 backdrop-blur-sm px-4 pt-32 pb-8"
       onMouseDown={onClose}
     >
@@ -35,7 +34,7 @@ export function Modal({
             <X size={18} />
           </button>
         </div>
-        <div className="p-4 overflow-y-auto max-h-[calc(100vh-140px-56px)]">{children}</div>
+        <div className="p-4 overflow-y-auto crm-scrollbar max-h-[calc(100vh-140px-56px)]">{children}</div>
       </div>
     </div>
   );

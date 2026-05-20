@@ -2,6 +2,7 @@ import React from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import dayjs from "dayjs";
 import type { Deal } from "../../../lib/types";
+import { dealBudget, dealTurnover } from "./dealNumeric";
 
 export type DealColumnMeta = {
   id: string;
@@ -46,7 +47,8 @@ function cellText(v: unknown) {
 }
 
 function numCell(v: unknown) {
-  const n = Number(v);
+  if (v === null || v === undefined || v === "") return "—";
+  const n = typeof v === "number" ? v : Number(String(v).replace(/\s/g, "").replace(",", "."));
   return Number.isFinite(n) ? n.toLocaleString("ru-RU") : "—";
 }
 
@@ -88,8 +90,20 @@ export function buildDealColumns(): ColumnDef<Deal, unknown>[] {
         );
       },
     },
-    budget: { id: "budget", accessorKey: "budget", header: "Бюджет", size: 110, cell: (i) => <span className="tabular-nums">{numCell(i.getValue())}</span> },
-    turnover: { id: "turnover", accessorKey: "turnover", header: "Оборот", size: 110, cell: (i) => <span className="tabular-nums">{numCell(i.getValue())}</span> },
+    budget: {
+      id: "budget",
+      accessorFn: (d) => dealBudget(d),
+      header: "Бюджет",
+      size: 110,
+      cell: (i) => <span className="tabular-nums">{numCell(i.getValue())}</span>,
+    },
+    turnover: {
+      id: "turnover",
+      accessorFn: (d) => dealTurnover(d),
+      header: "Оборот",
+      size: 110,
+      cell: (i) => <span className="tabular-nums">{numCell(i.getValue())}</span>,
+    },
     margin_percent: { id: "margin_percent", accessorKey: "margin_percent", header: "Маржа %", size: 90, cell: (i) => <span className="tabular-nums">{typeof i.getValue() === "number" ? `${i.getValue()}%` : "—"}</span> },
     discount_percent: { id: "discount_percent", accessorKey: "discount_percent", header: "Скидка %", size: 90, cell: (i) => <span className="tabular-nums">{typeof i.getValue() === "number" ? `${i.getValue()}%` : "—"}</span> },
     sales_channel: { id: "sales_channel", accessorKey: "sales_channel", header: "Канал", size: 120, cell: (i) => <span className="text-text2">{cellText(i.getValue())}</span> },

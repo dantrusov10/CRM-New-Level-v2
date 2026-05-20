@@ -1,4 +1,5 @@
 import type { Deal } from "../../../lib/types";
+import { dealBudget, dealTurnover, parseDealNumber } from "./dealNumeric";
 
 export type SortDir = "asc" | "desc";
 
@@ -7,7 +8,8 @@ export type ParsedDealSort = {
   dir: SortDir;
 };
 
-const SERVER_FIELD: Record<string, keyof Deal | string> = {
+/** Поля, которые PocketBase сортирует на сервере (все страницы). */
+const PB_SORT_FIELD: Record<string, string> = {
   title: "title",
   budget: "budget",
   turnover: "turnover",
@@ -28,10 +30,16 @@ const SERVER_FIELD: Record<string, keyof Deal | string> = {
   expected_payment_date: "expected_payment_date",
 };
 
+/** Только эти колонки — сортировка в памяти по expand (вся выборка). */
 const RELATION_SORT: Record<string, (d: Deal) => string> = {
   company: (d) => (d.expand?.company_id?.name ?? "").toLocaleLowerCase("ru"),
   owner: (d) => (d.expand?.responsible_id?.full_name ?? d.expand?.responsible_id?.email ?? "").toLocaleLowerCase("ru"),
   stage: (d) => (d.expand?.stage_id?.stage_name ?? "").toLocaleLowerCase("ru"),
+};
+
+const NUMERIC_SORT_GETTER: Record<string, (d: Deal) => number | null> = {
+  budget: dealBudget,
+  turnover: dealTurnover,
 };
 
 export function isSortableColumn(columnId: string) {
@@ -48,8 +56,20 @@ export function parseDealSortParam(sortParam: string | null | undefined): Parsed
   return { columnId, dir: desc ? "desc" : "asc" };
 }
 
-export function hasCustomDealSort(sortParam: string | null | undefined): boolean {
-  return parseDealSortParam(sortParam) !== null;
+/** Сортировка в памяти по всей выборке: связи и числовые поля (корректный парсинг). */
+export function needsRelationSort(sortParam: string | null | undefined): boolean {
+  const parsed = parseDealSortParam(sortParam);
+  if (!parsed) return false;
+  if (RELATION_SORT[parsed.columnId]) return true;
+  return Boolean(NUMERIC_SORT_GETTER[parsed.columnId]);
+}
+
+export function pocketBaseSortFromParam(sortParam: string | null | undefined): string {
+  const parsed = parseDealSortParam(sortParam);
+  if (!parsed) return sortParam?.trim() || "-updated";
+  const field = PB_SORT_FIELD[parsed.columnId];
+  if (!field) return "-updated";
+  return parsed.dir === "desc" ? `-${field}` : field;
 }
 
 export function dealSortToParam(columnId: string, dir: SortDir): string {
@@ -71,9 +91,9 @@ function compareValues(av: unknown, bv: unknown, dir: number): number {
   if (aEmpty) return 1;
   if (bEmpty) return -1;
 
-  const an = Number(av);
-  const bn = Number(bv);
-  if (Number.isFinite(an) && Number.isFinite(bn)) return (an - bn) * dir;
+  const an = typeof av === "number" ? av : parseDealNumber(av);
+  const bn = typeof bv === "number" ? bv : parseDealNumber(bv);
+  if (an !== null && bn !== null) return (an - bn) * dir;
 
   const ad = Date.parse(String(av));
   const bd = Date.parse(String(bv));
@@ -82,42 +102,32 @@ function compareValues(av: unknown, bv: unknown, dir: number): number {
   return String(av).localeCompare(String(bv), "ru", { sensitivity: "base" }) * dir;
 }
 
-/** Sort entire filtered dataset (all pages) before pagination. */
+function valueForSort(deal: Deal, columnId: string): unknown {
+  const numGetter = NUMERIC_SORT_GETTER[columnId];
+  if (numGetter) return numGetter(deal);
+  const field = PB_SORT_FIELD[columnId];
+  if (field) return (deal as Record<string, unknown>)[field];
+  return null;
+}
+
+/** Сортировка всей выборки в памяти (компания / ответственный / этап). */
 export function sortDealsGlobal(items: Deal[], sortParam: string | null | undefined): Deal[] {
   const parsed = parseDealSortParam(sortParam);
   if (!parsed) return items;
 
   const dir = parsed.dir === "asc" ? 1 : -1;
   const relationGetter = RELATION_SORT[parsed.columnId];
-  const field = SERVER_FIELD[parsed.columnId];
 
-  const sorted = [...items].sort((a, b) => {
+  return [...items].sort((a, b) => {
     let cmp = 0;
     if (relationGetter) {
       cmp = compareValues(relationGetter(a), relationGetter(b), dir);
-    } else if (field) {
-      cmp = compareValues((a as Record<string, unknown>)[field], (b as Record<string, unknown>)[field], dir);
+    } else {
+      cmp = compareValues(valueForSort(a, parsed.columnId), valueForSort(b, parsed.columnId), dir);
     }
     if (cmp !== 0) return cmp;
     const au = Date.parse(String(a.updated || a.created || ""));
     const bu = Date.parse(String(b.updated || b.created || ""));
-    return (bu - au) || String(a.id).localeCompare(String(b.id));
+    return bu - au || String(a.id).localeCompare(String(b.id));
   });
-
-  return sorted;
-}
-
-/** @deprecated use sortDealsGlobal */
-export function needsClientSort(sortParam: string | null | undefined): boolean {
-  return hasCustomDealSort(sortParam);
-}
-
-/** @deprecated use sortDealsGlobal */
-export function sortDealsClient(items: Deal[], sortParam: string | null | undefined): Deal[] {
-  return sortDealsGlobal(items, sortParam);
-}
-
-/** @deprecated */
-export function pocketBaseSortFromParam(sortParam: string | null | undefined): string {
-  return hasCustomDealSort(sortParam) ? "-updated" : (sortParam?.trim() || "-updated");
 }

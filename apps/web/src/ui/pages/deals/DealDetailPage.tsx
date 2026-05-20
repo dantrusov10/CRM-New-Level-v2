@@ -26,7 +26,6 @@ import {
   useUsers,
 } from "../../data/hooks";
 import { DealKpModule } from "../../modules/kp/DealKpModule";
-import { DealCommandCenter } from "./DealCommandCenter";
 import { DynamicEntityFormWithRef, DynamicEntityFormHandle } from "../../components/DynamicEntityForm";
 import { InlineConfirmActions } from "../../components/InlineConfirmActions";
 import type { AiInsight, Deal, TimelineItem } from "../../../lib/types";
@@ -2337,11 +2336,6 @@ export function DealDetailPage() {
     () => extractActionItems(latestAi?.suggestions || latestAi?.recommendations || ""),
     [latestAi],
   );
-  const aiOneLiner = React.useMemo(() => {
-    const raw = String(deal?.current_recommendations || latestAi?.summary || latestAi?.recommendations || "").trim();
-    const line = humanizeSummaryForDisplay(raw).split("\n").map((s) => s.trim()).find(Boolean);
-    return line ? line.slice(0, 240) : "";
-  }, [deal?.current_recommendations, latestAi?.summary, latestAi?.recommendations]);
   const researchSections = React.useMemo(
     () => buildResearchTemplate(latestAi, aiHistory, tlAll, dynamicSections, nextActions, score),
     [latestAi, aiHistory, tlAll, dynamicSections, nextActions, score],
@@ -2530,35 +2524,6 @@ export function DealDetailPage() {
           </div>
         </CardHeader>
       </Card>
-
-      {deal ? (
-        <DealCommandCenter
-          title={titleDraft || deal.title || ""}
-          companyName={deal.expand?.company_id?.name}
-          stageName={deal.expand?.stage_id?.stage_name}
-          score={score}
-          scoreLabel={sb.label}
-          aiOneLiner={aiOneLiner}
-          nextStep={nextActions[0]}
-          aiLoading={aiRunLoading}
-          onRunAi={() => {
-            setAnalysisMode("full");
-            setAnalysisSelection(selectedProductIds);
-            setAnalysisPickerOpen(true);
-          }}
-          onCreateTaskFromStep={() => {
-            if (nextActions[0]) void createTaskFromAction(nextActions[0]);
-          }}
-          onOpenKp={() => setTab("kp")}
-          onOpenAiTab={() => setTab("ai")}
-          onAddNote={async () => {
-            const text = window.prompt("Заметка по сделке");
-            if (!text?.trim()) return;
-            await createTimelineEvent("note", text.trim());
-            tlQ.refetch();
-          }}
-        />
-      ) : null}
 
       {/* MAIN AREA */}
       <div className="grid grid-cols-12 gap-4">
@@ -2826,7 +2791,7 @@ export function DealDetailPage() {
           </Card>
         </div>
 
-        <div className={`col-span-12 min-w-0 grid gap-4 ${tab === "overview" ? "xl:col-span-6" : "xl:col-span-9"}`}>
+        <div className="col-span-12 min-w-0 xl:col-span-9 grid gap-4">
           {tab === "overview" ? (
           <Card className="h-[calc(100vh-170px)] overflow-hidden flex flex-col">
             <CardHeader>
@@ -2911,6 +2876,60 @@ export function DealDetailPage() {
                     ) : null}
                   </div>
                 </div>
+              </div>
+              <div className="rounded-card border border-[rgba(51,215,255,0.28)] bg-[rgba(45,123,255,0.08)] p-2.5 flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge>{typeof score === "number" ? `${score}%` : "—"}</Badge>
+                  <span className="text-xs text-text2">{sb.label}</span>
+                  <Button
+                    small
+                    onClick={() => {
+                      setAnalysisMode("full");
+                      setAnalysisSelection(selectedProductIds);
+                      setAnalysisPickerOpen(true);
+                    }}
+                    disabled={aiRunLoading || !deal?.id}
+                  >
+                    {aiRunLoading ? "AI…" : "AI-анализ"}
+                  </Button>
+                  <Button
+                    small
+                    variant="secondary"
+                    onClick={() => {
+                      setAnalysisMode("update");
+                      setAnalysisSelection(selectedProductIds);
+                      setAnalysisPickerOpen(true);
+                    }}
+                    disabled={aiRunLoading || !deal?.id}
+                  >
+                    Обновить AI
+                  </Button>
+                  <Button
+                    small
+                    variant="secondary"
+                    onClick={() => {
+                      setDecisionSupportProductId(selectedProductIds[0] || "");
+                      setDecisionSupportOpen(true);
+                    }}
+                    disabled={aiRunLoading || !deal?.id}
+                  >
+                    Поддержка решения
+                  </Button>
+                  <Button small variant="ghost" onClick={() => setTab("ai")}>
+                    Полный отчёт ИИ
+                  </Button>
+                </div>
+                {nextActions[0] ? (
+                  <div className="flex flex-wrap items-start gap-2 text-xs">
+                    <span className="font-semibold text-text shrink-0">Следующий шаг:</span>
+                    <span className="text-text2 flex-1 min-w-[200px]">{nextActions[0]}</span>
+                    <Button small variant="secondary" onClick={() => void createTaskFromAction(nextActions[0])}>
+                      Создать задачу
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="text-xs text-text2">Запустите AI-анализ — появятся следующие шаги.</div>
+                )}
               </div>
             </CardHeader>
             <CardContent className="flex-1 min-h-0 overflow-hidden">
@@ -3571,137 +3590,6 @@ export function DealDetailPage() {
           ) : null}
         </div>
 
-        {/* RIGHT: AI rail (overview only) */}
-        {tab === "overview" ? (
-        <div className="col-span-12 min-w-0 xl:col-span-3 grid gap-4 self-start">
-          <Card className="neon-accent h-[calc(100vh-170px)] overflow-hidden flex flex-col">
-            <CardHeader>
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <div className="text-sm font-semibold">Контур решений</div>
-                  <div className="text-xs text-text2 mt-1">Ключевой контур: AI + следующий шаг</div>
-                </div>
-                <span className="neon-pill">Приоритет</span>
-              </div>
-            </CardHeader>
-            <CardContent className="flex-1 min-h-0 overflow-hidden">
-              <div className="crm-scrollbar h-full overflow-y-auto pr-1">
-              <div className="grid gap-3">
-                <div className="rounded-card border border-[rgba(51,215,255,0.35)] bg-[rgba(45,123,255,0.16)] p-3">
-                  <div className="flex items-center justify-between">
-                  <div className="text-xs text-text2">Текущая вероятность</div>
-                    <Badge>{sb.label}</Badge>
-                  </div>
-                  <div className="mt-2 text-2xl font-extrabold">{typeof score === "number" ? `${score}%` : "—"}</div>
-                </div>
-
-                <Button
-                  onClick={() => {
-                    setAnalysisMode("full");
-                    setAnalysisSelection(selectedProductIds);
-                    setAnalysisPickerOpen(true);
-                  }}
-                  disabled={aiRunLoading || !deal?.id}
-                  className="neon-accent"
-                >
-                  {aiRunLoading ? "AI анализ..." : "Запустить AI-анализ"}
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setAnalysisMode("update");
-                    setAnalysisSelection(selectedProductIds);
-                    setAnalysisPickerOpen(true);
-                  }}
-                  disabled={aiRunLoading || !deal?.id}
-                >
-                  Обновить AI-анализ
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setDecisionSupportProductId(selectedProductIds[0] || "");
-                    setDecisionSupportOpen(true);
-                  }}
-                  disabled={aiRunLoading || !deal?.id}
-                >
-                  Поддержка решения
-                </Button>
-
-                <div className="rounded-card border border-border bg-white p-3">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-text2 mb-2">Следующие действия</div>
-                  {nextActions.length ? (
-                    <ul className="grid gap-1.5 text-sm">
-                      {nextActions.slice(0, 3).map((item, idx) => (
-                        <li key={`${item}-${idx}`} className="flex items-start gap-2">
-                          <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary/80" />
-                          <div className="flex-1 flex items-start justify-between gap-2">
-                            <span className="leading-relaxed">{item}</span>
-                            <Button
-                              small
-                              variant="secondary"
-                              className="h-9 min-w-[128px] shrink-0 whitespace-nowrap"
-                              onClick={() => void createTaskFromAction(item)}
-                            >
-                              Создать задачу
-                            </Button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div className="text-sm text-text2">Запусти AI, чтобы получить список следующих шагов.</div>
-                  )}
-                </div>
-                <div className="rounded-card border border-border bg-white p-3">
-                  <div className="text-sm font-semibold mb-2">Почему изменилась вероятность</div>
-                  {aiScoring ? (
-                    <div className="rounded-card border border-border bg-rowHover p-3">
-                      <div className="text-xs text-text2">Сводка</div>
-                      <ul className="mt-2 grid gap-1.5 text-sm">
-                        <li>Метод: <span className="font-semibold">{String(aiScoring.method || "—")}</span></li>
-                        <li>Финальная вероятность: <span className="font-semibold">{String(aiScoring.final_probability ?? "—")}</span></li>
-                        <li>Сырой сигнал модели: <span className="font-semibold">{String(aiScoring.llm_probability_raw ?? "—")}</span></li>
-                      </ul>
-                    </div>
-                  ) : null}
-                  {Array.isArray(aiScoring?.breakdown) ? (
-                    <div className="grid gap-2">
-                      {(aiScoring?.breakdown as Array<Record<string, unknown>>).slice(0, 8).map((f, idx) => (
-                        <div key={`${String(f.code || idx)}`} className="rounded-md border border-border bg-white px-3 py-2 text-sm">
-                          <div className="font-medium">{explainabilityFactorLabel(String(f.code || ""), String(f.name || ""))}</div>
-                          <div className="mt-1 h-1.5 w-full rounded-full bg-[rgba(255,255,255,0.12)]">
-                            <div
-                              className="h-1.5 rounded-full bg-primary/80"
-                              style={{ width: `${Math.max(0, Math.min(100, Number(f.value ?? 0)))}%` }}
-                            />
-                          </div>
-                          <div className="mt-1 text-xs text-text2">
-                            Оценка: {String(f.value ?? "—")} / 100 · Вес: {String(f.weight ?? "—")} · Вклад: {String(f.weighted_contribution ?? "—")}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                  <div className="rounded-card border border-border bg-rowHover p-3">
-                    <div className="text-xs text-text2 mb-2">Основные риски</div>
-                    {aiRiskLines.length ? (
-                      <ul className="grid gap-1.5 text-sm">
-                        {aiRiskLines.map((line, idx) => (
-                          <li key={`${line}-${idx}`} className="leading-relaxed">• {line}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="text-sm">Риски не выделены.</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-              </div>
-            </CardContent>
-            </Card>
-        </div>
-        ) : null}
 
       </div>
 

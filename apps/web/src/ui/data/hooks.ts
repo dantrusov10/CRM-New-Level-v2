@@ -167,19 +167,18 @@ export function useDealsList(params?: {
       const listOpts: Record<string, unknown> = { expand };
       if (f && String(f).trim().length) listOpts.filter = f;
 
-      const { hasCustomDealSort, sortDealsGlobal } = await import("../pages/deals/dealsTableSort");
+      const { needsRelationSort, pocketBaseSortFromParam, sortDealsGlobal } = await import("../pages/deals/dealsTableSort");
 
-      if (!hasCustomDealSort(sortParam)) {
+      if (!needsRelationSort(sortParam)) {
         return pb.collection("deals").getList(page, perPage, {
           ...listOpts,
-          sort: sortParam?.trim() || "-updated",
+          sort: pocketBaseSortFromParam(sortParam),
         });
       }
 
       const all = await pb.collection("deals").getFullList<Deal>({
         ...listOpts,
         batch: 500,
-        sort: "-updated",
       });
       const sorted = sortDealsGlobal(all, sortParam);
       const totalItems = sorted.length;

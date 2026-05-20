@@ -16,12 +16,12 @@ export type KpPdfBlock = {
 };
 
 export const KP_PDF_BLOCK_META: Record<KpPdfBlockType, { label: string; hint: string }> = {
-  header: { label: "Шапка", hint: "Логотип, название компании, клиент, сделка" },
-  client_cards: { label: "Карточки клиента", hint: "Email, ИНН и др. краткие поля" },
-  specification_table: { label: "Таблица спецификации", hint: "Позиции, кол-во, цены" },
-  totals: { label: "Итоги", hint: "Сумма без НДС, НДС, итого" },
-  conditions: { label: "Условия", hint: "Оплата, поставка, комментарий менеджера" },
-  signature: { label: "Подпись и дисклеймер", hint: "Дисклеймер, ФИО менеджера" },
+  header: { label: "Шапка", hint: "Логотип, ваша компания, название клиента" },
+  client_cards: { label: "Реквизиты клиента", hint: "Email и ИНН — блок под шапкой" },
+  specification_table: { label: "Таблица товаров", hint: "Позиции из прайса — основа КП" },
+  totals: { label: "Итоговая сумма", hint: "Подтаблица: без НДС, НДС, к оплате" },
+  conditions: { label: "Условия сделки", hint: "Оплата, сроки, комментарий менеджера" },
+  signature: { label: "Подпись и оговорка", hint: "Текст внизу страницы и контакты менеджера" },
 };
 
 export const DEFAULT_KP_PDF_BLOCKS: KpPdfBlock[] = [

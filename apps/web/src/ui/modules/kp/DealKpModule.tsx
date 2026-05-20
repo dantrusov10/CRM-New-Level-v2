@@ -8,6 +8,7 @@ import { Input } from "../../components/Input";
 import { Badge } from "../../components/Badge";
 import { pb } from "../../../lib/pb";
 import { KpPreview } from "./KpPreview";
+import { KpDocumentFrame } from "./KpDocumentFrame";
 import { computeSpecification } from "./calc";
 import { DEFAULT_KP_TEMPLATE_V1 } from "./defaultTemplate";
 import { KpStepNav } from "./KpStepNav";
@@ -502,8 +503,13 @@ export function DealKpModule({
             <div className="text-xs text-text2 mt-1">Так увидит клиент. Сначала сохраните черновик, затем скачайте файл.</div>
           </CardHeader>
           <CardContent className="grid gap-4">
-            <div ref={printRef} className="rounded-card border border-border bg-white overflow-x-auto">
-              <KpPreview template={template} input={input} items={items} dealId={dealId || ""} mode="pdf" />
+            <div ref={printRef} className="absolute -left-[99999px] top-0 w-[794px] bg-white">
+              <KpPreview template={template} input={input} items={items} dealId={dealId || ""} mode="document" />
+            </div>
+            <div className="min-h-[480px]">
+              <KpDocumentFrame title="Готовый документ" subtitle="Проверьте перед отправкой клиенту">
+                <KpPreview template={template} input={input} items={items} dealId={dealId || ""} mode="document" />
+              </KpDocumentFrame>
             </div>
             {requiredMissing ? (
               <div className="text-sm text-danger">Заполните обязательные поля на шагах 1 и 3.</div>

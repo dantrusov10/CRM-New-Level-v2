@@ -1,0 +1,156 @@
+/* Стили листа A4 — отдельно от тёмной темы CRM */
+.kp-document-root {
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 11pt;
+  line-height: 1.45;
+  color: #111827;
+  background: #ffffff;
+}
+
+.kp-doc-header {
+  border-bottom: 2px solid var(--kp-accent, #004eeb);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.kp-doc-title {
+  font-size: 9pt;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.kp-doc-company {
+  font-size: 16pt;
+  font-weight: 700;
+  color: var(--kp-accent, #004eeb);
+  line-height: 1.2;
+}
+
+.kp-doc-client {
+  font-size: 12pt;
+  font-weight: 600;
+  margin-top: 6px;
+}
+
+.kp-doc-meta {
+  font-size: 9pt;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.kp-doc-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.kp-doc-info-cell {
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 8px 10px;
+  background: #f9fafb;
+}
+
+.kp-doc-info-label {
+  font-size: 8pt;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+  margin-bottom: 2px;
+}
+
+.kp-doc-info-value {
+  font-size: 10pt;
+  font-weight: 500;
+}
+
+.kp-doc-section-title {
+  font-size: 10pt;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: #111827;
+}
+
+.kp-doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9.5pt;
+  margin-bottom: 12px;
+}
+
+.kp-doc-table th {
+  text-align: left;
+  padding: 8px 10px;
+  font-weight: 600;
+  background: var(--kp-table-head-bg, #eef1f6);
+  color: var(--kp-table-head-text, #374151);
+  border: 1px solid #e5e7eb;
+}
+
+.kp-doc-table th.num,
+.kp-doc-table td.num {
+  text-align: right;
+}
+
+.kp-doc-table td {
+  padding: 7px 10px;
+  border: 1px solid #e5e7eb;
+  vertical-align: top;
+}
+
+.kp-doc-table tbody tr:nth-child(even) td {
+  background: #fafafa;
+}
+
+.kp-doc-totals {
+  margin-left: auto;
+  width: min(280px, 100%);
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 10px 12px;
+  background: #f9fafb;
+}
+
+.kp-doc-totals-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 9.5pt;
+  padding: 3px 0;
+}
+
+.kp-doc-totals-row.total {
+  font-weight: 700;
+  font-size: 11pt;
+  border-top: 1px solid #d1d5db;
+  margin-top: 6px;
+  padding-top: 8px;
+}
+
+.kp-doc-conditions {
+  border-left: 3px solid var(--kp-accent, #004eeb);
+  padding: 10px 12px;
+  background: #f9fafb;
+  margin-bottom: 14px;
+  font-size: 9.5pt;
+}
+
+.kp-doc-footer {
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+  font-size: 8pt;
+  color: #6b7280;
+}
+
+.kp-doc-signature {
+  margin-top: 14px;
+  font-size: 10pt;
+}
+
+.kp-doc-signature-name {
+  font-weight: 600;
+}

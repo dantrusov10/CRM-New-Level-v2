@@ -1,32 +1,46 @@
 import React from "react";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
+import { ImagePlus, Save } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
-import { Badge } from "../../components/Badge";
 import { KpPreview } from "./KpPreview";
-import { KpPdfBlocksEditor } from "./KpPdfBlocksEditor";
+import { KpDocumentFrame } from "./KpDocumentFrame";
+import { KpDocumentSectionsEditor } from "./KpDocumentSectionsEditor";
 import { DEFAULT_KP_TEMPLATE_V1 } from "./defaultTemplate";
 import { ensurePdfBlocks } from "./kpPdfBlocks";
 import { pb } from "../../../lib/pb";
-import type { KpInput, KpSection, KpTemplateConfig, KpTemplateRecord, SpecItem } from "./types";
+import type { KpInput, KpTemplateConfig, KpTemplateRecord, SpecItem } from "./types";
 
 function deepClone<T>(v: T): T {
   return JSON.parse(JSON.stringify(v));
 }
 
-function previewInputStr(v: unknown): string {
-  if (v == null) return "";
-  if (typeof v === "string" || typeof v === "number") return String(v);
-  return "";
-}
+const BRAND_PRESETS: { id: string; label: string; color: string }[] = [
+  { id: "blue", label: "Синий", color: "#004EEB" },
+  { id: "slate", label: "Серый", color: "#334155" },
+  { id: "teal", label: "Бирюза", color: "#0D9488" },
+  { id: "violet", label: "Фиолетовый", color: "#6D28D9" },
+];
+
+const DEMO_INPUT: KpInput = {
+  clientName: "ООО «Ромашка»",
+  clientInn: "7701234567",
+  clientEmail: "it@romashka.ru",
+  paymentTerms: "split50_50",
+  deliveryDate: "в течение 10 рабочих дней",
+  comment: "Демо-данные для предпросмотра. Так увидит клиент.",
+};
+
+const DEMO_ITEMS: SpecItem[] = [
+  { id: "i1", name: "Лицензия — базовая", qty: 100, unitPrice: 1000, vatPercent: 20, source: "custom" },
+  { id: "i2", name: "Техподдержка — стандарт", qty: 1, unitPrice: 50000, vatPercent: 20, source: "custom" },
+];
 
 export function KpTemplateEditor({
   templateRecord,
   onSave,
   onReload,
-  dealIdForPreview = "DEAL_PREVIEW",
+  dealIdForPreview = "DEMO-001",
   variant = "full",
   onSaved,
 }: {
@@ -38,7 +52,8 @@ export function KpTemplateEditor({
   onSaved?: () => void;
 }) {
   const isWizard = variant === "wizard";
-  const [showAdvanced, setShowAdvanced] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+
   const initial = React.useMemo(() => {
     const json = templateRecord?.template_json;
     const base =
@@ -48,27 +63,14 @@ export function KpTemplateEditor({
   }, [templateRecord?.id]);
 
   const [draft, setDraft] = React.useState<KpTemplateConfig>(initial);
-  const [previewMode, setPreviewMode] = React.useState<"manager" | "pdf">("manager");
-  const [pdfUrl, setPdfUrl] = React.useState<string>("");
-  const pdfRenderRef = React.useRef<HTMLDivElement | null>(null);
   const [logoFile, setLogoFile] = React.useState<File | null>(null);
-  const [logoPreviewUrl, setLogoPreviewUrl] = React.useState<string>("");
-  const [demoInput, setDemoInput] = React.useState<KpInput>({
-    clientName: "ООО «Ромашка»",
-    clientInn: "1111111111",
-    clientEmail: "it@romashka.ru",
-  });
-  const [demoItems, setDemoItems] = React.useState<SpecItem[]>([
-    { id: "i1", name: "Лицензия — базовая", qty: 100, unitPrice: 1000, source: "custom" },
-    { id: "i2", name: "Техподдержка — стандарт", qty: 1, unitPrice: 50000, source: "custom" },
-  ]);
+  const [logoPreviewUrl, setLogoPreviewUrl] = React.useState("");
 
   React.useEffect(() => {
     setDraft(initial);
   }, [initial]);
 
   React.useEffect(() => {
-    // show current logo from PocketBase record
     const rec = templateRecord;
     if (rec?.id && rec?.logo) {
       try {
@@ -95,69 +97,11 @@ export function KpTemplateEditor({
     });
   }
 
-  function updatePdfDesign(path: string, value: string) {
+  function updateSignature(path: string, value: string) {
     setDraft((p) => {
       const n = deepClone(p);
-      n.pdfDesign = n.pdfDesign || {};
-      (n.pdfDesign as Record<string, unknown>)[path] = value;
-      return n;
-    });
-  }
-
-  function updateField(sectionId: string, fieldId: string, patch: Record<string, unknown>) {
-    setDraft((p) => {
-      const n = deepClone(p);
-      const sec = (n.ui?.sections || []).find((s) => s.id === sectionId);
-      if (!sec) return n;
-      const idx = (sec.fields || []).findIndex((f) => f.id === fieldId);
-      if (idx < 0) return n;
-      sec.fields[idx] = { ...sec.fields[idx], ...patch };
-      return n;
-    });
-  }
-
-  function addField(sectionId: string) {
-    setDraft((p) => {
-      const n = deepClone(p);
-      const sec = (n.ui?.sections || []).find((s) => s.id === sectionId);
-      if (!sec) return n;
-      const nextIdx = (sec.fields || []).length + 1;
-      const id = `custom_${sectionId}_${nextIdx}_${Math.random().toString(36).slice(2, 6)}`;
-      sec.fields = sec.fields || [];
-      sec.fields.push({
-        id,
-        label: "Новое поле",
-        type: "text",
-        required: false,
-        placeholder: "",
-        options: [],
-      });
-      return n;
-    });
-  }
-
-  function deleteField(sectionId: string, fieldId: string) {
-    setDraft((p) => {
-      const n = deepClone(p);
-      const sec = (n.ui?.sections || []).find((s) => s.id === sectionId);
-      if (!sec) return n;
-      sec.fields = (sec.fields || []).filter((f) => f.id !== fieldId);
-      return n;
-    });
-  }
-
-  function moveSection(sectionId: string, dir: -1 | 1) {
-    setDraft((p) => {
-      const n = deepClone(p);
-      const list = n.ui?.sections || [];
-      const idx = list.findIndex((s) => s.id === sectionId);
-      if (idx < 0) return n;
-      const next = idx + dir;
-      if (next < 0 || next >= list.length) return n;
-      const copy = [...list];
-      const [item] = copy.splice(idx, 1);
-      copy.splice(next, 0, item);
-      n.ui = { ...(n.ui || {}), sections: copy };
+      n.branding = n.branding || {};
+      n.branding.signature = { ...(n.branding.signature || {}), [path]: value };
       return n;
     });
   }
@@ -167,7 +111,6 @@ export function KpTemplateEditor({
     const fd = new FormData();
     fd.append("logo", logoFile);
     const upd = await pb.collection("settings_kp_templates").update(templateRecord.id, fd);
-    // refresh preview URL
     if (upd?.logo) {
       const url = pb.files.getUrl(upd, upd.logo);
       setLogoPreviewUrl(url);
@@ -181,337 +124,185 @@ export function KpTemplateEditor({
     setLogoFile(null);
   }
 
-  async function buildPdfPreview() {
-    // Render hidden A4-like preview to PDF and show in iframe
-    if (!pdfRenderRef.current) return;
-    const el = pdfRenderRef.current;
-    const canvas = await html2canvas(el, { scale: 2, backgroundColor: "#ffffff" });
-    const imgData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF("p", "mm", "a4");
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgProps = pdf.getImageProperties(imgData);
-    const imgWidth = pageWidth;
-    const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
-    let position = 0;
-    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-    let heightLeft = imgHeight - pageHeight;
-    while (heightLeft > 0) {
-      position = position - pageHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-    }
-    const blob = pdf.output("blob");
-    const url = URL.createObjectURL(blob);
-    setPdfUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return url;
-    });
-  }
-
-  React.useEffect(() => {
-    if (previewMode !== "pdf") return;
-    // debounce rebuild
-    const t = window.setTimeout(() => {
-      buildPdfPreview();
-    }, 250);
-    return () => window.clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewMode, draft, demoInput, demoItems]);
-
-  function updateColumn(key: string, patch: Record<string, unknown>) {
-    setDraft((p) => {
-      const n = deepClone(p);
-      const cols = n.specification?.columns || [];
-      const idx = cols.findIndex((c) => c.key === key);
-      if (idx >= 0) cols[idx] = { ...cols[idx], ...patch };
-      n.specification = { ...(n.specification || {}), columns: cols };
-      return n;
-    });
-  }
-
   async function save() {
-    await uploadLogoIfNeeded();
-    await onSave({ template_json: draft, name: draft?.name || templateRecord?.name || "КП" });
-    onReload();
-    onSaved?.();
+    setSaving(true);
+    try {
+      await uploadLogoIfNeeded();
+      await onSave({ template_json: draft, name: draft?.name || templateRecord?.name || "КП" });
+      onReload();
+      onSaved?.();
+    } finally {
+      setSaving(false);
+    }
   }
 
-  const sections = draft?.ui?.sections || [];
+  const accent = draft?.branding?.primaryColor || "#004EEB";
 
   return (
-    <div className="grid grid-cols-12 gap-4">
-      <div className="col-span-12 xl:col-span-6 grid gap-4">
+    <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 min-h-[640px]">
+      <div className="xl:col-span-5 grid gap-4 content-start">
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <div className="text-sm font-semibold">{isWizard ? "Шаг 2 — Шаблон PDF" : "Конструктор КП"}</div>
-                <div className="text-xs text-text2 mt-1">
-                  {isWizard
-                    ? "Минимум: брендинг + блоки PDF. Сохраните, затем проверьте превью справа."
-                    : "Блоки PDF (drag-and-drop), поля формы, прайс, предпросмотр"}
-                </div>
+                <div className="text-sm font-semibold">{isWizard ? "Оформление документа" : "Шаблон КП"}</div>
+                <div className="text-xs text-text2 mt-1">Логотип, фирменный стиль и разделы PDF</div>
               </div>
-              <div className="flex gap-2">
-                <Button variant="secondary" onClick={() => { setDraft(deepClone(DEFAULT_KP_TEMPLATE_V1)); }}>
-                  Сбросить на дефолт
-                </Button>
-                <Button onClick={save}>Сохранить</Button>
-              </div>
+              <Button onClick={() => void save()} disabled={saving}>
+                <Save size={16} className="mr-1" />
+                {saving ? "Сохранение…" : "Сохранить"}
+              </Button>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="grid gap-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <div className="text-xs text-text2 mb-1">Название шаблона</div>
-                  <Input value={draft?.name || ""} onChange={(e) => setDraft((p) => ({ ...p, name: e.target.value }))} />
+          <CardContent className="grid gap-4">
+            <div>
+              <div className="text-xs text-text2 mb-1">Название шаблона (для админки)</div>
+              <Input value={draft?.name || ""} onChange={(e) => setDraft((p) => ({ ...p, name: e.target.value }))} />
+            </div>
+
+            <div className="rounded-card border border-border bg-rowHover p-4 grid gap-3">
+              <div className="text-sm font-semibold">Фирменный стиль</div>
+
+              <div>
+                <div className="text-xs text-text2 mb-2">Логотип</div>
+                <label className="flex items-center gap-3 cursor-pointer rounded-card border border-dashed border-border bg-white p-3 hover:border-primary transition-colors">
+                  <ImagePlus size={20} className="text-text2 shrink-0" />
+                  <span className="text-xs text-text2">PNG или JPG, до 2 МБ</span>
+                  <input
+                    type="file"
+                    className="sr-only"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] || null;
+                      setLogoFile(f);
+                      if (f) setLogoPreviewUrl(URL.createObjectURL(f));
+                    }}
+                  />
+                  {logoPreviewUrl ? (
+                    <img src={logoPreviewUrl} alt="" className="ml-auto h-10 max-w-[120px] object-contain" />
+                  ) : null}
+                </label>
+              </div>
+
+              <div>
+                <div className="text-xs text-text2 mb-1">Название вашей компании в шапке</div>
+                <Input
+                  value={draft?.branding?.companyName || ""}
+                  onChange={(e) => updateBrand("companyName", e.target.value)}
+                  placeholder="ООО «Решение»"
+                />
+              </div>
+
+              <div>
+                <div className="text-xs text-text2 mb-2">Цвет акцента</div>
+                <div className="flex flex-wrap gap-2">
+                  {BRAND_PRESETS.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => updateBrand("primaryColor", p.color)}
+                      className={`flex items-center gap-2 rounded-card border px-3 py-1.5 text-xs ${
+                        accent === p.color ? "border-primary bg-primary/10" : "border-border bg-white"
+                      }`}
+                    >
+                      <span className="h-4 w-4 rounded-full border border-black/10" style={{ background: p.color }} />
+                      {p.label}
+                    </button>
+                  ))}
+                  <label className="flex items-center gap-2 rounded-card border border-border bg-white px-2 py-1 text-xs cursor-pointer">
+                    <input
+                      type="color"
+                      value={accent}
+                      onChange={(e) => updateBrand("primaryColor", e.target.value)}
+                      className="h-6 w-8 cursor-pointer border-0 p-0"
+                    />
+                    Свой
+                  </label>
                 </div>
-                <div>
-                  <div className="text-xs text-text2 mb-1">НДС % (централизованно)</div>
+              </div>
+
+              <div>
+                <div className="text-xs text-text2 mb-1">Контакты в шапке (телефон, email)</div>
+                <Input
+                  value={draft?.branding?.footerText || ""}
+                  onChange={(e) => updateBrand("footerText", e.target.value)}
+                  placeholder="sales@company.ru · +7 …"
+                />
+              </div>
+
+              <div>
+                <div className="text-xs text-text2 mb-1">Подпись менеджера в PDF</div>
+                <div className="grid grid-cols-2 gap-2">
                   <Input
-                    value={String(draft?.defaults?.vatPercent ?? 20)}
-                    onChange={(e) => setDraft((p) => ({ ...p, defaults: { ...(p.defaults || {}), vatPercent: Number(e.target.value || 20) } }))}
+                    value={draft?.branding?.signature?.name || ""}
+                    onChange={(e) => updateSignature("name", e.target.value)}
+                    placeholder="ФИО"
+                  />
+                  <Input
+                    value={draft?.branding?.signature?.title || ""}
+                    onChange={(e) => updateSignature("title", e.target.value)}
+                    placeholder="Должность"
+                  />
+                  <Input
+                    value={draft?.branding?.signature?.phone || ""}
+                    onChange={(e) => updateSignature("phone", e.target.value)}
+                    placeholder="Телефон"
+                  />
+                  <Input
+                    value={draft?.branding?.signature?.email || ""}
+                    onChange={(e) => updateSignature("email", e.target.value)}
+                    placeholder="Email"
                   />
                 </div>
               </div>
 
-              <div className="rounded-card border border-border bg-rowHover p-3">
-                <div className="text-sm font-semibold mb-2">Брендинг</div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2">
-                    <div className="text-xs text-text2 mb-1">Логотип (для PDF)</div>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0] || null;
-                          setLogoFile(f);
-                          if (f) setLogoPreviewUrl(URL.createObjectURL(f));
-                        }}
-                      />
-                      {logoPreviewUrl ? <img src={logoPreviewUrl} alt="logo" className="h-10 rounded" /> : <span className="text-xs text-text2">—</span>}
-                    </div>
-                    <div className="text-xs text-text2 mt-1">Логотип сохраняется в PocketBase в поле <code>settings_kp_templates.logo</code>.</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-text2 mb-1">Название компании</div>
-                    <Input value={draft?.branding?.companyName || ""} onChange={(e) => updateBrand("companyName", e.target.value)} />
-                  </div>
-                  <div>
-                    <div className="text-xs text-text2 mb-1">Акцент (HEX)</div>
-                    <Input value={draft?.branding?.primaryColor || ""} onChange={(e) => updateBrand("primaryColor", e.target.value)} />
-                  </div>
-                  <div className="col-span-2">
-                    <div className="text-xs text-text2 mb-1">Дисклеймер</div>
-                    <textarea
-                      className="w-full min-h-[90px] rounded-card border border-[#9CA3AF] bg-white p-3 text-sm"
-                      value={draft?.branding?.disclaimer || ""}
-                      onChange={(e) => updateBrand("disclaimer", e.target.value)}
-                    />
-                  </div>
-                </div>
+              <div>
+                <div className="text-xs text-text2 mb-1">Юридическая оговорка внизу страницы</div>
+                <textarea
+                  className="w-full min-h-[72px] rounded-card border border-[#9CA3AF] bg-white p-3 text-sm"
+                  value={draft?.branding?.disclaimer || ""}
+                  onChange={(e) => updateBrand("disclaimer", e.target.value)}
+                  placeholder="Не является офертой…"
+                />
               </div>
 
-              <KpPdfBlocksEditor
-                blocks={ensurePdfBlocks(draft)}
-                onChange={(pdfBlocks) => setDraft((p) => ({ ...p, pdfBlocks }))}
-              />
-
-              {isWizard ? (
-                <button
-                  type="button"
-                  className="text-sm text-primary underline text-left"
-                  onClick={() => setShowAdvanced((v) => !v)}
-                >
-                  {showAdvanced ? "Скрыть расширенные настройки" : "Расширенные настройки (поля формы, цвета PDF, колонки)"}
-                </button>
-              ) : null}
-
-              {(isWizard ? showAdvanced : true) ? (
-              <>
-              <div className="rounded-card border border-border bg-rowHover p-3">
-                <div className="text-sm font-semibold mb-2">Дизайн PDF</div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="col-span-2">
-                    <div className="text-xs text-text2 mb-1">Фон страницы (HEX)</div>
-                    <Input value={draft?.pdfDesign?.paperBg || "#ffffff"} onChange={(e) => updatePdfDesign("paperBg", e.target.value)} />
-                  </div>
-                  <div className="col-span-2">
-                    <div className="text-xs text-text2 mb-1">Основной текст (HEX)</div>
-                    <Input value={draft?.pdfDesign?.textColor || "#111827"} onChange={(e) => updatePdfDesign("textColor", e.target.value)} />
-                  </div>
-                  <div className="col-span-2">
-                    <div className="text-xs text-text2 mb-1">Шапка таблицы (фон)</div>
-                    <Input value={draft?.pdfDesign?.tableHeaderBg || "#EEF1F6"} onChange={(e) => updatePdfDesign("tableHeaderBg", e.target.value)} />
-                  </div>
-                  <div className="col-span-2">
-                    <div className="text-xs text-text2 mb-1">Шапка таблицы (текст)</div>
-                    <Input value={draft?.pdfDesign?.tableHeaderText || "#374151"} onChange={(e) => updatePdfDesign("tableHeaderText", e.target.value)} />
-                  </div>
-                </div>
+              <div>
+                <div className="text-xs text-text2 mb-1">НДС в расчётах, %</div>
+                <Input
+                  type="number"
+                  className="max-w-[120px]"
+                  value={String(draft?.defaults?.vatPercent ?? 20)}
+                  onChange={(e) =>
+                    setDraft((p) => ({
+                      ...p,
+                      defaults: { ...(p.defaults || {}), vatPercent: Number(e.target.value || 20) },
+                    }))
+                  }
+                />
               </div>
-
-              <div className="rounded-card border border-border bg-rowHover p-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold">Поля формы (наименования + обязательность)</div>
-                  <Badge>влияет на UI менеджера</Badge>
-                </div>
-                <div className="mt-3 grid gap-4">
-                  {sections.map((sec) => (
-                    <div key={sec.id} className="rounded-card border border-border bg-white p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="text-sm font-semibold">{sec.title}</div>
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            variant="secondary"
-                            onClick={() => moveSection(sec.id, -1)}
-                            disabled={sections[0]?.id === sec.id}
-                          >
-                            ↑
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            onClick={() => moveSection(sec.id, 1)}
-                            disabled={sections[sections.length - 1]?.id === sec.id}
-                          >
-                            ↓
-                          </Button>
-                          <Button variant="secondary" onClick={() => addField(sec.id)}>+ Поле</Button>
-                        </div>
-                      </div>
-                      <div className="mt-2 grid gap-2">
-                        {(sec.fields || []).map((f) => (
-                          <div key={f.id} className="grid grid-cols-12 gap-2 items-center">
-                            <div className="col-span-4 text-xs text-text2">ID: {f.id}</div>
-                            <div className="col-span-6">
-                              <Input value={f.label || ""} onChange={(e) => updateField(sec.id, f.id, { label: e.target.value })} />
-                            </div>
-                            <div className="col-span-2 flex items-center justify-end gap-2">
-                              <label className="text-xs text-text2 flex items-center gap-2">
-                                <input type="checkbox" checked={!!f.required} onChange={(e) => updateField(sec.id, f.id, { required: e.target.checked })} />
-                                обяз.
-                              </label>
-                              <Button variant="secondary" onClick={() => deleteField(sec.id, f.id)}>Удалить</Button>
-                            </div>
-                            <div className="col-span-12 grid grid-cols-12 gap-2">
-                              <div className="col-span-4">
-                                <div className="text-xs text-text2 mb-1">Тип</div>
-                                <select
-                                  className="h-10 w-full rounded-card border border-[#9CA3AF] bg-white px-3 text-sm"
-                                  value={f.type || "text"}
-                                  onChange={(e) => updateField(sec.id, f.id, { type: e.target.value })}
-                                >
-                                  <option value="text">Текст</option>
-                                  <option value="number">Число</option>
-                                  <option value="email">Email</option>
-                                  <option value="date">Дата</option>
-                                  <option value="textarea">Текст (многостр.)</option>
-                                  <option value="select">Список</option>
-                                </select>
-                              </div>
-                              <div className="col-span-8">
-                                <div className="text-xs text-text2 mb-1">Опции (для списка) — через запятую</div>
-                                <Input
-                                  value={(f.options || []).map((o) => o.label || o.value).join(", ")}
-                                  onChange={(e) => {
-                                    const raw = e.target.value;
-                                    const arr = raw
-                                      .split(",")
-                                      .map((s) => s.trim())
-                                      .filter(Boolean)
-                                      .map((s) => ({ label: s, value: s }));
-                                    updateField(sec.id, f.id, { options: arr });
-                                  }}
-                                  placeholder="OptionA, OptionB"
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-card border border-border bg-rowHover p-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold">Колонки спецификации (наименования)</div>
-                  <Badge>влияет на PDF</Badge>
-                </div>
-                <div className="mt-3 grid gap-2">
-                  {(draft?.specification?.columns || []).map((c) => (
-                    <div key={c.key} className="grid grid-cols-12 gap-2 items-center">
-                      <div className="col-span-3 text-xs text-text2">{c.key}</div>
-                      <div className="col-span-7">
-                        <Input value={c.label || ""} onChange={(e) => updateColumn(c.key, { label: e.target.value })} />
-                      </div>
-                      <div className="col-span-2 flex justify-end">
-                        <label className="text-xs text-text2 flex items-center gap-2">
-                          <input type="checkbox" checked={c.optional !== true} onChange={(e) => updateColumn(c.key, { optional: !e.target.checked })} />
-                          видимо
-                        </label>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              </>
-              ) : null}
             </div>
+
+            <KpDocumentSectionsEditor
+              blocks={ensurePdfBlocks(draft)}
+              onChange={(pdfBlocks) => setDraft((p) => ({ ...p, pdfBlocks }))}
+            />
           </CardContent>
         </Card>
       </div>
 
-      <div className="col-span-12 xl:col-span-6 grid gap-4">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-semibold">Предпросмотр спецификации</div>
-                <div className="text-xs text-text2 mt-1">Как это будет выглядеть у менеджера и в PDF</div>
-              </div>
-              <div className="flex gap-2">
-                <Button variant={previewMode === "manager" ? "primary" : "secondary"} onClick={() => setPreviewMode("manager")}>UI</Button>
-                <Button variant={previewMode === "pdf" ? "primary" : "secondary"} onClick={() => setPreviewMode("pdf")}>PDF</Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3">
-              <div className="rounded-card border border-border bg-rowHover p-3">
-                <div className="text-sm font-semibold mb-2">Демо-данные для предпросмотра</div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Input value={previewInputStr(demoInput.clientName)} onChange={(e) => setDemoInput((p) => ({ ...p, clientName: e.target.value }))} placeholder="Компания" />
-                  <Input value={previewInputStr(demoInput.clientEmail)} onChange={(e) => setDemoInput((p) => ({ ...p, clientEmail: e.target.value }))} placeholder="Email" />
-                  <Input value={previewInputStr(demoInput.clientInn)} onChange={(e) => setDemoInput((p) => ({ ...p, clientInn: e.target.value }))} placeholder="ИНН" />
-                  <Input value={String(demoInput.discountManualPercent || "")} onChange={(e) => setDemoInput((p) => ({ ...p, discountManualPercent: e.target.value }))} placeholder="Скидка %" />
-                </div>
-              </div>
-
-              <div className="rounded-card border border-border bg-white p-3">
-                {previewMode === "manager" ? (
-                  <KpPreview template={draft} input={demoInput} items={demoItems} dealId={dealIdForPreview} mode={"manager"} />
-                ) : (
-                  <div className="grid gap-3">
-                    <div className="text-xs text-text2">Предпросмотр PDF (A4)</div>
-                    <iframe title="kp-pdf-preview" className="w-full h-[680px] rounded-card border border-border bg-white" src={pdfUrl || undefined} />
-                    {/* Hidden renderer for html2canvas */}
-                    <div className="absolute -left-[99999px] top-0">
-                      <div ref={pdfRenderRef} style={{ width: 794, background: "#fff", padding: 24 }}>
-                        <KpPreview template={draft} input={demoInput} items={demoItems} dealId={dealIdForPreview} mode={"pdf"} />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="xl:col-span-7 xl:sticky xl:top-4 self-start min-h-[560px]">
+        <KpDocumentFrame
+          title="Лист A4 — как увидит клиент"
+          subtitle="Обновляется при каждом изменении слева"
+        >
+          <KpPreview
+            template={draft}
+            input={DEMO_INPUT}
+            items={DEMO_ITEMS}
+            dealId={dealIdForPreview}
+            mode="document"
+          />
+        </KpDocumentFrame>
       </div>
     </div>
   );

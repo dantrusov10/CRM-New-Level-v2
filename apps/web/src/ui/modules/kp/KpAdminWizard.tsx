@@ -8,6 +8,7 @@ import { ADMIN_KP_STEPS, fetchKpReadiness, type KpReadiness } from "./kpProcess"
 import { PriceListAdmin } from "./PriceListAdmin";
 import { KpTemplateEditor } from "./KpTemplateEditor";
 import { KpPreview } from "./KpPreview";
+import { KpDocumentFrame } from "./KpDocumentFrame";
 import { DEFAULT_KP_TEMPLATE_V1 } from "./defaultTemplate";
 import { ensurePdfBlocks } from "./kpPdfBlocks";
 import type { KpInput, KpTemplateConfig, KpTemplateRecord, SpecItem } from "./types";
@@ -188,14 +189,16 @@ export function KpAdminWizard({
             </div>
           </CardHeader>
           <CardContent className="grid gap-4">
-            <div className="rounded-card border border-border bg-white overflow-x-auto max-h-[70vh] overflow-y-auto">
-              <KpPreview
-                template={previewTemplate}
-                input={DEMO_INPUT}
-                items={DEMO_ITEMS}
-                dealId="KP_DEMO"
-                mode="pdf"
-              />
+            <div className="min-h-[520px]">
+              <KpDocumentFrame title="Финальная проверка" subtitle="Демо-данные — так же выглядит PDF в сделке">
+                <KpPreview
+                  template={previewTemplate}
+                  input={DEMO_INPUT}
+                  items={DEMO_ITEMS}
+                  dealId="KP_DEMO"
+                  mode="document"
+                />
+              </KpDocumentFrame>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button variant="secondary" onClick={() => setStep("template")}>

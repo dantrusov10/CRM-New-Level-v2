@@ -61,7 +61,7 @@ function parseVatMode(v: unknown): Row["vat_mode"] {
   return "with_vat";
 }
 
-export function PriceListAdmin() {
+export function PriceListAdmin({ onChanged, embedded }: { onChanged?: () => void; embedded?: boolean }) {
   const [busy, setBusy] = React.useState(false);
   const [search, setSearch] = React.useState("");
   const [items, setItems] = React.useState<PriceListItem[]>([]);
@@ -181,6 +181,7 @@ export function PriceListAdmin() {
 
       setStatus(`Импорт завершён: создано ${created}, обновлено ${updated}`);
       await load();
+      onChanged?.();
     } catch (e: unknown) {
       setStatus(`Ошибка импорта: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -189,8 +190,8 @@ export function PriceListAdmin() {
     }
   }
 
-  return (
-    <Card>
+  const body = (
+    <>
       <CardHeader>
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -257,6 +258,9 @@ export function PriceListAdmin() {
           </div>
         </div>
       </CardContent>
-    </Card>
+    </>
   );
+
+  if (embedded) return <div className="grid gap-0">{body}</div>;
+  return <Card>{body}</Card>;
 }

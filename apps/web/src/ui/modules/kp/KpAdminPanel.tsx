@@ -2,8 +2,7 @@ import React from "react";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import { pb } from "../../../lib/pb";
 import { DEFAULT_KP_TEMPLATE_V1 } from "./defaultTemplate";
-import { KpTemplateEditor } from "./KpTemplateEditor";
-import { PriceListAdmin } from "./PriceListAdmin";
+import { KpAdminWizard } from "./KpAdminWizard";
 import type { KpTemplateConfig, KpTemplateRecord } from "./types";
 
 /** Админка КП: конструктор шаблона + прайс (`/admin/kp`). */
@@ -57,10 +56,5 @@ export function KpAdminPanel() {
     );
   }
 
-  return (
-    <div className="grid gap-4">
-      <KpTemplateEditor templateRecord={tpl} onSave={save} onReload={load} />
-      <PriceListAdmin />
-    </div>
-  );
+  return <KpAdminWizard templateRecord={tpl} onSave={save} onReload={load} />;
 }

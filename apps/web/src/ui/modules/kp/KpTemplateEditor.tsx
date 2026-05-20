@@ -27,12 +27,18 @@ export function KpTemplateEditor({
   onSave,
   onReload,
   dealIdForPreview = "DEAL_PREVIEW",
+  variant = "full",
+  onSaved,
 }: {
   templateRecord: KpTemplateRecord | null;
   onSave: (patch: { template_json: KpTemplateConfig; name: string }) => Promise<void>;
   onReload: () => void;
   dealIdForPreview?: string;
+  variant?: "full" | "wizard";
+  onSaved?: () => void;
 }) {
+  const isWizard = variant === "wizard";
+  const [showAdvanced, setShowAdvanced] = React.useState(false);
   const initial = React.useMemo(() => {
     const json = templateRecord?.template_json;
     const base =
@@ -229,6 +235,7 @@ export function KpTemplateEditor({
     await uploadLogoIfNeeded();
     await onSave({ template_json: draft, name: draft?.name || templateRecord?.name || "КП" });
     onReload();
+    onSaved?.();
   }
 
   const sections = draft?.ui?.sections || [];
@@ -240,8 +247,12 @@ export function KpTemplateEditor({
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm font-semibold">Конструктор КП</div>
-                <div className="text-xs text-text2 mt-1">Блоки PDF (drag-and-drop), поля формы, прайс, предпросмотр</div>
+                <div className="text-sm font-semibold">{isWizard ? "Шаг 2 — Шаблон PDF" : "Конструктор КП"}</div>
+                <div className="text-xs text-text2 mt-1">
+                  {isWizard
+                    ? "Минимум: брендинг + блоки PDF. Сохраните, затем проверьте превью справа."
+                    : "Блоки PDF (drag-and-drop), поля формы, прайс, предпросмотр"}
+                </div>
               </div>
               <div className="flex gap-2">
                 <Button variant="secondary" onClick={() => { setDraft(deepClone(DEFAULT_KP_TEMPLATE_V1)); }}>
@@ -310,9 +321,21 @@ export function KpTemplateEditor({
                 onChange={(pdfBlocks) => setDraft((p) => ({ ...p, pdfBlocks }))}
               />
 
+              {isWizard ? (
+                <button
+                  type="button"
+                  className="text-sm text-primary underline text-left"
+                  onClick={() => setShowAdvanced((v) => !v)}
+                >
+                  {showAdvanced ? "Скрыть расширенные настройки" : "Расширенные настройки (поля формы, цвета PDF, колонки)"}
+                </button>
+              ) : null}
+
+              {(isWizard ? showAdvanced : true) ? (
+              <>
               <div className="rounded-card border border-border bg-rowHover p-3">
                 <div className="text-sm font-semibold mb-2">Дизайн PDF</div>
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="col-span-2">
                     <div className="text-xs text-text2 mb-1">Фон страницы (HEX)</div>
                     <Input value={draft?.pdfDesign?.paperBg || "#ffffff"} onChange={(e) => updatePdfDesign("paperBg", e.target.value)} />
@@ -437,6 +460,8 @@ export function KpTemplateEditor({
                   ))}
                 </div>
               </div>
+              </>
+              ) : null}
             </div>
           </CardContent>
         </Card>

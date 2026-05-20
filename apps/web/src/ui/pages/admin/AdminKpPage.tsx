@@ -5,7 +5,7 @@ export function AdminKpPage() {
   return (
     <AdminPageShell
       title="Коммерческие предложения"
-      subtitle="Шаблон блоков, прайс-лист и сборка PDF по сделке"
+      subtitle="Мастер настройки: прайс → шаблон PDF → проверка. В сделке менеджер собирает КП за 4 шага."
     >
       <KpAdminPanel />
     </AdminPageShell>

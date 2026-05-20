@@ -13,6 +13,8 @@ import {
 } from '../../lib/entityForm';
 import { Input } from './Input';
 import { InlineConfirmActions } from './InlineConfirmActions';
+import { EntityFormRow } from './EntityFormRow';
+import { isDealFieldExcludedFromDynamicForm, normalizeDealFieldName } from '../../lib/canonicalFields';
 
 export type DynamicEntityFormHandle = {
   save: () => Promise<void>;
@@ -53,11 +55,12 @@ export function DynamicEntityForm(
     ]);
 
     const secList = sec.map((item) => ({ ...item }));
-    const exclude = new Set((excludeFieldNames ?? []).map((x) => String(x || "").trim().toLowerCase()));
+    const extraExclude = (excludeFieldNames ?? []).map((x) => String(x || ""));
     const fieldList = flds.filter((item) => {
       if (item.visible === false) return false;
-      const fieldName = String(item.field_name || "").trim().toLowerCase();
-      if (fieldName && exclude.has(fieldName)) return false;
+      const fieldName = String(item.field_name || "").trim();
+      if (entity === "deal" && isDealFieldExcludedFromDynamicForm(fieldName, extraExclude)) return false;
+      if (entity === "company" && extraExclude.map((x) => x.toLowerCase()).includes(fieldName.toLowerCase())) return false;
       return true;
     });
 
@@ -81,8 +84,10 @@ export function DynamicEntityForm(
 
     for (const field of fieldList) {
       const fieldName = field.field_name;
-      if (fieldName && Object.prototype.hasOwnProperty.call(record, fieldName) && nextValues[field.id] === undefined) {
-        nextValues[field.id] = record[fieldName] ?? '';
+      const canonical = entity === "deal" ? normalizeDealFieldName(fieldName) : null;
+      const recordKey = canonical ?? fieldName;
+      if (recordKey && Object.prototype.hasOwnProperty.call(record, recordKey) && nextValues[field.id] === undefined) {
+        nextValues[field.id] = record[recordKey] ?? "";
       }
     }
 

@@ -2533,7 +2533,7 @@ export function DealDetailPage() {
               <div className="text-sm font-semibold">Сделка: общая информация</div>
             </CardHeader>
             <CardContent className="flex-1 min-h-0">
-              <div className="crm-scrollbar pr-1 h-full overflow-y-auto">
+              <div className="crm-scrollbar deal-sidebar-form pr-1 h-full overflow-y-auto">
                 <section className="board-shell neon-accent p-2.5 mb-3">
                   <div className="mb-2 flex items-center gap-2 border-b border-border/70 pb-2">
                     <span className="neon-pill">Сделка</span>
@@ -2645,7 +2645,7 @@ export function DealDetailPage() {
                   ref={formRef}
                   entity="deal"
                   record={deal!}
-                  excludeFieldNames={["title", "budget", "company_id"]}
+                  excludeFieldNames={["title", "budget", "turnover", "company_id", "stage_id", "responsible_id"]}
                   onSaved={async () => {
                     await dealQ.refetch();
                     tlQ.refetch();

@@ -1,4 +1,5 @@
 import { pb } from './pb';
+import { normalizeDealFieldName } from './canonicalFields';
 
 export type EntityType = 'company' | 'deal';
 
@@ -140,10 +141,15 @@ export async function saveEntityFormData(input: SaveEntityFormInput): Promise<Sa
     const fieldName = field.field_name;
     const value = values[field.id];
     const normalized = value === '' ? null : value;
-    const isSystemLike = Boolean(field.system) || Object.prototype.hasOwnProperty.call(record, fieldName);
+    const canonicalDealField = entity === 'deal' ? normalizeDealFieldName(fieldName) : null;
+    const targetFieldName = canonicalDealField ?? fieldName;
+    const isSystemLike =
+      Boolean(canonicalDealField) ||
+      Boolean(field.system) ||
+      Object.prototype.hasOwnProperty.call(record, targetFieldName);
 
-    if (isSystemLike && fieldName) {
-      updatePayload[fieldName] = field.field_type === 'number' ? normalizeNumber(normalized) : normalized;
+    if (isSystemLike && targetFieldName) {
+      updatePayload[targetFieldName] = field.field_type === 'number' ? normalizeNumber(normalized) : normalized;
     } else {
       customFields.push({ field, value: normalized });
     }

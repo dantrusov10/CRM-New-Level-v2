@@ -312,6 +312,22 @@ body:after{
   background: linear-gradient(180deg, rgba(51,215,255,0.8), rgba(45,123,255,0.68));
 }
 
+/* Карточка сделки: левая колонка — подпись над полем, без наезда */
+.deal-sidebar-form .grid.grid-cols-12.items-center {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0.375rem;
+}
+.deal-sidebar-form .grid.grid-cols-12.items-center > [class*="col-span-"] {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+.deal-sidebar-form .ui-input,
+.deal-sidebar-form select,
+.deal-sidebar-form .h-10 {
+  max-width: 100%;
+}
+
 /* Old helper (keep) */
 
 

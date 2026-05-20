@@ -1,4 +1,5 @@
 import { pb } from "../../../lib/pb";
+import { normalizeDealFieldName } from "../../../lib/canonicalFields";
 import type { Deal } from "../../../lib/types";
 
 /** Нормализация числа из PB (number | string с пробелами). */
@@ -33,12 +34,17 @@ export async function enrichDealsNumericFields(deals: Deal[]): Promise<Deal[]> {
   const fields = await pb
     .collection("settings_fields")
     .getFullList<{ id: string; field_name?: string }>({
-      filter: 'entity_type="deal" && (field_name="budget" || field_name="turnover")',
+      filter: 'entity_type="deal"',
     })
     .catch(() => []);
 
-  const budgetFieldId = fields.find((f) => f.field_name === "budget")?.id;
-  const turnoverFieldId = fields.find((f) => f.field_name === "turnover")?.id;
+  let budgetFieldId: string | undefined;
+  let turnoverFieldId: string | undefined;
+  for (const f of fields) {
+    const canonical = normalizeDealFieldName(f.field_name);
+    if (canonical === "budget") budgetFieldId = f.id;
+    if (canonical === "turnover") turnoverFieldId = f.id;
+  }
   if (!budgetFieldId && !turnoverFieldId) return deals;
 
   const fieldFilter = [budgetFieldId && `field_id="${budgetFieldId}"`, turnoverFieldId && `field_id="${turnoverFieldId}"`]

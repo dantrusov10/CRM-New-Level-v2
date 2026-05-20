@@ -14,7 +14,11 @@
 
 ## Cron (Vercel)
 
-В `apps/web/vercel.json` настроен запуск каждые **10 минут**.
+В `apps/web/vercel.json` — **1 раз в сутки** (`0 7 * * *`, ~07:00 UTC).
+
+> На тарифе **Hobby** Vercel не принимает cron чаще раза в день — из‑за этого падал деплой `da837a6`.
+> Для проверки каждые 5–10 минут: тариф **Pro** или внешний ping (cron-job.org, UptimeRobot) на  
+> `GET https://app.nwlvl.ru/api/monitor-health`.
 
 ## Переменные окружения (Vercel → Project → Settings → Environment Variables)
 

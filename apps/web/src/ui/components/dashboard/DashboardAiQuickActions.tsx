@@ -50,7 +50,7 @@ export function DashboardAiQuickActions({
         </Button>
       </div>
       <div className="mt-2 text-[11px] text-text2">
-        Обогащение реквизитов — Checko по ИНН в карточке сделки. Gateway:{" "}
+        Обогащение реквизитов — по ИНН в карточке сделки. Gateway:{" "}
         {String((import.meta.env.VITE_AI_GATEWAY_URL as string) || "control.nwlvl.ru")}
         {" · "}
         {String((pb.authStore.model as { email?: string } | null)?.email || "—")}

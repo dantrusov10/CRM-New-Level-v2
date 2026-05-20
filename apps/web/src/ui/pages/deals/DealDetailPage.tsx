@@ -1977,7 +1977,7 @@ export function DealDetailPage() {
       });
       await dealQ.refetch();
       setCompanyInnDraft(String((dealQ.data as Deal | undefined)?.expand?.company_id?.inn || inn));
-      setCheckoSuccess("Данные из Checko обновлены.");
+      setCheckoSuccess("Данные по ИНН обновлены.");
     } catch (error) {
       setCheckoError(error instanceof Error ? error.message : "Не удалось выполнить обогащение.");
     } finally {
@@ -2994,7 +2994,7 @@ export function DealDetailPage() {
                   className="board-shell neon-accent p-2.5 mb-3 scroll-mt-24"
                 >
                   <div className="mb-2 flex items-center gap-2 border-b border-border/70 pb-2">
-                    <span className="neon-pill">Информация из источников (Checko)</span>
+                    <span className="neon-pill">Информация из источников</span>
                   </div>
                   <div className="grid gap-2">
                     <div className="flex items-center justify-between gap-2">
@@ -3006,7 +3006,9 @@ export function DealDetailPage() {
                         {checkoLoading ? "Обогащение..." : "Обогатить по ИНН"}
                       </Button>
                       <div className="text-xs text-text2">
-                        Источник: {deal?.expand?.company_id?.checko_source || "—"}
+                        {deal?.expand?.company_id?.checko_updated_at
+                          ? `Обновлено: ${dayjs(deal.expand.company_id.checko_updated_at).format("DD.MM.YYYY HH:mm")}`
+                          : "Данные ещё не загружались"}
                       </div>
                     </div>
                     {checkoError ? <div className="text-xs text-danger">{checkoError}</div> : null}
@@ -3034,7 +3036,7 @@ export function DealDetailPage() {
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Сайт</div><div className="text-sm">{deal?.expand?.company_id?.checko_site || "—"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Телефоны</div><div className="text-sm">{toStringList(deal?.expand?.company_id?.checko_contacts_phones).join(", ") || "—"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Email</div><div className="text-sm">{toStringList(deal?.expand?.company_id?.checko_contacts_emails).join(", ") || "—"}</div></div>
-                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Примечание по контактам</div><div className="text-sm">Это контакты компании в целом. Привязка к конкретному ФЛ в ответе Checko обычно отсутствует.</div></div>
+                      <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Примечание по контактам</div><div className="text-sm">Это контакты компании в целом. Привязка к конкретному ФЛ в выписке обычно отсутствует.</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">ОКОПФ / ОКФС / ОКОГУ</div><div className="text-sm">{deal?.expand?.company_id?.checko_okopf || "—"} / {deal?.expand?.company_id?.checko_okfs || "—"} / {deal?.expand?.company_id?.checko_okogu || "—"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">ОКПО / ОКАТО / ОКТМО</div><div className="text-sm">{deal?.expand?.company_id?.checko_okpo || "—"} / {deal?.expand?.company_id?.checko_okato || "—"} / {deal?.expand?.company_id?.checko_oktmo || "—"}</div></div>
                       <div className="rounded-md bg-[rgba(255,255,255,0.03)] p-2"><div className="text-[11px] text-text2">Руководство / Учредители</div><div className="text-sm">{Array.isArray(deal?.expand?.company_id?.checko_management_json) ? String((deal?.expand?.company_id?.checko_management_json as unknown[]).length) : "0"} / {deal?.expand?.company_id?.checko_founders_json && typeof deal?.expand?.company_id?.checko_founders_json === "object" ? "есть" : "—"}</div></div>
@@ -3939,12 +3941,12 @@ export function DealDetailPage() {
                       ? "Привяжите компанию к сделке"
                       : !companyInnDraft.replace(/[^\d]/g, "")
                         ? "Укажите ИНН компании в блоке компании"
-                        : "Загрузить реквизиты, контакты и риски из Checko по ИНН"
+                        : "Загрузить реквизиты, контакты и риски по ИНН"
                   }
                 >
                   <span className="inline-flex items-center gap-1.5">
                     <Building2 size={14} />
-                    {checkoLoading ? "Checko..." : "Обогатить по Checko (ИНН)"}
+                    {checkoLoading ? "Обогащение..." : "Обогатить по ИНН"}
                   </span>
                 </Button>
 

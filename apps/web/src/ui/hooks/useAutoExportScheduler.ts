@@ -30,8 +30,8 @@ export function useAutoExportScheduler() {
             searchParams: sp,
           });
           downloadExportResult(result);
-          if (job.email?.trim()) {
-            await deliverExportByEmail(job.email.trim(), result.blob, result.filename);
+          if (job.emails?.length) {
+            await deliverExportByEmail(job.emails, result.blob, result.filename);
           }
           const next = jobs.map((j) =>
             j.id === job.id ? { ...j, lastRunKey: runKeyForNow(now), lastRunAt: now.toISOString() } : j,

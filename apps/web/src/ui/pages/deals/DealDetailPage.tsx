@@ -1412,21 +1412,28 @@ function TimelineItemRow({
         return true;
       })
     : [];
-  const [expanded, setExpanded] = React.useState(isStage || isAI);
+  const [expanded, setExpanded] = React.useState(() => {
+    if (isOpenTask) return false;
+    return isStage || isAI;
+  });
   const [isInlineEditing, setIsInlineEditing] = React.useState(false);
   const [editText, setEditText] = React.useState(String(item.comment || ""));
   React.useEffect(() => {
     setEditText(String(item.comment || ""));
     setIsInlineEditing(false);
-  }, [item.id, item.comment]);
-  const collapsedPreview = React.useMemo(() => {
+    setExpanded(isOpenTask ? false : isStage || isAI);
+    setCloseComment("");
+    setCloseOutcome("");
+  }, [item.id, item.comment, isOpenTask, isStage, isAI]);
+  const taskBodyText = React.useMemo(() => {
     const firstMeaningfulLine = String(item.comment || item.action || "")
       .split("\n")
       .map((x) => x.trim())
       .filter(Boolean)
       .find((x) => !/^(analysis_mode|company_id|product_id|requested_task_code|source|due_at)\s*:/i.test(x));
-    return String(firstMeaningfulLine || String(item.comment || item.action || "").trim()).slice(0, 110);
+    return String(firstMeaningfulLine || String(item.comment || item.action || "").trim());
   }, [item.comment, item.action]);
+  const collapsedPreview = React.useMemo(() => taskBodyText.slice(0, 110), [taskBodyText]);
 
   if (isSystem) {
     return (
@@ -1485,45 +1492,59 @@ function TimelineItemRow({
           {overdue ? " · просрочено" : ""}
         </div>
       ) : null}
-      {!expanded ? (
-        <div className="mt-2 text-sm font-medium">
-          {collapsedPreview || "Событие"}
-        </div>
-      ) : null}
-      {isOpenTask && onCompleteTask ? (
-        <div className="mt-3 grid gap-2 rounded-md border border-border/80 bg-[rgba(0,0,0,0.15)] p-2.5">
-          <div className="text-xs font-semibold text-text2">Закрыть задачу</div>
-          <div className="flex flex-wrap gap-2">
-            {(["success", "failed", "partial"] as ActionOutcome[]).map((o) => (
-              <button
-                key={o}
-                type="button"
-                className={`ui-btn h-8 px-2.5 text-xs ${closeOutcome === o ? "ui-btn-primary" : "ui-btn-secondary"}`}
-                onClick={() => setCloseOutcome(o)}
-              >
-                {OUTCOME_LABELS[o]}
-              </button>
-            ))}
-          </div>
-          <textarea
-            className="ui-input min-h-[64px] text-sm"
-            placeholder="Комментарий к выполнению *"
-            value={closeComment}
-            onChange={(e) => setCloseComment(e.target.value)}
-          />
-          <Button
-            small
-            disabled={Boolean(completingId) || !closeOutcome || !closeComment.trim()}
-            onClick={() => {
-              if (!closeOutcome || !closeComment.trim()) return;
-              void Promise.resolve(onCompleteTask(item, closeOutcome, closeComment.trim()));
-            }}
-          >
-            {completingId === item.id ? "Сохранение..." : "Задача выполнена"}
-          </Button>
-        </div>
-      ) : null}
-      {expanded ? (
+      {isOpenTask ? (
+        <>
+          {!expanded ? (
+            <div className="mt-2 text-sm font-medium leading-relaxed">{taskBodyText || "Задача"}</div>
+          ) : (
+            <>
+              <div className="mt-2 text-sm">
+                <TimelineText text={String(item.comment || item.action || "")} />
+              </div>
+              {onCompleteTask ? (
+                <div className="mt-3 grid gap-2 rounded-md border border-border/80 bg-[rgba(0,0,0,0.15)] p-2.5">
+                  <div className="text-xs font-semibold text-text2">Закрыть задачу</div>
+                  <div className="flex flex-wrap gap-2">
+                    {(["success", "failed", "partial"] as ActionOutcome[]).map((o) => (
+                      <button
+                        key={o}
+                        type="button"
+                        className={`ui-btn h-8 px-2.5 text-xs ${closeOutcome === o ? "ui-btn-primary" : "ui-btn-secondary"}`}
+                        onClick={() => setCloseOutcome(o)}
+                      >
+                        {OUTCOME_LABELS[o]}
+                      </button>
+                    ))}
+                  </div>
+                  <textarea
+                    className="ui-input min-h-[64px] text-sm"
+                    placeholder="Комментарий к выполнению *"
+                    value={closeComment}
+                    onChange={(e) => setCloseComment(e.target.value)}
+                  />
+                  <Button
+                    small
+                    disabled={Boolean(completingId) || !closeOutcome || !closeComment.trim()}
+                    onClick={() => {
+                      if (!closeOutcome || !closeComment.trim()) return;
+                      void Promise.resolve(onCompleteTask(item, closeOutcome, closeComment.trim()));
+                    }}
+                  >
+                    {completingId === item.id ? "Сохранение..." : "Задача выполнена"}
+                  </Button>
+                </div>
+              ) : null}
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          {!expanded ? (
+            <div className="mt-2 text-sm font-medium">{collapsedPreview || "Событие"}</div>
+          ) : null}
+        </>
+      )}
+      {expanded && !isOpenTask ? (
         <div className="mt-2 grid gap-2">
           {isInlineEditing ? (
             <div className="grid gap-2">

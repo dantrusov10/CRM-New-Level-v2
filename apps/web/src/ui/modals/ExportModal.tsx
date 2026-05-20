@@ -231,7 +231,38 @@ export function ExportModal({
         </div>
 
         <div className="grid min-h-0 gap-2 overflow-hidden">
-          <div className="text-sm font-semibold">Поля</div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-sm font-semibold">Поля</div>
+            <div className="flex gap-2">
+              <Button
+                small
+                variant="secondary"
+                onClick={() => {
+                  const keys = fieldList.map(([k]) => k);
+                  setFields(Object.fromEntries(keys.map((k) => [k, true])));
+                  if (entity === "deal") {
+                    setTimelineFields((tf) => ({
+                      ...tf,
+                      ...Object.fromEntries(TIMELINE_FIELD_OPTS.map(([k]) => [k, true])),
+                    }));
+                  }
+                }}
+              >
+                Выбрать все
+              </Button>
+              <Button
+                small
+                variant="secondary"
+                onClick={() => {
+                  const keys = fieldList.map(([k]) => k);
+                  setFields(Object.fromEntries(keys.map((k) => [k, false])));
+                  if (entity === "deal") setTimelineFields({ tl_limit: timelineFields.tl_limit ?? 50 });
+                }}
+              >
+                Сбросить все
+              </Button>
+            </div>
+          </div>
           <div className="crm-scrollbar min-h-0 max-h-[min(36vh,280px)] overflow-y-auto pr-1">
             <div className="grid grid-cols-2 gap-2">
               {fieldList.map(([k, label]) => (

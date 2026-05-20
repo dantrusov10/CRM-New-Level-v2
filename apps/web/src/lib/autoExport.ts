@@ -18,10 +18,23 @@ export type AutoExportJob = {
   useCurrentFilters: boolean;
   filterSnapshot: Record<string, string>;
   schedule: AutoExportSchedule;
-  email: string;
+  /** @deprecated используйте emails */
+  email?: string;
+  emails: string[];
   lastRunKey?: string;
   lastRunAt?: string;
 };
+
+function normalizeJob(raw: Record<string, unknown>): AutoExportJob {
+  const emailsRaw = raw.emails;
+  const legacyEmail = String(raw.email || "").trim();
+  const emails = Array.isArray(emailsRaw)
+    ? emailsRaw.map((x) => String(x).trim()).filter(Boolean)
+    : legacyEmail
+      ? [legacyEmail]
+      : [];
+  return { ...(raw as AutoExportJob), emails };
+}
 
 const LS_KEY = "reshenie_auto_export_v1";
 
@@ -30,7 +43,7 @@ export function loadAutoExportJobs(): AutoExportJob[] {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return [];
     const data = JSON.parse(raw);
-    return Array.isArray(data) ? data : [];
+    return Array.isArray(data) ? data.map((j) => normalizeJob(j as Record<string, unknown>)) : [];
   } catch {
     return [];
   }
@@ -77,38 +90,50 @@ export function snapshotFromSearchParams(sp: URLSearchParams): Record<string, st
 }
 
 /** Отправка: webhook (если задан) или скачивание + уведомление. */
+export function hasAutoExportWebhook(): boolean {
+  return Boolean(import.meta.env.VITE_AUTO_EXPORT_WEBHOOK?.trim());
+}
+
 export async function deliverExportByEmail(
-  email: string,
+  emails: string[],
   blob: Blob,
   filename: string,
 ): Promise<{ sent: boolean; message: string }> {
+  const list = emails.map((e) => e.trim()).filter(Boolean);
   const webhook = import.meta.env.VITE_AUTO_EXPORT_WEBHOOK?.trim();
-  if (webhook && email) {
+
+  if (webhook && list.length) {
     try {
       const b64 = await blobToBase64(blob);
-      const res = await fetch(webhook, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: email, filename, contentBase64: b64 }),
-      });
-      if (res.ok) return { sent: true, message: `Отправлено на ${email}` };
+      const results = await Promise.all(
+        list.map((to) =>
+          fetch(webhook, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ to, filename, contentBase64: b64 }),
+          }),
+        ),
+      );
+      if (results.every((r) => r.ok)) {
+        return { sent: true, message: `Отправлено на ${list.join(", ")}` };
+      }
     } catch {
       // fallback below
     }
   }
 
-  if (email) {
+  if (list.length) {
     const subject = encodeURIComponent(`CRM экспорт: ${filename}`);
     const body = encodeURIComponent(
-      `Автовыгрузка CRM.\n\nФайл «${filename}» скачан в папку «Загрузки» на этом компьютере.\n\nДля полной автоотправки вложений настройте VITE_AUTO_EXPORT_WEBHOOK (SMTP на сервере).`,
+      `Автовыгрузка CRM.\n\nФайл «${filename}» скачан в папку «Загрузки».\n\nАвтоотправка вложения по почте: ${hasAutoExportWebhook() ? "webhook настроен, но отправка не удалась" : "не настроена (нужен VITE_AUTO_EXPORT_WEBHOOK на сервере)"}.`,
     );
-    window.open(`mailto:${email}?subject=${subject}&body=${body}`, "_blank");
+    window.open(`mailto:${list.join(",")}?subject=${subject}&body=${body}`, "_blank");
   }
 
   return {
     sent: false,
-    message: email
-      ? `Файл скачан. Письмо: проверьте черновик / вложите файл из «Загрузки».`
+    message: list.length
+      ? "Файл скачан. Для SMTP-вложений без ручного шага настройте VITE_AUTO_EXPORT_WEBHOOK."
       : "Файл скачан.",
   };
 }

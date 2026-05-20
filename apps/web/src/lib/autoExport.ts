@@ -135,6 +135,11 @@ export function snapshotFromSearchParams(sp: URLSearchParams): Record<string, st
 export function autoExportWebhookUrl(): string {
   const custom = import.meta.env.VITE_AUTO_EXPORT_WEBHOOK?.trim();
   if (custom) return custom;
+  const gateway = import.meta.env.VITE_AI_GATEWAY_URL?.trim();
+  if (gateway) {
+    const base = gateway.replace(/\/+$/, "");
+    return `${base}/send-export-email`;
+  }
   if (typeof window !== "undefined") {
     return `${window.location.origin}/api/send-export-email`;
   }
@@ -165,7 +170,12 @@ export async function deliverExportByEmail(
               "Content-Type": "application/json",
               Authorization: token,
             },
-            body: JSON.stringify({ to, filename, contentBase64: b64 }),
+            body: JSON.stringify({
+              to,
+              filename,
+              contentBase64: b64,
+              tenant_pb_url: (import.meta.env.VITE_PB_URL as string) || "",
+            }),
           }),
         ),
       );

@@ -33,6 +33,13 @@ AI_GATEWAY_AUDIT_LOG = os.getenv("AI_GATEWAY_AUDIT_LOG", "/opt/pb-control/ai-gat
 CHECKO_API_KEY = os.getenv("CHECKO_API_KEY", "").strip()
 CHECKO_API_BASE_URL = os.getenv("CHECKO_API_BASE_URL", "https://api.checko.ru/v2").strip().rstrip("/")
 
+try:
+    from export_email import DEFAULT_PB_URL, send_export_email, verify_tenant_user_token
+except ImportError:
+    DEFAULT_PB_URL = "https://pb.nwlvl.ru/api"
+    send_export_email = None
+    verify_tenant_user_token = None
+
 SESSIONS = {}
 PUBLIC_AI_RATE_LIMIT = {}
 AI_QUALITY_GATE_WINDOW = {}
@@ -4575,6 +4582,34 @@ class Handler(BaseHTTPRequestHandler):
                 origin = self.headers.get("Origin", "")
                 payload["tenant_user_token"] = self.headers.get("Authorization", "")
                 result = run_checko_company_enrichment(payload if isinstance(payload, dict) else {})
+                self._send(
+                    200 if result.get("ok") else 400,
+                    json.dumps(result, ensure_ascii=False),
+                    "application/json; charset=utf-8",
+                    headers=self._public_headers(origin),
+                )
+                return
+            if path == "/api/public/send-export-email":
+                origin = self.headers.get("Origin", "")
+                if not send_export_email or not verify_tenant_user_token:
+                    self._send(
+                        503,
+                        json.dumps({"ok": False, "error": "export_email_module_unavailable"}, ensure_ascii=False),
+                        "application/json; charset=utf-8",
+                        headers=self._public_headers(origin),
+                    )
+                    return
+                token = self.headers.get("Authorization", "")
+                pb_url = str(payload.get("tenant_pb_url", DEFAULT_PB_URL)).strip() or DEFAULT_PB_URL
+                if not verify_tenant_user_token(token, pb_url):
+                    self._send(
+                        401,
+                        json.dumps({"ok": False, "error": "unauthorized"}, ensure_ascii=False),
+                        "application/json; charset=utf-8",
+                        headers=self._public_headers(origin),
+                    )
+                    return
+                result = send_export_email(payload if isinstance(payload, dict) else {})
                 self._send(
                     200 if result.get("ok") else 400,
                     json.dumps(result, ensure_ascii=False),

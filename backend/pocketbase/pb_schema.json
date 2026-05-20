@@ -1799,7 +1799,7 @@
     "options": {}
   },
   {
-    "id": "pbc_export_jobs01",
+    "id": "pbc_exportjob01",
     "name": "export_jobs",
     "type": "base",
     "system": false,

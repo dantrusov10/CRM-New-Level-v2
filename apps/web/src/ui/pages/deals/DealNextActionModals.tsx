@@ -34,9 +34,9 @@ export function CreateTaskFromActionModal({ open, actionText, onClose, onConfirm
           <div className="text-xs text-text2 mb-1">Текст задачи</div>
           <textarea className="ui-input min-h-[72px] w-full text-sm" value={title} onChange={(e) => setTitle(e.target.value)} />
         </div>
-        <div>
-          <div className="text-xs text-text2 mb-1">Срок выполнения</div>
-          <DateTimePicker value={dueAt} onChange={setDueAt} className="w-full" calendarMode="inline" defaultOpen />
+        <div className="flex flex-col items-center">
+          <div className="text-xs text-text2 mb-1 self-start w-full">Срок выполнения</div>
+          <DateTimePicker value={dueAt} onChange={setDueAt} className="w-full max-w-[400px]" calendarMode="inline" defaultOpen />
         </div>
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onClose} disabled={saving}>
@@ -60,7 +60,7 @@ export type RespondModalProps = {
   open: boolean;
   actionText: string;
   onClose: () => void;
-  onDismiss: (params: { outcome: ActionOutcome; reason: string }) => Promise<void>;
+  onDismiss: (params: { reason: string }) => Promise<void>;
   onComment: (params: { comment: string }) => Promise<void>;
   onComplete: (params: { outcome: ActionOutcome; comment: string }) => Promise<void>;
   saving?: boolean;
@@ -154,7 +154,6 @@ export function RespondToActionModal({
 
         {mode === "dismiss" ? (
           <>
-            <OutcomePicker value={outcome} onChange={setOutcome} required />
             <div>
               <div className="text-xs text-text2 mb-1">Причина удаления *</div>
               <textarea
@@ -169,11 +168,8 @@ export function RespondToActionModal({
                 Назад
               </Button>
               <Button
-                disabled={saving || !outcome || !reason.trim()}
-                onClick={() => {
-                  if (!outcome) return;
-                  void onDismiss({ outcome, reason: reason.trim() });
-                }}
+                disabled={saving || !reason.trim()}
+                onClick={() => void onDismiss({ reason: reason.trim() })}
               >
                 {saving ? "..." : "Зафиксировать"}
               </Button>

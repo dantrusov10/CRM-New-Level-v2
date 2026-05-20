@@ -6,6 +6,7 @@ import { CreateCompanyModal } from "../modals/CreateCompanyModal";
 import { CreateDealModal } from "../modals/CreateDealModal";
 import { ImportModal } from "../modals/ImportModal";
 import { ExportModal } from "../modals/ExportModal";
+import { useAutoExportScheduler } from "../hooks/useAutoExportScheduler";
 import { useAuth } from "../../app/AuthProvider";
 import { usePermissions } from "../data/hooks";
 import { can } from "../../lib/rbac";
@@ -70,6 +71,8 @@ export function AppLayout() {
   }, [location.pathname]);
 
   const sidebarW = sidebarCollapsed ? SIDEBAR_COLLAPSED_W : SIDEBAR_W;
+
+  useAutoExportScheduler();
 
   return (
     <div className="min-h-screen w-full theme-cockpit">

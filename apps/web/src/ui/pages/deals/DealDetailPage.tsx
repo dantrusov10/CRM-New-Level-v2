@@ -40,6 +40,12 @@ import {
 import { DealNextActionsList, DealRisksPanel, DealScoringExplainPanel } from "./DealAiPanels";
 import { CreateTaskFromActionModal, RespondToActionModal } from "./DealNextActionModals";
 import { OUTCOME_LABELS, type ActionOutcome, type AiActionTimelinePayload } from "./dealActionOutcome";
+import {
+  formatTaskDueLabel,
+  isOpenTimelineTask,
+  isTaskOverdue,
+  splitTimelinePinnedOpen,
+} from "./dealTimelineTasks";
 
 type AnyObj = Record<string, unknown>;
 type TimelinePayload = Record<string, unknown>;
@@ -1314,13 +1320,19 @@ function matchesTimelineTaskSubfilter(
 
 function TimelineItemRow({
   item,
+  allItems,
   currentUserId,
   onSaveComment,
+  onCompleteTask,
+  completingId,
   saving,
 }: {
   item: TimelineItem & { expand?: { user_id?: { name?: string; email?: string } } };
+  allItems: TimelineItem[];
   currentUserId?: string;
   onSaveComment?: (item: TimelineItem, nextComment: string) => Promise<void> | void;
+  onCompleteTask?: (item: TimelineItem, outcome: ActionOutcome, comment: string) => Promise<void> | void;
+  completingId?: string | null;
   saving?: boolean;
 }) {
   const ts = item.timestamp || item.created;
@@ -1339,12 +1351,19 @@ function TimelineItemRow({
   const isSystem = !(isComment || isNote || isTask || isStage || isAI);
   const isEditable = Boolean((isComment || isNote) && currentUserId && String(item.user_id || "") === String(currentUserId || ""));
 
+  const isOpenTask = isTaskCreated && isOpenTimelineTask(item, allItems);
+  const overdue = isOpenTask && isTaskOverdue(item, allItems);
+  const [closeComment, setCloseComment] = React.useState("");
+  const [closeOutcome, setCloseOutcome] = React.useState<ActionOutcome | "">("");
+
   const tone = isComment
     ? "border-[rgba(51,215,255,0.45)] bg-[rgba(51,215,255,0.10)]"
     : isNote
       ? "border-[rgba(168,85,247,0.45)] bg-[rgba(168,85,247,0.12)]"
       : isTask
-        ? "border-[rgba(250,204,21,0.45)] bg-[rgba(250,204,21,0.12)]"
+        ? overdue
+          ? "border-[rgba(239,68,68,0.9)] bg-[rgba(239,68,68,0.14)] shadow-[0_0_22px_rgba(239,68,68,0.55)]"
+          : "border-[rgba(250,204,21,0.45)] bg-[rgba(250,204,21,0.12)]"
         : isStage
           ? "border-[rgba(45,123,255,0.40)] bg-[rgba(45,123,255,0.11)]"
           : isAI
@@ -1460,9 +1479,48 @@ function TimelineItemRow({
           </Button>
         </div>
       </div>
+      {isTaskCreated ? (
+        <div className={`mt-2 text-xs ${overdue ? "text-[#fca5a5] font-semibold" : "text-text2"}`}>
+          Срок исполнения: {formatTaskDueLabel(item)}
+          {overdue ? " · просрочено" : ""}
+        </div>
+      ) : null}
       {!expanded ? (
         <div className="mt-2 text-sm font-medium">
           {collapsedPreview || "Событие"}
+        </div>
+      ) : null}
+      {isOpenTask && onCompleteTask ? (
+        <div className="mt-3 grid gap-2 rounded-md border border-border/80 bg-[rgba(0,0,0,0.15)] p-2.5">
+          <div className="text-xs font-semibold text-text2">Закрыть задачу</div>
+          <div className="flex flex-wrap gap-2">
+            {(["success", "failed", "partial"] as ActionOutcome[]).map((o) => (
+              <button
+                key={o}
+                type="button"
+                className={`ui-btn h-8 px-2.5 text-xs ${closeOutcome === o ? "ui-btn-primary" : "ui-btn-secondary"}`}
+                onClick={() => setCloseOutcome(o)}
+              >
+                {OUTCOME_LABELS[o]}
+              </button>
+            ))}
+          </div>
+          <textarea
+            className="ui-input min-h-[64px] text-sm"
+            placeholder="Комментарий к выполнению *"
+            value={closeComment}
+            onChange={(e) => setCloseComment(e.target.value)}
+          />
+          <Button
+            small
+            disabled={Boolean(completingId) || !closeOutcome || !closeComment.trim()}
+            onClick={() => {
+              if (!closeOutcome || !closeComment.trim()) return;
+              void Promise.resolve(onCompleteTask(item, closeOutcome, closeComment.trim()));
+            }}
+          >
+            {completingId === item.id ? "Сохранение..." : "Задача выполнена"}
+          </Button>
         </div>
       ) : null}
       {expanded ? (
@@ -1652,6 +1710,7 @@ export function DealDetailPage() {
   const [nextActionRespondOpen, setNextActionRespondOpen] = React.useState(false);
   const [nextActionText, setNextActionText] = React.useState("");
   const [nextActionSaving, setNextActionSaving] = React.useState(false);
+  const [completingTimelineId, setCompletingTimelineId] = React.useState<string | null>(null);
   const [aiRunLoading, setAiRunLoading] = React.useState(false);
   const [aiRunError, setAiRunError] = React.useState<string>("");
   const [selectedProductIds, setSelectedProductIds] = React.useState<string[]>([]);
@@ -2055,8 +2114,7 @@ export function DealDetailPage() {
       if (!due || Number.isNaN(due.getTime())) return;
       if (!auth?.id) return;
 
-      // create task record
-      await createTaskM
+      const created = await createTaskM
         .mutateAsync({
           title: text,
           due_at: due.toISOString(),
@@ -2066,8 +2124,10 @@ export function DealDetailPage() {
         })
         .catch(() => null);
 
-      // add event to timeline (optional, for audit)
-      await createTimelineEvent("task_created", `Задача: ${text}`, { due_at: due.toISOString() }).catch(() => null);
+      await createTimelineEvent("task_created", `Задача: ${text}`, {
+        due_at: due.toISOString(),
+        pb_task_id: created?.id ? String(created.id) : undefined,
+      }).catch(() => null);
       setComment("");
       setTaskDueAt("");
       setComposerType("comment");
@@ -2531,6 +2591,49 @@ export function DealDetailPage() {
     return hay.includes(q);
   });
 
+  const tlPinned = React.useMemo(() => {
+    const { pinned } = splitTimelinePinnedOpen(tlAll);
+    const q = timelineSearch.trim().toLowerCase();
+    if (!q) return pinned;
+    return pinned.filter((t) => {
+      const payloadText =
+        t.payload && typeof t.payload === "object" ? JSON.stringify(t.payload) : "";
+      const hay = `${String(t.comment || "")}\n${String(t.action || "")}\n${payloadText}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [tlAll, timelineSearch]);
+
+  const tlRest = React.useMemo(() => {
+    const pinnedIds = new Set(tlPinned.map((t) => t.id));
+    return tlFiltered.filter((t) => !pinnedIds.has(t.id));
+  }, [tlFiltered, tlPinned]);
+
+  async function completeTimelineTask(item: TimelineItem, outcome: ActionOutcome, comment: string) {
+    if (!deal?.id) return;
+    const idToComplete = String(item.id || "");
+    setCompletingTimelineId(idToComplete);
+    const p =
+      item.payload && typeof item.payload === "object" ? (item.payload as Record<string, unknown>) : {};
+    const pbTaskId = String(p.pb_task_id || "");
+    if (pbTaskId) {
+      await pb.collection("tasks").update(pbTaskId, { is_done: true }).catch(() => null);
+    }
+    const titleLine = String(item.comment || "").split("\n")[0].slice(0, 120);
+    await createTimelineEvent(
+      "task_completed",
+      `Выполнено (${OUTCOME_LABELS[outcome]}): ${titleLine}\n${comment}`,
+      {
+        ref_timeline_id: idToComplete,
+        outcome,
+        manager_comment: comment,
+        due_at: p.due_at,
+        pb_task_id: pbTaskId || undefined,
+      },
+    );
+    setCompletingTimelineId(null);
+    tlQ.refetch();
+  }
+
   function openCreateTaskModal(actionText: string) {
     setNextActionText(actionText);
     setNextActionCreateOpen(true);
@@ -2545,7 +2648,7 @@ export function DealDetailPage() {
     if (!deal?.id || !auth?.id) return;
     setNextActionSaving(true);
     const dueIso = dayjs(dueAt).toISOString();
-    await createTaskM
+    const created = await createTaskM
       .mutateAsync({
         title: title.slice(0, 180),
         due_at: dueIso,
@@ -2558,6 +2661,7 @@ export function DealDetailPage() {
       due_at: dueIso,
       source: "ai_next_best_action",
       ai_action_text: nextActionText.slice(0, 500),
+      pb_task_id: created?.id ? String(created.id) : undefined,
     };
     await createTimelineEvent("task_created", `Задача из AI: ${title.slice(0, 180)}`, payload);
     setNextActionSaving(false);
@@ -2565,18 +2669,17 @@ export function DealDetailPage() {
     tlQ.refetch();
   }
 
-  async function confirmDismissAction({ outcome, reason }: { outcome: ActionOutcome; reason: string }) {
+  async function confirmDismissAction({ reason }: { reason: string }) {
     if (!deal?.id) return;
     setNextActionSaving(true);
     const payload: AiActionTimelinePayload = {
       source: "ai_next_best_action",
       ai_action_text: nextActionText.slice(0, 500),
-      outcome,
       dismiss_reason: reason,
     };
     await createTimelineEvent(
       "ai_action_dismissed",
-      `Действие снято (${OUTCOME_LABELS[outcome]}): ${nextActionText.slice(0, 120)}\n${reason}`,
+      `Действие снято: ${nextActionText.slice(0, 120)}\n${reason}`,
       payload,
     );
     setNextActionSaving(false);
@@ -3110,12 +3213,34 @@ export function DealDetailPage() {
                   </div>
                 </div>
                 <div className="grid gap-3">
-                  {tlFiltered.map((t) => (
+                  {tlPinned.length ? (
+                    <div className="grid gap-2">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-[#fca5a5]">
+                        Активные задачи ({tlPinned.length})
+                      </div>
+                      {tlPinned.map((t) => (
+                        <TimelineItemRow
+                          key={t.id}
+                          item={t}
+                          allItems={tlAll}
+                          currentUserId={auth?.id}
+                          onSaveComment={saveTimelineCommentInline}
+                          onCompleteTask={completeTimelineTask}
+                          completingId={completingTimelineId}
+                          saving={savingTimelineId === String(t.id || "")}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                  {tlRest.map((t) => (
                     <TimelineItemRow
                       key={t.id}
                       item={t}
+                      allItems={tlAll}
                       currentUserId={auth?.id}
                       onSaveComment={saveTimelineCommentInline}
+                      onCompleteTask={completeTimelineTask}
+                      completingId={completingTimelineId}
                       saving={savingTimelineId === String(t.id || "")}
                     />
                   ))}
@@ -3330,12 +3455,34 @@ export function DealDetailPage() {
                   <div className="text-sm text-text2">Загрузка...</div>
                 ) : (
                   <div className="grid gap-3">
-                    {tlFiltered.map((t) => (
+                    {tlPinned.length ? (
+                      <div className="grid gap-2">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-[#fca5a5]">
+                          Активные задачи ({tlPinned.length})
+                        </div>
+                        {tlPinned.map((t) => (
+                          <TimelineItemRow
+                            key={t.id}
+                            item={t}
+                            allItems={tlAll}
+                            currentUserId={auth?.id}
+                            onSaveComment={saveTimelineCommentInline}
+                            onCompleteTask={completeTimelineTask}
+                            completingId={completingTimelineId}
+                            saving={savingTimelineId === String(t.id || "")}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
+                    {tlRest.map((t) => (
                       <TimelineItemRow
                         key={t.id}
                         item={t}
+                        allItems={tlAll}
                         currentUserId={auth?.id}
                         onSaveComment={saveTimelineCommentInline}
+                        onCompleteTask={completeTimelineTask}
+                        completingId={completingTimelineId}
                         saving={savingTimelineId === String(t.id || "")}
                       />
                     ))}

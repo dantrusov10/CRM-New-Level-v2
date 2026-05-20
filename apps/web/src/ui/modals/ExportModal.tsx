@@ -2,33 +2,15 @@ import React from "react";
 import { useSearchParams } from "react-router-dom";
 import { Modal } from "../components/Modal";
 import { Button } from "../components/Button";
-import { downloadCsv, downloadXlsx } from "../../lib/importExport";
-import { pb } from "../../lib/pb";
 import { humanizePbError } from "../../lib/pbError";
+import { loadAutoExportJobs } from "../../lib/autoExport";
+import { downloadExportResult, runExport, type TimelineExportFields } from "../../lib/exportRunner";
 import { DEAL_EXPORT_COLUMNS, DEAL_EXPORT_DEFAULT_FIELDS } from "../../lib/dealImportExportFields";
-import { dealFieldLabel, normalizeDealFieldName } from "../../lib/canonicalFields";
-import { enrichDealsNumericFields } from "../pages/deals/dealNumeric";
-import { buildDealsFilter, filterDealsClient, hasClientNumericFilters } from "../pages/deals/dealsFilters";
-import type { Company, Deal, UserSummary, FunnelStage } from "../../lib/types";
-
+import { AutoExportModal } from "./AutoExportModal";
 type EntityType = "deal" | "company";
 type Format = "xlsx" | "csv";
 
 const LS_KEY = "reshenie_export_presets_v1";
-
-
-type DealExportRow = Deal & {
-  expand?: {
-    company_id?: Company | null;
-    stage_id?: FunnelStage | null;
-    responsible_id?: UserSummary | null;
-  };
-};
-type CompanyExportRow = Company & {
-  expand?: {
-    responsible_id?: UserSummary | null;
-  };
-};
 
 type ExportPreset = {
   id: string;
@@ -39,33 +21,16 @@ type ExportPreset = {
   useCurrentFilters: boolean;
 };
 
-function exportCell(val: unknown): string {
-  if (val == null || val === "") return "";
-  if (typeof val === "object") return JSON.stringify(val);
-  return String(val);
-}
-
-function buildDealExportRow(d: DealExportRow, fields: Record<string, boolean>): Record<string, string> {
-  const company = d.expand?.company_id;
-  const stage = d.expand?.stage_id;
-  const resp = d.expand?.responsible_id;
-  const row: Record<string, string> = {};
-  if (fields.title) row["Название сделки"] = d.title ?? "";
-  if (fields.company) row["Компания"] = company?.name ?? "";
-  if (fields.inn) row["ИНН"] = company?.inn ?? "";
-  if (fields.stage) row["Этап"] = stage?.stage_name ?? "";
-  if (fields.responsible) row["Ответственный"] = resp?.full_name || resp?.email || "";
-  for (const col of DEAL_EXPORT_COLUMNS) {
-    if (!col.canonical || !fields[col.key]) continue;
-    const canon = normalizeDealFieldName(col.canonical);
-    if (!canon || ["title", "company_id", "stage_id", "responsible_id"].includes(canon)) continue;
-    row[dealFieldLabel(canon)] = exportCell((d as Record<string, unknown>)[canon]);
-  }
-  if (fields.delivery_date) row["Поставка"] = exportCell((d as Record<string, unknown>).delivery_date);
-  if (fields.expected_payment_date) row["Ожид. оплата"] = exportCell((d as Record<string, unknown>).expected_payment_date);
-  if (fields.updated) row["Обновлено"] = exportCell(d.updated);
-  return row;
-}
+const TIMELINE_FIELD_OPTS: Array<[keyof TimelineExportFields, string]> = [
+  ["tl_comments", "Комментарии"],
+  ["tl_notes", "Заметки"],
+  ["tl_tasks", "Задачи (поставленные)"],
+  ["tl_task_completed", "Задачи (выполненные)"],
+  ["tl_task_status", "Статус задач"],
+  ["tl_ai", "События ИИ"],
+  ["tl_stage", "Изменения этапа"],
+  ["tl_system", "Системные"],
+];
 
 function loadPresets(): ExportPreset[] {
   try {
@@ -99,8 +64,11 @@ export function ExportModal({
   const [presets, setPresets] = React.useState<ExportPreset[]>([]);
 
   const [fields, setFields] = React.useState<Record<string, boolean>>({});
+  const [timelineFields, setTimelineFields] = React.useState<TimelineExportFields>({ tl_limit: 50 });
+  const [openAutoExport, setOpenAutoExport] = React.useState(false);
   const [running, setRunning] = React.useState(false);
   const [status, setStatus] = React.useState<string>("");
+  const autoJobsCount = React.useMemo(() => loadAutoExportJobs().length, [open, openAutoExport]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -136,47 +104,10 @@ export function ExportModal({
     setFields(entity === "deal" ? defaultFieldsDeals : defaultFieldsCompanies);
   }, [open, entity, fields, defaultFieldsDeals, defaultFieldsCompanies]);
 
-  function buildCompaniesFilterFromUrl() {
-    const city = sp.get("city") || "";
-    const responsible = sp.get("responsible") || "";
-    const parts: string[] = [];
-    if (city) parts.push(`city~"${city.replace(/"/g, '\\"')}"`);
-    if (responsible) parts.push(`responsible_id="${responsible.replace(/"/g, '\\"')}"`);
-    return parts.join(" && ");
-  }
-
-  async function fetchDealsForExport(): Promise<DealExportRow[]> {
-    const filter = useCurrentFilters ? buildDealsFilter(sp) : "";
-    const params: Record<string, unknown> = {
-      sort: "-updated",
-      expand: "company_id,stage_id,responsible_id",
-      batch: 200,
-    };
-    if (filter.trim()) params.filter = filter.trim();
-    setStatus("Загружаю сделки...");
-    let deals = await pb.collection("deals").getFullList<DealExportRow>(params);
-    deals = await enrichDealsNumericFields(deals);
-    if (useCurrentFilters && hasClientNumericFilters(sp)) {
-      deals = filterDealsClient(deals, sp);
-    }
-    return deals;
-  }
-
-  async function fetchCompaniesForExport(): Promise<CompanyExportRow[]> {
-    const filter = useCurrentFilters ? buildCompaniesFilterFromUrl() : "";
-    const params: Record<string, unknown> = {
-      sort: "name",
-      expand: "responsible_id",
-      batch: 200,
-    };
-    if (filter.trim()) params.filter = filter.trim();
-    setStatus("Загружаю компании...");
-    return pb.collection("companies").getFullList<CompanyExportRow>(params);
-  }
-
   async function exportNow() {
     const selectedFields = Object.values(fields).filter(Boolean).length;
-    if (!selectedFields) {
+    const selectedTimeline = Object.entries(timelineFields).some(([k, v]) => k !== "tl_limit" && v);
+    if (!selectedFields && !(entity === "deal" && selectedTimeline)) {
       setStatus("Выберите хотя бы одно поле для экспорта");
       return;
     }
@@ -185,40 +116,15 @@ export function ExportModal({
     setStatus("Готовлю экспорт...");
 
     try {
-      if (entity === "deal") {
-        const deals = await fetchDealsForExport();
-        const rows = deals.map((d) => buildDealExportRow(d, fields));
-        if (!rows.length) {
-          setStatus("Нет сделок для экспорта по выбранным фильтрам");
-          return;
-        }
-        if (format === "xlsx") downloadXlsx(rows, "deals", "deals_export.xlsx");
-        else downloadCsv(rows, "deals_export.csv");
-      } else {
-        const companies = await fetchCompaniesForExport();
-
-        const rows = companies.map((c) => {
-          const resp = c.expand?.responsible_id;
-          const row: Record<string, string> = {};
-          if (fields.name) row["Название компании"] = c.name ?? "";
-          if (fields.inn) row["ИНН"] = c.inn ?? "";
-          if (fields.city) row["Город"] = c.city ?? "";
-          if (fields.website) row["Сайт"] = c.website ?? "";
-          if (fields.phone) row["Телефон"] = c.phone ?? "";
-          if (fields.email) row["Email"] = c.email ?? "";
-          if (fields.responsible) row["Ответственный"] = resp?.full_name || resp?.email || "";
-          if (fields.updated) row["Обновлено"] = exportCell(c.updated);
-          return row;
-        });
-        if (!rows.length) {
-          setStatus("Нет компаний для экспорта по выбранным фильтрам");
-          return;
-        }
-
-        if (format === "xlsx") downloadXlsx(rows, "companies", "companies_export.xlsx");
-        else downloadCsv(rows, "companies_export.csv");
-      }
-
+      const result = await runExport({
+        entity,
+        format,
+        fields,
+        timelineFields: entity === "deal" ? timelineFields : undefined,
+        useCurrentFilters,
+        searchParams: sp,
+      });
+      downloadExportResult(result);
       setStatus("Готово ✅");
     } catch (e: unknown) {
       setStatus(`Ошибка: ${humanizePbError(e)}`);
@@ -335,11 +241,44 @@ export function ExportModal({
                 </label>
               ))}
             </div>
+            {entity === "deal" ? (
+              <div className="mt-4 grid gap-2 border-t border-border pt-3">
+                <div className="text-sm font-semibold">Лента событий (лист timeline в Excel)</div>
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-text2 shrink-0">Событий на сделку:</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={500}
+                    className="ui-input w-20 h-9"
+                    value={timelineFields.tl_limit ?? 50}
+                    onChange={(e) =>
+                      setTimelineFields((tf) => ({
+                        ...tf,
+                        tl_limit: Math.max(1, Math.min(500, Number(e.target.value) || 50)),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {TIMELINE_FIELD_OPTS.map(([key, label]) => (
+                    <label key={key} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(timelineFields[key])}
+                        onChange={() => setTimelineFields((tf) => ({ ...tf, [key]: !tf[key] }))}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <input
               className="h-10 rounded-card border border-border bg-white px-3 text-sm"
               value={presetName}
@@ -348,6 +287,9 @@ export function ExportModal({
             />
             <Button variant="secondary" onClick={savePresetNow} disabled={!presetName.trim()}>
               Сохранить пресет
+            </Button>
+            <Button variant="secondary" onClick={() => setOpenAutoExport(true)}>
+              {autoJobsCount ? "Настроить автоэкспорт" : "Автоэкспорт"}
             </Button>
           </div>
           <Button onClick={exportNow} disabled={running}>
@@ -376,6 +318,14 @@ export function ExportModal({
           </div>
         ) : null}
       </div>
+      <AutoExportModal
+        open={openAutoExport}
+        onClose={() => setOpenAutoExport(false)}
+        initialFields={fields}
+        initialEntity={entity}
+        initialFormat={format}
+        initialUseFilters={useCurrentFilters}
+      />
     </Modal>
   );
 }

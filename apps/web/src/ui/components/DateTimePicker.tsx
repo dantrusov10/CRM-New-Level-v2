@@ -72,7 +72,7 @@ export function DateTimePicker({
 
   const panelClass =
     calendarMode === "inline"
-      ? "relative z-0 mt-2 w-full max-w-[380px] rounded-card border border-[rgba(255,255,255,0.14)] bg-[rgba(10,20,32,0.96)] shadow-card overflow-hidden"
+      ? "relative z-0 mx-auto mt-2 w-full max-w-[380px] rounded-card border border-[rgba(255,255,255,0.14)] bg-[rgba(10,20,32,0.96)] shadow-card overflow-hidden"
       : "absolute left-0 right-0 z-[70] mt-2 w-full min-w-[360px] max-w-[380px] rounded-card border border-[rgba(255,255,255,0.14)] bg-[rgba(10,20,32,0.92)] backdrop-blur-xl shadow-card overflow-hidden sm:left-auto sm:right-0";
 
   return (

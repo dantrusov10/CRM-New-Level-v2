@@ -15,4 +15,6 @@ export type AiActionTimelinePayload = {
   due_at?: string;
   manager_comment?: string;
   dismiss_reason?: string;
+  pb_task_id?: string;
+  ref_timeline_id?: string;
 };

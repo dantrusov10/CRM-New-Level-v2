@@ -5,6 +5,8 @@ import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import { parseTabularFile, downloadCsv, downloadXlsx, guessMapping } from "../../lib/importExport";
 import { pb } from "../../lib/pb";
+import { buildDealImportHeaderMap } from "../../lib/dealImportExportFields";
+import { DEAL_SYSTEM_PB_FIELDS, normalizeDealFieldName } from "../../lib/canonicalFields";
 import { useAuth } from "../../app/AuthProvider";
 import { enrichCompanyByInnWithChecko } from "../../lib/aiGateway";
 
@@ -193,28 +195,20 @@ export function ImportModal({
     setResult(null);
   }, [open]);
 
-  const aliasesDeal = React.useMemo(
-    () => ({
+  const aliasesDeal = React.useMemo(() => {
+    const canonical = buildDealImportHeaderMap();
+    return {
       id: ["id", "ID"],
-      title: ["title", "Название сделки", "Сделка", "name"],
+      title: canonical.title ?? ["title", "Название сделки", "Сделка", "name"],
       company_name: ["company", "Компания", "company_name", "Компания (название)", "Название компании"],
       company_inn: ["inn", "ИНН", "company_inn"],
-      stage: ["stage", "Этап", "stage_name"],
-      budget: ["budget", "Бюджет"],
-      turnover: ["turnover", "Оборот"],
-      margin_percent: ["margin_percent", "Маржа", "Маржа %", "Маржа, %"],
-      discount_percent: ["discount_percent", "Скидка", "Скидка %", "Скидка, %"],
-      sales_channel: ["sales_channel", "Канал продаж"],
-      partner: ["partner", "Партнёр"],
-      distributor: ["distributor", "Дистрибьютор"],
-      purchase_format: ["purchase_format", "Формат закупки"],
-      attraction_channel: ["attraction_channel", "Канал привлечения"],
+      stage: canonical.stage ?? ["stage", "Этап", "stage_name"],
+      responsible: canonical.responsible ?? ["responsible", "Ответственный"],
+      ...canonical,
       attraction_date: ["attraction_date", "Дата привлечения"],
-      expected_payment_date: ["expected_payment_date", "Ожидаемая оплата"],
       payment_received_date: ["payment_received_date", "Фактическая оплата"],
-    }),
-    []
-  );
+    };
+  }, []);
 
   const aliasesCompany = React.useMemo(
     () => ({
@@ -344,7 +338,8 @@ export function ImportModal({
         const lbl = String(f?.label ?? "").trim();
         const fieldName = String(f?.field_name ?? "").trim();
         if (!lbl || !fieldName) continue;
-        if (["title", "stage_id", "budget", "turnover", "margin_percent", "discount_percent", "company_id", "responsible_id"].includes(fieldName)) continue;
+        const canon = normalizeDealFieldName(fieldName);
+        if (canon && DEAL_SYSTEM_PB_FIELDS.includes(canon)) continue;
         pushH(`Сделка: ${lbl}`);
       }
 
@@ -700,7 +695,8 @@ export function ImportModal({
           for (const [lbl, f] of dealFieldByLabel.entries()) {
             const fieldName = String(f?.field_name ?? "").trim();
             if (!fieldName) continue;
-            if (["title", "company_id", "stage_id", "responsible_id", "budget", "turnover", "margin_percent", "discount_percent"].includes(fieldName)) continue;
+            const canonSkip = normalizeDealFieldName(fieldName);
+            if (canonSkip && DEAL_SYSTEM_PB_FIELDS.includes(canonSkip)) continue;
 
             const col = `Сделка: ${lbl}`;
             const raw = r[col];

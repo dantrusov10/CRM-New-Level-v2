@@ -38,6 +38,8 @@ import {
   extractRisksFromInsight,
 } from "./dealAiDisplay";
 import { DealNextActionsList, DealRisksPanel, DealScoringExplainPanel } from "./DealAiPanels";
+import { CreateTaskFromActionModal, RespondToActionModal } from "./DealNextActionModals";
+import { OUTCOME_LABELS, type ActionOutcome, type AiActionTimelinePayload } from "./dealActionOutcome";
 
 type AnyObj = Record<string, unknown>;
 type TimelinePayload = Record<string, unknown>;
@@ -560,6 +562,9 @@ function toSectionTitle(key: string) {
     criticality: "Критичность",
     description: "Описание",
     current_score: "Текущая вероятность",
+    outcome: "Результат",
+    manager_comment: "Комментарий менеджера",
+    dismiss_reason: "Причина удаления",
   };
   const normalized = String(key || "").trim().toLowerCase();
   if (aliases[normalized]) return aliases[normalized];
@@ -1282,10 +1287,29 @@ function resolveTimelineCategory(actionRaw: string): TimelineCategory {
   const action = String(actionRaw || "").toLowerCase();
   if (action === "comment") return "comment";
   if (action === "note") return "note";
-  if (action === "task_created") return "task";
+  if (action === "task_created" || action === "task_completed" || action === "task_comment") return "task";
   if (action === "stage_change") return "stage";
   if (action.startsWith("ai")) return "ai";
   return "system";
+}
+
+type TimelineTaskKindFilter = "all" | "created" | "completed";
+
+function matchesTimelineTaskSubfilter(
+  action: string,
+  payload: Record<string, unknown> | null,
+  taskKind: TimelineTaskKindFilter,
+  taskOutcome: "all" | ActionOutcome,
+): boolean {
+  const taskActions = new Set(["task_created", "task_completed", "task_comment"]);
+  if (!taskActions.has(action)) return true;
+  if (taskKind === "created") return action === "task_created" || action === "task_comment";
+  if (taskKind === "completed") {
+    if (action !== "task_completed") return false;
+    if (taskOutcome === "all") return true;
+    return String(payload?.outcome || "") === taskOutcome;
+  }
+  return true;
 }
 
 function TimelineItemRow({
@@ -1306,7 +1330,10 @@ function TimelineItemRow({
   const action = String(item.action || "");
   const isComment = action === "comment";
   const isNote = action === "note";
-  const isTask = action === "task_created";
+  const isTaskCreated = action === "task_created";
+  const isTaskCompleted = action === "task_completed";
+  const isTaskComment = action === "task_comment";
+  const isTask = isTaskCreated || isTaskCompleted || isTaskComment;
   const isStage = action === "stage_change";
   const isAI = action.startsWith("ai");
   const isSystem = !(isComment || isNote || isTask || isStage || isAI);
@@ -1323,18 +1350,26 @@ function TimelineItemRow({
           : isAI
             ? "border-[rgba(34,197,94,0.45)] bg-[rgba(34,197,94,0.10)]"
             : "border-[rgba(148,163,184,0.45)] bg-[rgba(148,163,184,0.10)]";
+  const payloadRaw = item.payload && typeof item.payload === "object" ? (item.payload as Record<string, unknown>) : null;
+  const payloadOutcome =
+    payloadRaw && typeof payloadRaw.outcome === "string"
+      ? OUTCOME_LABELS[payloadRaw.outcome as ActionOutcome] || String(payloadRaw.outcome)
+      : "";
   const title = isComment
     ? "Комментарий менеджера"
     : isNote
       ? "Заметка"
-      : isTask
-        ? "Поставлена задача"
-        : isStage
-          ? "Изменение этапа"
-          : isAI
-            ? "Событие ИИ"
-            : "Системное событие";
-  const payloadRaw = item.payload && typeof item.payload === "object" ? (item.payload as Record<string, unknown>) : null;
+      : isTaskCompleted
+        ? "Выполнено"
+        : isTaskComment
+          ? "Комментарий к действию"
+          : isTaskCreated
+            ? "Поставлена задача"
+            : isStage
+              ? "Изменение этапа"
+              : isAI
+                ? "Событие ИИ"
+                : "Системное событие";
   const payload = payloadRaw
     ? Object.entries(payloadRaw).filter(([k]) => {
         const kl = k.toLowerCase();
@@ -1354,7 +1389,7 @@ function TimelineItemRow({
           "user_id",
           "quick_actions_1_7_days",
         ].includes(kl)) return false;
-        if (["due_at", "source"].includes(kl)) return false;
+        if (["due_at", "source", "ai_action_text"].includes(kl)) return false;
         return true;
       })
     : [];
@@ -1403,6 +1438,9 @@ function TimelineItemRow({
         <div className="text-xs text-text2">{when}{by ? ` · ${by}` : ""}</div>
         <div className="flex items-center gap-2">
           <Badge>{title}</Badge>
+          {payloadOutcome ? (
+            <span className="text-xs font-semibold text-text2">{payloadOutcome}</span>
+          ) : null}
           {isEditable ? (
             <button
               type="button"
@@ -1472,6 +1510,97 @@ function TimelineItemRow({
   );
 }
 
+function TimelineCategoryFilterPanel({
+  categoriesDraft,
+  setCategoriesDraft,
+  taskKindDraft,
+  setTaskKindDraft,
+  taskOutcomeDraft,
+  setTaskOutcomeDraft,
+}: {
+  categoriesDraft: TimelineCategory[];
+  setCategoriesDraft: React.Dispatch<React.SetStateAction<TimelineCategory[]>>;
+  taskKindDraft: TimelineTaskKindFilter;
+  setTaskKindDraft: React.Dispatch<React.SetStateAction<TimelineTaskKindFilter>>;
+  taskOutcomeDraft: "all" | ActionOutcome;
+  setTaskOutcomeDraft: React.Dispatch<React.SetStateAction<"all" | ActionOutcome>>;
+}) {
+  const showTaskSubfilters = categoriesDraft.includes("task");
+  return (
+    <div className="grid gap-2 text-sm">
+      {([
+        ["comment", "Комментарий"],
+        ["note", "Заметка"],
+        ["task", "Задача"],
+        ["stage", "Этап"],
+        ["ai", "ИИ"],
+        ["system", "Системное"],
+      ] as Array<[TimelineCategory, string]>).map(([key, label]) => (
+        <label key={key} className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={categoriesDraft.includes(key)}
+            onChange={(e) =>
+              setCategoriesDraft((prev) =>
+                e.target.checked ? [...prev, key] : prev.filter((x) => x !== key),
+              )
+            }
+          />
+          <span>{label}</span>
+        </label>
+      ))}
+      {showTaskSubfilters ? (
+        <div className="mt-1 grid gap-2 border-t border-border pt-2">
+          <div className="text-xs font-semibold uppercase tracking-wide text-text2">Статус задачи</div>
+          {(
+            [
+              ["all", "Все"],
+              ["created", "Поставлено"],
+              ["completed", "Выполнено"],
+            ] as Array<[TimelineTaskKindFilter, string]>
+          ).map(([key, label]) => (
+            <label key={key} className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="timeline-task-kind"
+                checked={taskKindDraft === key}
+                onChange={() => {
+                  setTaskKindDraft(key);
+                  if (key !== "completed") setTaskOutcomeDraft("all");
+                }}
+              />
+              <span>{label}</span>
+            </label>
+          ))}
+          {taskKindDraft === "completed" ? (
+            <>
+              <div className="text-xs font-semibold uppercase tracking-wide text-text2">Результат</div>
+              {(
+                [
+                  ["all", "Любой"],
+                  ["success", OUTCOME_LABELS.success],
+                  ["failed", OUTCOME_LABELS.failed],
+                  ["partial", OUTCOME_LABELS.partial],
+                ] as Array<["all" | ActionOutcome, string]>
+              ).map(([key, label]) => (
+                <label key={key} className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="timeline-task-outcome"
+                    checked={taskOutcomeDraft === key}
+                    onChange={() => setTaskOutcomeDraft(key)}
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function DealDetailPage() {
   const { id } = useParams();
   const dealQ = useDeal(id!);
@@ -1515,6 +1644,14 @@ export function DealDetailPage() {
     "ai",
     "system",
   ]);
+  const [timelineTaskKind, setTimelineTaskKind] = React.useState<TimelineTaskKindFilter>("all");
+  const [timelineTaskKindDraft, setTimelineTaskKindDraft] = React.useState<TimelineTaskKindFilter>("all");
+  const [timelineTaskOutcome, setTimelineTaskOutcome] = React.useState<"all" | ActionOutcome>("all");
+  const [timelineTaskOutcomeDraft, setTimelineTaskOutcomeDraft] = React.useState<"all" | ActionOutcome>("all");
+  const [nextActionCreateOpen, setNextActionCreateOpen] = React.useState(false);
+  const [nextActionRespondOpen, setNextActionRespondOpen] = React.useState(false);
+  const [nextActionText, setNextActionText] = React.useState("");
+  const [nextActionSaving, setNextActionSaving] = React.useState(false);
   const [aiRunLoading, setAiRunLoading] = React.useState(false);
   const [aiRunError, setAiRunError] = React.useState<string>("");
   const [selectedProductIds, setSelectedProductIds] = React.useState<string[]>([]);
@@ -2378,7 +2515,11 @@ export function DealDetailPage() {
   const tlFiltered = tlAll.filter((t) => {
     const category = resolveTimelineCategory(String(t.action || ""));
     if (!timelineCategories.includes(category)) return false;
-    return true;
+    if (!timelineCategories.includes("task")) return true;
+    const action = String(t.action || "");
+    const payload =
+      t.payload && typeof t.payload === "object" ? (t.payload as Record<string, unknown>) : null;
+    return matchesTimelineTaskSubfilter(action, payload, timelineTaskKind, timelineTaskOutcome);
   }).filter((t) => {
     const q = timelineSearch.trim().toLowerCase();
     if (!q) return true;
@@ -2390,19 +2531,93 @@ export function DealDetailPage() {
     return hay.includes(q);
   });
 
-  async function createTaskFromAction(actionText: string) {
+  function openCreateTaskModal(actionText: string) {
+    setNextActionText(actionText);
+    setNextActionCreateOpen(true);
+  }
+
+  function openRespondModal(actionText: string) {
+    setNextActionText(actionText);
+    setNextActionRespondOpen(true);
+  }
+
+  async function confirmCreateTaskFromAction({ dueAt, title }: { dueAt: string; title: string }) {
     if (!deal?.id || !auth?.id) return;
-    const due = dayjs().add(2, "day").hour(12).minute(0).second(0).millisecond(0).toISOString();
+    setNextActionSaving(true);
+    const dueIso = dayjs(dueAt).toISOString();
     await createTaskM
       .mutateAsync({
-        title: actionText.slice(0, 180),
-        due_at: due,
+        title: title.slice(0, 180),
+        due_at: dueIso,
         deal_id: deal.id,
         company_id: deal?.company_id || deal?.expand?.company_id?.id,
         created_by: auth.id,
       })
       .catch(() => null);
-    await createTimelineEvent("task_created", `Задача из AI: ${actionText.slice(0, 180)}`, { due_at: due, source: "ai_next_best_action" });
+    const payload: AiActionTimelinePayload = {
+      due_at: dueIso,
+      source: "ai_next_best_action",
+      ai_action_text: nextActionText.slice(0, 500),
+    };
+    await createTimelineEvent("task_created", `Задача из AI: ${title.slice(0, 180)}`, payload);
+    setNextActionSaving(false);
+    setNextActionCreateOpen(false);
+    tlQ.refetch();
+  }
+
+  async function confirmDismissAction({ outcome, reason }: { outcome: ActionOutcome; reason: string }) {
+    if (!deal?.id) return;
+    setNextActionSaving(true);
+    const payload: AiActionTimelinePayload = {
+      source: "ai_next_best_action",
+      ai_action_text: nextActionText.slice(0, 500),
+      outcome,
+      dismiss_reason: reason,
+    };
+    await createTimelineEvent(
+      "ai_action_dismissed",
+      `Действие снято (${OUTCOME_LABELS[outcome]}): ${nextActionText.slice(0, 120)}\n${reason}`,
+      payload,
+    );
+    setNextActionSaving(false);
+    setNextActionRespondOpen(false);
+    tlQ.refetch();
+  }
+
+  async function confirmCommentOnAction({ comment }: { comment: string }) {
+    if (!deal?.id) return;
+    setNextActionSaving(true);
+    const payload: AiActionTimelinePayload = {
+      source: "ai_next_best_action",
+      ai_action_text: nextActionText.slice(0, 500),
+      manager_comment: comment,
+    };
+    await createTimelineEvent(
+      "task_comment",
+      `Комментарий к действию AI: ${nextActionText.slice(0, 120)}\n${comment}`,
+      payload,
+    );
+    setNextActionSaving(false);
+    setNextActionRespondOpen(false);
+    tlQ.refetch();
+  }
+
+  async function confirmCompleteAction({ outcome, comment }: { outcome: ActionOutcome; comment: string }) {
+    if (!deal?.id) return;
+    setNextActionSaving(true);
+    const payload: AiActionTimelinePayload = {
+      source: "ai_next_best_action",
+      ai_action_text: nextActionText.slice(0, 500),
+      outcome,
+      manager_comment: comment,
+    };
+    await createTimelineEvent(
+      "task_completed",
+      `Выполнено (${OUTCOME_LABELS[outcome]}): ${nextActionText.slice(0, 120)}\n${comment}`,
+      payload,
+    );
+    setNextActionSaving(false);
+    setNextActionRespondOpen(false);
     tlQ.refetch();
   }
 
@@ -2813,41 +3028,28 @@ export function DealDetailPage() {
                       title="Фильтр категорий"
                       onClick={() => {
                         setTimelineCategoriesDraft(timelineCategories);
+                        setTimelineTaskKindDraft(timelineTaskKind);
+                        setTimelineTaskOutcomeDraft(timelineTaskOutcome);
                         setTimelineFilterOpen((v) => !v);
                       }}
                     >
                       <Filter size={16} />
                     </button>
-                    {timelineCategories.length < 6 ? (
+                    {timelineCategories.length < 6 || timelineTaskKind !== "all" || timelineTaskOutcome !== "all" ? (
                       <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-black">
-                        {timelineCategories.length}
+                        {timelineCategories.length < 6 ? timelineCategories.length : "•"}
                       </span>
                     ) : null}
                     {timelineFilterOpen ? (
-                      <div className="absolute right-0 z-30 mt-2 w-56 rounded-card border border-border bg-[rgba(15,23,42,0.98)] p-3 shadow-2xl">
-                        <div className="grid gap-2 text-sm">
-                          {([
-                            ["comment", "Комментарий"],
-                            ["note", "Заметка"],
-                            ["task", "Задача"],
-                            ["stage", "Этап"],
-                            ["ai", "ИИ"],
-                            ["system", "Системное"],
-                          ] as Array<[TimelineCategory, string]>).map(([key, label]) => (
-                            <label key={key} className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={timelineCategoriesDraft.includes(key)}
-                                onChange={(e) =>
-                                  setTimelineCategoriesDraft((prev) =>
-                                    e.target.checked ? [...prev, key] : prev.filter((x) => x !== key),
-                                  )
-                                }
-                              />
-                              <span>{label}</span>
-                            </label>
-                          ))}
-                        </div>
+                      <div className="absolute right-0 z-30 mt-2 w-64 rounded-card border border-border bg-[rgba(15,23,42,0.98)] p-3 shadow-2xl">
+                        <TimelineCategoryFilterPanel
+                          categoriesDraft={timelineCategoriesDraft}
+                          setCategoriesDraft={setTimelineCategoriesDraft}
+                          taskKindDraft={timelineTaskKindDraft}
+                          setTaskKindDraft={setTimelineTaskKindDraft}
+                          taskOutcomeDraft={timelineTaskOutcomeDraft}
+                          setTaskOutcomeDraft={setTimelineTaskOutcomeDraft}
+                        />
                         <div className="mt-3 flex justify-end gap-2">
                           <Button small variant="secondary" onClick={() => setTimelineFilterOpen(false)}>Отмена</Button>
                           <Button
@@ -2858,6 +3060,8 @@ export function DealDetailPage() {
                                   ? timelineCategoriesDraft
                                   : ["comment", "note", "task", "stage", "ai", "system"],
                               );
+                              setTimelineTaskKind(timelineTaskKindDraft);
+                              setTimelineTaskOutcome(timelineTaskOutcomeDraft);
                               setTimelineFilterOpen(false);
                             }}
                           >
@@ -3076,41 +3280,28 @@ export function DealDetailPage() {
                       title="Фильтр категорий"
                       onClick={() => {
                         setTimelineCategoriesDraft(timelineCategories);
+                        setTimelineTaskKindDraft(timelineTaskKind);
+                        setTimelineTaskOutcomeDraft(timelineTaskOutcome);
                         setTimelineFilterOpen((v) => !v);
                       }}
                     >
                       <Filter size={16} />
                     </button>
-                    {timelineCategories.length < 6 ? (
+                    {timelineCategories.length < 6 || timelineTaskKind !== "all" || timelineTaskOutcome !== "all" ? (
                       <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-black">
-                        {timelineCategories.length}
+                        {timelineCategories.length < 6 ? timelineCategories.length : "•"}
                       </span>
                     ) : null}
                     {timelineFilterOpen ? (
-                      <div className="absolute right-0 z-30 mt-2 w-56 rounded-card border border-border bg-[rgba(15,23,42,0.98)] p-3 shadow-2xl">
-                        <div className="grid gap-2 text-sm">
-                          {([
-                            ["comment", "Комментарий"],
-                            ["note", "Заметка"],
-                            ["task", "Задача"],
-                            ["stage", "Этап"],
-                            ["ai", "ИИ"],
-                            ["system", "Системное"],
-                          ] as Array<[TimelineCategory, string]>).map(([key, label]) => (
-                            <label key={key} className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={timelineCategoriesDraft.includes(key)}
-                                onChange={(e) =>
-                                  setTimelineCategoriesDraft((prev) =>
-                                    e.target.checked ? [...prev, key] : prev.filter((x) => x !== key),
-                                  )
-                                }
-                              />
-                              <span>{label}</span>
-                            </label>
-                          ))}
-                        </div>
+                      <div className="absolute right-0 z-30 mt-2 w-64 rounded-card border border-border bg-[rgba(15,23,42,0.98)] p-3 shadow-2xl">
+                        <TimelineCategoryFilterPanel
+                          categoriesDraft={timelineCategoriesDraft}
+                          setCategoriesDraft={setTimelineCategoriesDraft}
+                          taskKindDraft={timelineTaskKindDraft}
+                          setTaskKindDraft={setTimelineTaskKindDraft}
+                          taskOutcomeDraft={timelineTaskOutcomeDraft}
+                          setTaskOutcomeDraft={setTimelineTaskOutcomeDraft}
+                        />
                         <div className="mt-3 flex justify-end gap-2">
                           <Button small variant="secondary" onClick={() => setTimelineFilterOpen(false)}>Отмена</Button>
                           <Button
@@ -3121,6 +3312,8 @@ export function DealDetailPage() {
                                   ? timelineCategoriesDraft
                                   : ["comment", "note", "task", "stage", "ai", "system"],
                               );
+                              setTimelineTaskKind(timelineTaskKindDraft);
+                              setTimelineTaskOutcome(timelineTaskOutcomeDraft);
                               setTimelineFilterOpen(false);
                             }}
                           >
@@ -3558,7 +3751,11 @@ export function DealDetailPage() {
 
                 <div className="rounded-card border border-border bg-white p-3">
                   <div className="text-xs font-semibold uppercase tracking-wide text-text2 mb-2">Следующие действия</div>
-                  <DealNextActionsList groups={nextActionGroups} onCreateTask={(t) => void createTaskFromAction(t)} />
+                  <DealNextActionsList
+                    groups={nextActionGroups}
+                    onCreateTask={openCreateTaskModal}
+                    onRespond={openRespondModal}
+                  />
                 </div>
                 <div className="rounded-card border border-border bg-white p-3">
                   <div className="text-sm font-semibold mb-2">Почему изменилась вероятность</div>
@@ -3778,6 +3975,22 @@ export function DealDetailPage() {
           </div>
         </div>
       </Modal>
+      <CreateTaskFromActionModal
+        open={nextActionCreateOpen}
+        actionText={nextActionText}
+        onClose={() => !nextActionSaving && setNextActionCreateOpen(false)}
+        onConfirm={confirmCreateTaskFromAction}
+        saving={nextActionSaving}
+      />
+      <RespondToActionModal
+        open={nextActionRespondOpen}
+        actionText={nextActionText}
+        onClose={() => !nextActionSaving && setNextActionRespondOpen(false)}
+        onDismiss={confirmDismissAction}
+        onComment={confirmCommentOnAction}
+        onComplete={confirmCompleteAction}
+        saving={nextActionSaving}
+      />
     </div>
   );
 }

@@ -4,6 +4,8 @@ import { Modal } from "../components/Modal";
 import { Button } from "../components/Button";
 import { downloadCsv, downloadXlsx } from "../../lib/importExport";
 import { pb } from "../../lib/pb";
+import { DEAL_EXPORT_COLUMNS, DEAL_EXPORT_DEFAULT_FIELDS } from "../../lib/dealImportExportFields";
+import { dealFieldLabel, normalizeDealFieldName } from "../../lib/canonicalFields";
 import type { Company, Deal, UserSummary, FunnelStage } from "../../lib/types";
 
 type EntityType = "deal" | "company";
@@ -86,27 +88,7 @@ export function ExportModal({
     setFields({});
   }, [open]);
 
-  const defaultFieldsDeals: Record<string, boolean> = React.useMemo(
-    () => ({
-      title: true,
-      company: true,
-      inn: false,
-      stage: true,
-      responsible: true,
-      budget: true,
-      turnover: true,
-      margin_percent: true,
-      discount_percent: false,
-      sales_channel: true,
-      partner: false,
-      purchase_format: false,
-      attraction_date: false,
-      expected_payment_date: false,
-      payment_received_date: false,
-      updated: false,
-    }),
-    []
-  );
+  const defaultFieldsDeals: Record<string, boolean> = React.useMemo(() => ({ ...DEAL_EXPORT_DEFAULT_FIELDS }), []);
 
   const defaultFieldsCompanies: Record<string, boolean> = React.useMemo(
     () => ({
@@ -186,16 +168,16 @@ export function ExportModal({
           if (fields.inn) row["ИНН"] = company?.inn ?? "";
           if (fields.stage) row["Этап"] = stage?.stage_name ?? "";
           if (fields.responsible) row["Ответственный"] = resp?.full_name || resp?.email || "";
-          if (fields.budget) row["Бюджет"] = d.budget ?? "";
-          if (fields.turnover) row["Оборот"] = d.turnover ?? "";
-          if (fields.margin_percent) row["Маржа, %"] = d.margin_percent ?? "";
-          if (fields.discount_percent) row["Скидка, %"] = d.discount_percent ?? "";
-          if (fields.sales_channel) row["Канал продаж"] = d.sales_channel ?? "";
-          if (fields.partner) row["Партнёр"] = d.partner ?? "";
-          if (fields.purchase_format) row["Формат закупки"] = d.purchase_format ?? "";
-          if (fields.attraction_date) row["Дата привлечения"] = d.attraction_date ?? "";
-          if (fields.expected_payment_date) row["Ожидаемая оплата"] = d.expected_payment_date ?? "";
-          if (fields.payment_received_date) row["Фактическая оплата"] = d.payment_received_date ?? "";
+          for (const col of DEAL_EXPORT_COLUMNS) {
+            if (!col.canonical || !fields[col.key]) continue;
+            const canon = normalizeDealFieldName(col.canonical);
+            if (!canon || ["title", "company_id", "stage_id", "responsible_id"].includes(canon)) continue;
+            const label = dealFieldLabel(canon);
+            const val = (d as Record<string, unknown>)[canon];
+            row[label] = val != null && val !== "" ? String(val) : "";
+          }
+          if (fields.delivery_date) row["Поставка"] = String((d as Record<string, unknown>).delivery_date ?? "");
+          if (fields.expected_payment_date) row["Ожид. оплата"] = String((d as Record<string, unknown>).expected_payment_date ?? "");
           if (fields.updated) row["Обновлено"] = d.updated ?? "";
           return row;
         });
@@ -292,24 +274,7 @@ export function ExportModal({
 
   const fieldList = React.useMemo(() => {
     if (entity === "deal") {
-      return [
-        ["title", "Название сделки"],
-        ["company", "Компания"],
-        ["inn", "ИНН"],
-        ["stage", "Этап"],
-        ["responsible", "Ответственный"],
-        ["budget", "Бюджет"],
-        ["turnover", "Оборот"],
-        ["margin_percent", "Маржа, %"],
-        ["discount_percent", "Скидка, %"],
-        ["sales_channel", "Канал продаж"],
-        ["partner", "Партнёр"],
-        ["purchase_format", "Формат закупки"],
-        ["attraction_date", "Дата привлечения"],
-        ["expected_payment_date", "Ожидаемая оплата"],
-        ["payment_received_date", "Фактическая оплата"],
-        ["updated", "Обновлено"],
-      ] as const;
+      return DEAL_EXPORT_COLUMNS.map((c) => [c.key, c.label] as const);
     }
     return [
       ["name", "Название компании"],

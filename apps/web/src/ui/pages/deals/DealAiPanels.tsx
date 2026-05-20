@@ -11,10 +11,12 @@ export function DealNextActionsList({
   groups,
   actions,
   onCreateTask,
+  onRespond,
 }: {
   groups?: NextActionGroup[];
   actions?: string[];
   onCreateTask: (text: string) => void;
+  onRespond: (text: string) => void;
 }) {
   const resolved: NextActionGroup[] =
     groups && groups.length
@@ -41,14 +43,14 @@ export function DealNextActionsList({
                 className="rounded-md border border-border bg-rowHover/70 p-2.5 grid gap-2"
               >
                 <p className="leading-relaxed text-text w-full">{item}</p>
-                <Button
-                  small
-                  variant="secondary"
-                  className="w-full sm:w-auto self-start"
-                  onClick={() => onCreateTask(item)}
-                >
-                  Создать задачу
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button small variant="secondary" onClick={() => onCreateTask(item)}>
+                    Создать задачу
+                  </Button>
+                  <Button small variant="secondary" onClick={() => onRespond(item)}>
+                    Ответить
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>

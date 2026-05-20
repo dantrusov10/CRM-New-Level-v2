@@ -31,6 +31,12 @@ import { InlineConfirmActions } from "../../components/InlineConfirmActions";
 import type { AiInsight, Deal, TimelineItem } from "../../../lib/types";
 import type { ContactFound, EntityFileLink, ProductProfile } from "../../data/hooks";
 import { analyzeDealWithAi, enrichCompanyByInnWithChecko } from "../../../lib/aiGateway";
+import {
+  buildScoringExplainability,
+  extractNextActions,
+  extractRisksFromInsight,
+} from "./dealAiDisplay";
+import { DealNextActionsList, DealRisksPanel, DealScoringExplainPanel } from "./DealAiPanels";
 
 type AnyObj = Record<string, unknown>;
 type TimelinePayload = Record<string, unknown>;
@@ -2333,7 +2339,7 @@ export function DealDetailPage() {
   const sb = scoreBadge(score);
   const dynamicSections = React.useMemo(() => buildDynamicSections(latestAi), [latestAi]);
   const nextActions = React.useMemo(
-    () => extractActionItems(latestAi?.suggestions || latestAi?.recommendations || ""),
+    () => extractNextActions(latestAi?.suggestions || latestAi?.recommendations || ""),
     [latestAi],
   );
   const researchSections = React.useMemo(
@@ -2343,25 +2349,12 @@ export function DealDetailPage() {
   const hasRiskSignals =
     Boolean(latestAi?.risks) ||
     dynamicSections.some((section) => /риск|risk/i.test(section.key) || /риск|risk/i.test(section.title));
-  const aiScoring = React.useMemo(() => {
-    const ex = latestAi?.explainability;
-    if (!ex || typeof ex !== "object" || Array.isArray(ex)) return null;
-    const s = (ex as Record<string, unknown>)._scoring;
-    return s && typeof s === "object" ? (s as Record<string, unknown>) : null;
-  }, [latestAi?.explainability]);
-  const aiRiskLines = React.useMemo(() => {
-    const ex =
-      latestAi?.explainability && typeof latestAi.explainability === "object" && !Array.isArray(latestAi.explainability)
-        ? (latestAi.explainability as Record<string, unknown>)
-        : {};
-    const merged = [
-      ...researchFieldToReadableLines(ex.risks ?? latestAi?.risks ?? ""),
-      ...researchFieldToReadableLines(ex.data_gaps ?? ""),
-    ];
-    return Array.from(new Set(merged.map((x) => humanizeSummaryForDisplay(stripTimelineAiNoise(String(x || ""))).trim())))
-      .filter((x) => x.length > 6)
-      .slice(0, 6);
-  }, [latestAi]);
+  const prevAiInsight = aiHistory.length > 1 ? aiHistory[1] : null;
+  const scoringExplain = React.useMemo(
+    () => buildScoringExplainability(latestAi, prevAiInsight),
+    [latestAi, prevAiInsight],
+  );
+  const aiRiskItems = React.useMemo(() => extractRisksFromInsight(latestAi), [latestAi]);
   const latestAiTimelineEvent = React.useMemo(
     () =>
       tlAll.find((t) => {
@@ -3035,39 +3028,10 @@ export function DealDetailPage() {
                         ))}
                       </div>
                     </div>
-                    {aiScoring ? (
+                    {scoringExplain ? (
                       <div className="rounded-xl border border-border bg-card/90 p-4">
                         <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-text2">Почему изменилась вероятность</div>
-                        <div className="grid gap-2">
-                          <div className="text-sm">
-                            Метод: <span className="font-semibold">{String(aiScoring.method || "—")}</span> ·
-                            Финальная вероятность: <span className="font-semibold">{String(aiScoring.final_probability ?? "—")}</span> ·
-                            Сырой LLM: <span className="font-semibold">{String(aiScoring.llm_probability_raw ?? "—")}</span>
-                          </div>
-                          {Array.isArray(aiScoring.breakdown) ? (
-                            <div className="grid gap-2">
-                              {(aiScoring.breakdown as Array<Record<string, unknown>>).slice(0, 8).map((f, idx) => (
-                                <div key={`${String(f.code || idx)}`} className="rounded-md border border-border bg-rowHover/60 px-3 py-2 text-sm">
-                                  <div className="font-medium">
-                                    {explainabilityFactorLabel(String(f.code || ""), String(f.name || ""))}
-                                  </div>
-                                  <div className="mt-1 h-1.5 w-full rounded-full bg-[rgba(255,255,255,0.12)]">
-                                    <div
-                                      className="h-1.5 rounded-full bg-primary/80"
-                                      style={{ width: `${Math.max(0, Math.min(100, Number(f.value ?? 0)))}%` }}
-                                    />
-                                  </div>
-                                  <div className="mt-1 text-xs text-text2">
-                                    Оценка: {String(f.value ?? "—")} / 100 · Вес: {String(f.weight ?? "—")} · Вклад: {String(f.weighted_contribution ?? "—")}
-                                  </div>
-                                  <div className="text-xs text-text2">
-                                    {explainabilityFactorComment(Number(f.value ?? 0))}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          ) : null}
-                        </div>
+                        <DealScoringExplainPanel data={scoringExplain} />
                       </div>
                     ) : null}
 
@@ -3595,70 +3559,18 @@ export function DealDetailPage() {
 
                 <div className="rounded-card border border-border bg-white p-3">
                   <div className="text-xs font-semibold uppercase tracking-wide text-text2 mb-2">Следующие действия</div>
-                  {nextActions.length ? (
-                    <ul className="grid gap-1.5 text-sm">
-                      {nextActions.slice(0, 3).map((item, idx) => (
-                        <li key={`${item}-${idx}`} className="flex items-start gap-2">
-                          <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary/80" />
-                          <div className="flex-1 flex items-start justify-between gap-2">
-                            <span className="leading-relaxed">{item}</span>
-                            <Button
-                              small
-                              variant="secondary"
-                              className="h-9 min-w-[128px] shrink-0 whitespace-nowrap"
-                              onClick={() => void createTaskFromAction(item)}
-                            >
-                              Создать задачу
-                            </Button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div className="text-sm text-text2">Запусти AI, чтобы получить список следующих шагов.</div>
-                  )}
+                  <DealNextActionsList actions={nextActions.slice(0, 3)} onCreateTask={(t) => void createTaskFromAction(t)} />
                 </div>
                 <div className="rounded-card border border-border bg-white p-3">
                   <div className="text-sm font-semibold mb-2">Почему изменилась вероятность</div>
-                  {aiScoring ? (
-                    <div className="rounded-card border border-border bg-rowHover p-3">
-                      <div className="text-xs text-text2">Сводка</div>
-                      <ul className="mt-2 grid gap-1.5 text-sm">
-                        <li>Метод: <span className="font-semibold">{String(aiScoring.method || "—")}</span></li>
-                        <li>Финальная вероятность: <span className="font-semibold">{String(aiScoring.final_probability ?? "—")}</span></li>
-                        <li>Сырой сигнал модели: <span className="font-semibold">{String(aiScoring.llm_probability_raw ?? "—")}</span></li>
-                      </ul>
-                    </div>
-                  ) : null}
-                  {Array.isArray(aiScoring?.breakdown) ? (
-                    <div className="grid gap-2">
-                      {(aiScoring?.breakdown as Array<Record<string, unknown>>).slice(0, 8).map((f, idx) => (
-                        <div key={`${String(f.code || idx)}`} className="rounded-md border border-border bg-white px-3 py-2 text-sm">
-                          <div className="font-medium">{explainabilityFactorLabel(String(f.code || ""), String(f.name || ""))}</div>
-                          <div className="mt-1 h-1.5 w-full rounded-full bg-[rgba(255,255,255,0.12)]">
-                            <div
-                              className="h-1.5 rounded-full bg-primary/80"
-                              style={{ width: `${Math.max(0, Math.min(100, Number(f.value ?? 0)))}%` }}
-                            />
-                          </div>
-                          <div className="mt-1 text-xs text-text2">
-                            Оценка: {String(f.value ?? "—")} / 100 · Вес: {String(f.weight ?? "—")} · Вклад: {String(f.weighted_contribution ?? "—")}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                  <div className="rounded-card border border-border bg-rowHover p-3">
+                  {scoringExplain ? (
+                    <DealScoringExplainPanel data={scoringExplain} />
+                  ) : (
+                    <div className="text-sm text-text2">Запустите AI-анализ — появится объяснение оценки.</div>
+                  )}
+                  <div className="rounded-card border border-border bg-rowHover p-3 mt-3">
                     <div className="text-xs text-text2 mb-2">Основные риски</div>
-                    {aiRiskLines.length ? (
-                      <ul className="grid gap-1.5 text-sm">
-                        {aiRiskLines.map((line, idx) => (
-                          <li key={`${line}-${idx}`} className="leading-relaxed">• {line}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="text-sm">Риски не выделены.</div>
-                    )}
+                    <DealRisksPanel risks={aiRiskItems} />
                   </div>
                 </div>
               </div>

@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
 import { pb } from "../../../lib/pb";
+import { DEAL_FIELD_ENTITIES, normalizeDealFieldName } from "../../../lib/canonicalFields";
 
 type EntityType = "company" | "deal";
 type FieldSection = { id: string; entity_type: EntityType; key: string; title: string; order?: number; collapsed?: boolean };
@@ -368,7 +369,17 @@ export function AdminFieldsPage() {
       .filter((f) => f.entity_type === entity)
       .map((f) => String(f.field_name || ""))
       .filter(Boolean);
-    const autoFieldName = makeFieldName(label, existing);
+    const autoFieldNameRaw = makeFieldName(label, existing);
+    let autoFieldName = autoFieldNameRaw;
+    if (entity === "deal") {
+      const labelNorm = label.trim().toLowerCase();
+      const byLabel = DEAL_FIELD_ENTITIES.find((e) => e.label.toLowerCase() === labelNorm);
+      if (byLabel) autoFieldName = byLabel.field;
+      else {
+        const canonical = normalizeDealFieldName(autoFieldNameRaw);
+        if (canonical) autoFieldName = canonical;
+      }
+    }
     const options = buildFieldOptions(fieldType, selectValuesText, relationCollection, relationLabelField);
 
     if (fieldType === "select" && parseSelectValues(selectValuesText).length === 0) {
@@ -544,6 +555,11 @@ export function AdminFieldsPage() {
               <div className="col-span-3">
                 <div className="text-xs text-text2 mb-1">Название (label)</div>
                 <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Канал продаж" />
+                {entity === "deal" ? (
+                  <div className="text-[11px] text-text2 mt-1 leading-snug">
+                    Канон PB: budget, turnover, sales_channel, partner, distributor… — для «Бюджет»/«Оборот» имя подставится автоматически.
+                  </div>
+                ) : null}
               </div>
               <div className="col-span-3">
                 <div className="text-xs text-text2 mb-1">Тип</div>

@@ -135,6 +135,22 @@ export function KpTemplateEditor({
     });
   }
 
+  function moveSection(sectionId: string, dir: -1 | 1) {
+    setDraft((p) => {
+      const n = deepClone(p);
+      const list = n.ui?.sections || [];
+      const idx = list.findIndex((s) => s.id === sectionId);
+      if (idx < 0) return n;
+      const next = idx + dir;
+      if (next < 0 || next >= list.length) return n;
+      const copy = [...list];
+      const [item] = copy.splice(idx, 1);
+      copy.splice(next, 0, item);
+      n.ui = { ...(n.ui || {}), sections: copy };
+      return n;
+    });
+  }
+
   async function uploadLogoIfNeeded() {
     if (!logoFile || !templateRecord?.id) return;
     const fd = new FormData();
@@ -214,7 +230,7 @@ export function KpTemplateEditor({
 
   return (
     <div className="grid grid-cols-12 gap-4">
-      <div className="col-span-6 grid gap-4">
+      <div className="col-span-12 xl:col-span-6 grid gap-4">
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -314,9 +330,25 @@ export function KpTemplateEditor({
                 <div className="mt-3 grid gap-4">
                   {sections.map((sec) => (
                     <div key={sec.id} className="rounded-card border border-border bg-white p-3">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="text-sm font-semibold">{sec.title}</div>
-                        <Button variant="secondary" onClick={() => addField(sec.id)}>+ Поле</Button>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="secondary"
+                            onClick={() => moveSection(sec.id, -1)}
+                            disabled={sections[0]?.id === sec.id}
+                          >
+                            ↑
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            onClick={() => moveSection(sec.id, 1)}
+                            disabled={sections[sections.length - 1]?.id === sec.id}
+                          >
+                            ↓
+                          </Button>
+                          <Button variant="secondary" onClick={() => addField(sec.id)}>+ Поле</Button>
+                        </div>
                       </div>
                       <div className="mt-2 grid gap-2">
                         {(sec.fields || []).map((f) => (
@@ -400,7 +432,7 @@ export function KpTemplateEditor({
         </Card>
       </div>
 
-      <div className="col-span-6 grid gap-4">
+      <div className="col-span-12 xl:col-span-6 grid gap-4">
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">

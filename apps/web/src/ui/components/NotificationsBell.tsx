@@ -108,7 +108,7 @@ export function NotificationsBell() {
       </button>
 
       {open ? (
-        <div className="absolute right-0 mt-2 w-[360px] rounded-card border border-border bg-[rgba(15,23,42,0.96)] backdrop-blur-xl shadow-2xl p-3 z-50">
+        <div className="absolute right-0 mt-2 w-[min(360px,calc(100vw-1.5rem))] rounded-card border border-border bg-[rgba(15,23,42,0.96)] backdrop-blur-xl shadow-2xl p-3 z-50">
           <div className="flex items-center justify-between mb-2">
             <div className="text-sm font-semibold">Уведомления</div>
             <button
@@ -191,7 +191,7 @@ export function NotificationsBell() {
         </div>
       ) : null}
       {!!alerts.length ? (
-        <div className="fixed bottom-5 right-5 z-[70] grid gap-2 w-[340px]">
+        <div className="fixed bottom-5 right-3 sm:right-5 z-[70] grid gap-2 w-[min(340px,calc(100vw-1.5rem))]">
           {alerts.slice(0, 3).map((a) => (
             <button
               key={a.id}

@@ -1,7 +1,7 @@
 import React from "react";
 import { useParams } from "react-router-dom";
 import dayjs from "dayjs";
-import { AlertTriangle, CheckCircle2, CircleHelp, Filter, Lightbulb, Pencil, Sparkles } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleHelp, Filter, Lightbulb, Pencil, RefreshCw, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
@@ -31,6 +31,7 @@ import { InlineConfirmActions } from "../../components/InlineConfirmActions";
 import type { AiInsight, Deal, TimelineItem } from "../../../lib/types";
 import type { ContactFound, EntityFileLink, ProductProfile } from "../../data/hooks";
 import { analyzeDealWithAi, enrichCompanyByInnWithChecko } from "../../../lib/aiGateway";
+import { toast } from "../../../lib/toast";
 import {
   buildScoringExplainability,
   extractNextActions,
@@ -2551,6 +2552,28 @@ export function DealDetailPage() {
     }
   }
 
+  async function refreshScoringOnly() {
+    if (!deal?.id) return;
+    setAiRunError("");
+    setAiRunLoading(true);
+    try {
+      await analyzeDealWithAi({
+        dealId: deal.id,
+        userId: auth?.id,
+        taskCode: "deal_analysis",
+        context: { refresh_scoring_only: true, source: "deal_card" },
+      });
+      await Promise.all([aiQ.refetch(), dealQ.refetch()]);
+      toast.success("Скоринг обновлён");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Не удалось обновить скоринг";
+      setAiRunError(msg);
+      toast.error(msg);
+    } finally {
+      setAiRunLoading(false);
+    }
+  }
+
   const latestAi = ((aiQ.data ?? [])[0] ?? null) as AiInsight | null;
   const aiHistory = (aiQ.data ?? []) as AiInsight[];
   const tlAll = (tlQ.data ?? []) as Array<TimelineWithAuthor>;
@@ -2845,7 +2868,7 @@ export function DealDetailPage() {
                   <CircleHelp size={16} />
                 </button>
                 {primaryResearchHintOpen ? (
-                  <div className="absolute right-0 top-11 z-50 w-[360px] rounded-card border border-border bg-[rgba(15,23,42,0.98)] p-3 text-xs text-text2 shadow-2xl">
+                  <div className="absolute right-0 top-11 z-50 w-[min(360px,calc(100vw-2rem))] rounded-card border border-border bg-[rgba(15,23,42,0.98)] p-3 text-xs text-text2 shadow-2xl">
                     Первичное исследование клиента запускается не чаще 1 раза в 6 месяцев для связки клиент+продукт.
                     Нужен для подготовки к первым переговорам, ресерчинга клиента и формирования первичной стратегии первых контактов.
                   </div>
@@ -3132,7 +3155,7 @@ export function DealDetailPage() {
                   <div className="text-xs text-text2 mt-1">События, заметки и задачи по сделке.</div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-56">
+                  <div className="w-full max-w-xs sm:w-56">
                     <Input
                       value={timelineSearch}
                       onChange={(e) => setTimelineSearch(e.target.value)}
@@ -3863,7 +3886,7 @@ export function DealDetailPage() {
         {/* RIGHT: AI rail (overview only) */}
         {tab === "overview" ? (
         <div className="col-span-12 min-w-0 xl:col-span-3 grid gap-4 self-start">
-          <Card className="neon-accent h-auto max-h-[70vh] xl:h-[calc(100vh-170px)] xl:max-h-none overflow-hidden flex flex-col">
+          <Card className="neon-accent h-auto max-h-none md:max-h-[70vh] xl:h-[calc(100vh-170px)] xl:max-h-none overflow-hidden flex flex-col">
             <CardHeader>
               <div className="flex items-center justify-between gap-2">
                 <div>
@@ -3915,6 +3938,23 @@ export function DealDetailPage() {
                   disabled={aiRunLoading || !deal?.id}
                 >
                   Поддержка решения
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => void refreshScoringOnly()}
+                  disabled={aiRunLoading || !deal?.id}
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    <RefreshCw size={14} className={aiRunLoading ? "animate-spin" : ""} />
+                    Пересчитать скоринг
+                  </span>
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => void runAiAnalysis("full", "semantic_enrichment")}
+                  disabled={aiRunLoading || !deal?.id}
+                >
+                  Обогатить поля (AI)
                 </Button>
 
                 <div className="rounded-card border border-border bg-white p-3">

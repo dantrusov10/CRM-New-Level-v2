@@ -81,11 +81,22 @@ export function DashboardTodayPanel({ userId }: { userId: string }) {
             На сегодня: {today.length}
           </div>
         </div>
-        <Button small variant="secondary" onClick={() => nav("/calendar")}>
-          <span className="inline-flex items-center gap-1.5">
-            <CalendarDays size={14} /> Календарь
-          </span>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button small variant="secondary" onClick={() => nav("/calendar")}>
+            <span className="inline-flex items-center gap-1.5">
+              <CalendarDays size={14} /> Календарь
+            </span>
+          </Button>
+          {overdue[0] && taskDealId(overdue[0]) ? (
+            <Button
+              small
+              variant="primary"
+              onClick={() => nav(`/deals/${taskDealId(overdue[0])}`)}
+            >
+              Первая просроченная
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <div className="mt-3 grid grid-cols-1 lg:grid-cols-3 gap-3">

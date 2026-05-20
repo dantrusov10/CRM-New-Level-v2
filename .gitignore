@@ -7,6 +7,12 @@ dist
 # env
 .env
 .env.local
+.selectel_service_creds
+.selectel_iam_token
+.selectel_smtp_meta.json
+.smtp_app_password
+.crm_service_token
+*.vercel.local
 
 # pocketbase
 backend/pocketbase/pb
@@ -16,3 +22,4 @@ backend/pocketbase/data
 
 # OS
 .DS_Store
+.vercel

@@ -3,7 +3,19 @@ import clsx from "clsx";
 import { Modal } from "../components/Modal";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
-import { parseTabularFile, downloadCsv, downloadXlsx, guessMapping } from "../../lib/importExport";
+import {
+  parseTabularFile,
+  downloadCsv,
+  downloadXlsx,
+  guessMapping,
+  flattenImportErrors,
+  type ImportErrorExportRow,
+} from "../../lib/importExport";
+import {
+  downloadBundleImportTemplate,
+  downloadCompanyImportTemplate,
+  downloadDealImportTemplate,
+} from "../../lib/importTemplates";
 import { pb } from "../../lib/pb";
 import { buildDealImportHeaderMap } from "../../lib/dealImportExportFields";
 import { DEAL_SYSTEM_PB_FIELDS, normalizeDealFieldName } from "../../lib/canonicalFields";
@@ -69,7 +81,7 @@ function FieldRow({
   headers: string[];
 }) {
   return (
-    <div className="grid grid-cols-[220px_1fr] gap-3 items-center">
+    <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,220px)_1fr] gap-2 sm:gap-3 items-start sm:items-center">
       <div className="text-sm">
         {label} {required ? <span className="text-danger">*</span> : null}
       </div>
@@ -279,134 +291,9 @@ export function ImportModal({
   }
 
   async function downloadTemplate() {
-    if (entity === "bundle") {
-      // Template: 1 row = 1 company + 1 deal + 1..3 contacts, with dynamic fields from admin settings
-      const dealFields = (await pb
-        .collection("settings_fields")
-        .getFullList({ filter: `entity_type="deal" && (visible=true || required=true)`, sort: "order,sort_order" })
-        .catch(() => [])) as SettingsFieldRecord[];
-
-      const companyFields = (await pb
-        .collection("settings_fields")
-        .getFullList({ filter: `entity_type="company" && (visible=true || required=true)`, sort: "order,sort_order" })
-        .catch(() => [])) as SettingsFieldRecord[];
-
-      const seen = new Set<string>();
-      const headers: string[] = [];
-
-      const pushH = (h0: string) => {
-        const base = String(h0 || "").trim();
-        if (!base) return;
-        let h = base;
-        let i = 2;
-        while (seen.has(h)) {
-          h = `${base} (${i})`;
-          i += 1;
-        }
-        seen.add(h);
-        headers.push(h);
-      };
-
-      // Company core
-      pushH("Компания: Название компании");
-      pushH("Компания: ИНН");
-      pushH("Компания: Город");
-      pushH("Компания: Сайт");
-      pushH("Компания: Телефон");
-      pushH("Компания: Email");
-
-      // Company dynamic
-      for (const f of companyFields) {
-        const lbl = String(f?.label ?? "").trim();
-        const fieldName = String(f?.field_name ?? "").trim();
-        if (!lbl || !fieldName) continue;
-        // avoid duplicates with core columns
-        if (["name", "inn", "city", "website", "phone", "email"].includes(fieldName)) continue;
-        pushH(`Компания: ${lbl}`);
-      }
-
-      // Deal core
-      pushH("Сделка: Название сделки");
-      pushH("Сделка: Этап");
-      pushH("Сделка: Бюджет");
-      pushH("Сделка: Оборот");
-      pushH("Сделка: Маржа, %");
-      pushH("Сделка: Скидка, %");
-
-      // Deal dynamic
-      for (const f of dealFields) {
-        const lbl = String(f?.label ?? "").trim();
-        const fieldName = String(f?.field_name ?? "").trim();
-        if (!lbl || !fieldName) continue;
-        const canon = normalizeDealFieldName(fieldName);
-        if (canon && DEAL_SYSTEM_PB_FIELDS.includes(canon)) continue;
-        pushH(`Сделка: ${lbl}`);
-      }
-
-      // Notes -> timeline
-      for (let i = 1; i <= 5; i++) pushH(`Примечание ${i}`);
-
-      // Contacts 1..3
-      for (let i = 1; i <= 3; i++) {
-        pushH(`Контакт ${i}: ФИО`);
-        pushH(`Контакт ${i}: Должность`);
-        pushH(`Контакт ${i}: Телефон`);
-        pushH(`Контакт ${i}: Email`);
-        pushH(`Контакт ${i}: Telegram`);
-      }
-
-      const row: ImportRowData = {};
-      for (const h of headers) row[h] = "";
-
-      downloadXlsx([row], "bundle", "template_deal_company_contacts.xlsx");
-      return;
-    }
-
-    if (entity === "deal") {
-      // Dynamic template: all active deal fields (visible OR required) + 5 notes columns
-      const filter = `entity_type="deal" && (visible=true || required=true)`;
-      const fields = (await pb
-        .collection("settings_fields")
-        .getFullList({ filter, sort: "order,sort_order" })
-        .catch(() => [])) as SettingsFieldRecord[];
-
-      const seen = new Set<string>();
-      const headers: string[] = [];
-      for (const f of fields) {
-        const h0 = String(f?.label ?? "").trim();
-        if (!h0) continue;
-        let h = h0;
-        let i = 2;
-        while (seen.has(h)) {
-          h = `${h0} (${i})`;
-          i += 1;
-        }
-        seen.add(h);
-        headers.push(h);
-      }
-
-      // Always add 5 notes columns for timeline comments
-      for (let i = 1; i <= 5; i++) headers.push(`Примечание ${i}`);
-
-      const row: ImportRowData = {};
-      for (const h of headers) row[h] = "";
-
-      downloadXlsx([row], "deals", "template_deals.xlsx");
-      return;
-    }
-
-    // companies template stays simple (MVP)
-    const template = [
-      {
-        "Название компании": "",
-        "ИНН": "",
-        "Город": "",
-        "Сайт": "",
-        "Телефон": "",
-        "Email": "",
-      },
-    ];
-    downloadXlsx(template, "companies", "template_companies.xlsx");
+    if (entity === "bundle") return downloadBundleImportTemplate();
+    if (entity === "deal") return downloadDealImportTemplate();
+    return downloadCompanyImportTemplate();
   }
 
   async function runImport() {
@@ -1092,24 +979,30 @@ export function ImportModal({
                   )}
                 </div>
                 {errors.length ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button
                       variant="secondary"
                       onClick={() => {
                         downloadCsv(
-                          errors.map((e) => ({ row: e.row, error: e.error })),
+                          flattenImportErrors(errors as ImportErrorExportRow[]),
                           "import_errors.csv"
                         );
                       }}
                     >
-                      Скачать лог ошибок (CSV)
+                      Лог ошибок (CSV)
                     </Button>
-                    <Input
-                      value={""}
-                      onChange={() => {}}
-                      placeholder={""}
-                      className="hidden"
-                    />
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        downloadXlsx(
+                          flattenImportErrors(errors as ImportErrorExportRow[]),
+                          "errors",
+                          "import_errors.xlsx"
+                        );
+                      }}
+                    >
+                      Лог ошибок (XLSX)
+                    </Button>
                   </div>
                 ) : null}
 

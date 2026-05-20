@@ -70,6 +70,21 @@ export function downloadCsv(rows: TabularRow[], filename: string) {
   downloadBlob(blob, filename);
 }
 
+export type ImportErrorExportRow = {
+  row: number;
+  error: string;
+  data?: TabularRow;
+};
+
+/** Flatten import errors for CSV/XLSX download (row + error + original columns). */
+export function flattenImportErrors(errors: ImportErrorExportRow[]): TabularRow[] {
+  return errors.map((e) => ({
+    row: e.row,
+    error: e.error,
+    ...(e.data || {}),
+  }));
+}
+
 export function downloadXlsx(rows: TabularRow[], sheetName: string, filename: string) {
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();

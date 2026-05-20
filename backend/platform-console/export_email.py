@@ -12,9 +12,9 @@ from email.mime.text import MIMEText
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-MAIL_FROM = os.getenv("MAIL_FROM", "crm@nwlvl.ru")
-SMTP_HOST = os.getenv("SMTP_HOST", "smtp.yandex.ru").strip()
-SMTP_PORT = int(os.getenv("SMTP_PORT", "465"))
+MAIL_FROM = os.getenv("MAIL_FROM", "NewLevel CRM <crm@nwlvl.ru>")
+SMTP_HOST = os.getenv("SMTP_HOST", "smtp.mail.selcloud.ru").strip()
+SMTP_PORT = int(os.getenv("SMTP_PORT", "1127"))
 SMTP_USER = os.getenv("SMTP_USER", os.getenv("TENANT_PB_ADMIN_EMAIL", "")).strip()
 def _smtp_password() -> str:
     direct = os.getenv("SMTP_PASS", "").strip()

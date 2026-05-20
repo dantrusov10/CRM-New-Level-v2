@@ -1,0 +1,7 @@
+# Copy to /opt/pb-control/.selectel_service_creds and chmod 600
+# UID (1fa81d87...) is NOT used for API — only login + password below.
+
+SELECTEL_USER=service_user_name
+SELECTEL_PASSWORD=your_password_here
+SELECTEL_ACCOUNT_ID=НОМЕР_АККАУНТА
+SELECTEL_PROJECT_NAME=ИМЯ_ПРОЕКТА_В_ПАНЕЛИ

@@ -1,6 +1,6 @@
 import React from "react";
 import { createPortal } from "react-dom";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   DndContext,
   DragEndEvent,
@@ -8,6 +8,7 @@ import {
   DragOverlay,
   DragStartEvent,
   PointerSensor,
+  TouchSensor,
   pointerWithin,
   rectIntersection,
   CollisionDetection,
@@ -20,6 +21,7 @@ import { useFunnelStages, useDeals } from "../../data/hooks";
 import type { Deal, FunnelStage } from "../../../lib/types";
 import { KanbanColumn } from "./components/KanbanColumn";
 import { KanbanCard } from "./components/KanbanCard";
+import { DealsMobileList } from "./DealsMobileList";
 import { pb } from "../../../lib/pb";
 
 function money(n: number) {
@@ -34,6 +36,8 @@ function dealAmount(d: Deal) {
 }
 
 export function DealsKanbanPage() {
+  const nav = useNavigate();
+  const [mobileView, setMobileView] = React.useState<"list" | "board">("list");
   const kanbanScrollRef = React.useRef<HTMLDivElement | null>(null);
   const miniTrackRef = React.useRef<HTMLDivElement | null>(null);
   const [miniViewport, setMiniViewport] = React.useState({ left: 0, width: 40 });
@@ -172,7 +176,10 @@ export function DealsKanbanPage() {
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 6 }, // feels more "attached" and avoids accidental drags
+      activationConstraint: { distance: 6 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 180, tolerance: 8 },
     })
   );
 
@@ -404,6 +411,22 @@ export function DealsKanbanPage() {
             <div className="text-xs text-text2 mt-1">Быстрый обзор этапов, сумм и приоритетов.</div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex md:hidden rounded-card border border-border overflow-hidden">
+              <button
+                type="button"
+                className={`px-3 h-9 text-sm ${mobileView === "list" ? "bg-primary text-white" : "bg-transparent text-text2"}`}
+                onClick={() => setMobileView("list")}
+              >
+                Список
+              </button>
+              <button
+                type="button"
+                className={`px-3 h-9 text-sm ${mobileView === "board" ? "bg-primary text-white" : "bg-transparent text-text2"}`}
+                onClick={() => setMobileView("board")}
+              >
+                Доска
+              </button>
+            </div>
             <button
               className={`ui-btn ${view === "risk" ? "ui-btn-primary" : "ui-btn-secondary"} h-9 text-sm`}
               onClick={() => {
@@ -472,11 +495,11 @@ export function DealsKanbanPage() {
                 <div className="text-xl font-semibold mt-1">{topStats.hot}</div>
                 <div className="text-xs text-text2 mt-1">приоритет на неделю</div>
               </div>
-              <div className="pointer-events-none fixed bottom-16 sm:bottom-3 right-3 sm:right-4 z-20 rounded-xl border border-[rgba(255,255,255,0.22)] bg-[rgba(15,23,42,0.82)] p-2 shadow-[0_0_24px_rgba(45,123,255,0.28)] max-w-[calc(100vw-1.5rem)]">
+              <div className="pointer-events-none fixed bottom-16 sm:bottom-3 right-3 sm:right-4 z-20 rounded-xl border border-[rgba(255,255,255,0.22)] bg-[rgba(15,23,42,0.82)] p-2 shadow-[0_0_24px_rgba(45,123,255,0.28)] max-w-[calc(100vw-1.5rem)] hidden md:block">
                 <div className="mb-1 text-[10px] text-text2">Навигация по доске</div>
                 <div
                   ref={miniTrackRef}
-                  className="pointer-events-auto relative h-5 w-56 rounded-md bg-[rgba(255,255,255,0.12)]"
+                  className="pointer-events-auto relative h-5 w-full min-w-[12rem] max-w-[14rem] sm:w-56 rounded-md bg-[rgba(255,255,255,0.12)]"
                   onMouseDown={(e) => {
                     const track = miniTrackRef.current;
                     const scroll = kanbanScrollRef.current;
@@ -505,6 +528,10 @@ export function DealsKanbanPage() {
               </div>
             </div>
 
+            <div className={mobileView === "list" ? "md:hidden" : "hidden"}>
+              <DealsMobileList items={deals} onOpen={(dealId) => nav(`/deals/${dealId}`)} />
+            </div>
+
             <DndContext
               sensors={sensors}
               collisionDetection={collisionDetection}
@@ -512,12 +539,13 @@ export function DealsKanbanPage() {
               onDragOver={onDragOver}
               onDragEnd={onDragEnd}
             >
-              {/* Horizontal scroll only inside the kanban strip */}
               <div
                 ref={kanbanScrollRef}
-                className="min-w-0 overflow-x-auto overflow-y-hidden neon-scroll rounded-card border border-border bg-[rgba(17,24,39,0.18)] p-3 snap-x snap-mandatory touch-pan-x"
+                className={`min-w-0 overflow-x-auto overflow-y-hidden neon-scroll rounded-card border border-border bg-[rgba(17,24,39,0.18)] p-3 snap-x snap-mandatory touch-pan-x ${
+                  mobileView === "board" ? "block" : "hidden md:block"
+                }`}
               >
-                <div className="grid auto-cols-[320px] grid-flow-col gap-4 min-w-max">
+                <div className="grid auto-cols-[min(85vw,280px)] md:auto-cols-[320px] grid-flow-col gap-4 min-w-max">
                   {stages.map((s) => (
                     <SortableContext
                       key={s.id}

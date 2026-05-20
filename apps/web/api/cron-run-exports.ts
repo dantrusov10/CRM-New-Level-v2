@@ -1,7 +1,9 @@
 import type { Req, Res } from "./_lib/http";
 import { header } from "./_lib/http";
 import { pocketBaseUrl, servicePbToken } from "./_lib/pbAuth";
-import { sendExportAttachment } from "./_lib/mail";
+const EXPORT_GATEWAY =
+  process.env.EXPORT_EMAIL_GATEWAY_URL ||
+  "https://control.nwlvl.ru/owner/api/public/send-export-email";
 import { runDealExportServer, shouldRunServerJob, serverRunKeyForNow } from "./_lib/exportServer";
 
 type ExportJobRecord = {
@@ -92,14 +94,18 @@ export default async function handler(req: Req, res: Res) {
       });
 
       for (const to of emails) {
-        const sent = await sendExportAttachment({
-          to,
-          filename: file.filename,
-          contentBase64: file.contentBase64,
-          subject: `CRM NewLevel — ${cfg.name || file.filename}`,
-          text: `Серверная автовыгрузка CRM.\n\n${cfg.name || "Задача"}\n\nВо вложении: ${file.filename}`,
+        const mailRes = await fetch(EXPORT_GATEWAY, {
+          method: "POST",
+          headers: { Authorization: token, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to,
+            filename: file.filename,
+            contentBase64: file.contentBase64,
+            tenant_pb_url: pb,
+          }),
         });
-        if (!sent.ok) throw new Error(sent.error);
+        const mailData = (await mailRes.json().catch(() => ({}))) as { ok?: boolean; error?: unknown };
+        if (!mailRes.ok || !mailData.ok) throw new Error(String(mailData.error || mailRes.status));
       }
 
       const runKey = serverRunKeyForNow(now);

@@ -1,5 +1,6 @@
 import React from "react";
-import { Card, CardContent, CardHeader } from "../../components/Card";
+import { AdminPageShell } from "../../layout/AdminPageShell";
+import { Card, CardContent } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
 import { Modal } from "../../components/Modal";
@@ -65,16 +66,12 @@ export function AdminUsersPage() {
   }
 
   return (
+    <AdminPageShell
+      title="Пользователи"
+      subtitle="Список, создание и роли (матрица прав — settings_roles)"
+      actions={<Button onClick={() => setOpen(true)}>Добавить пользователя</Button>}
+    >
     <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm font-semibold">Пользователи</div>
-            <div className="text-xs text-text2 mt-1">Список + добавление + назначение ролей (матрица доступов хранится в `settings_roles`)</div>
-          </div>
-          <Button onClick={() => setOpen(true)}>Добавить пользователя</Button>
-        </div>
-      </CardHeader>
       <CardContent>
         <div className="overflow-auto">
           <table className="min-w-[900px] w-full text-sm">
@@ -153,5 +150,6 @@ export function AdminUsersPage() {
         </div>
       </Modal>
     </Card>
+    </AdminPageShell>
   );
 }

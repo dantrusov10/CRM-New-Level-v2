@@ -55,6 +55,8 @@ export const router = createBrowserRouter([
       { path: "admin/fields", element: <AdminOnly>{lazyNamed(() => import("./ui/pages/admin/AdminFieldsPage"), "AdminFieldsPage")}</AdminOnly> },
       { path: "admin/parsers", element: <AdminOnly>{lazyNamed(() => import("./ui/pages/admin/AdminParsersPage"), "AdminParsersPage")}</AdminOnly> },
       { path: "admin/products", element: <AdminOnly>{lazyNamed(() => import("./ui/pages/admin/AdminProductsPage"), "AdminProductsPage")}</AdminOnly> },
+      { path: "admin/kp", element: <AdminOnly>{lazyNamed(() => import("./ui/pages/admin/AdminKpPage"), "AdminKpPage")}</AdminOnly> },
+      { path: "admin", element: <Navigate to="/admin/users" replace /> },
     ],
   },
   { path: "*", element: <Navigate to="/" replace /> },

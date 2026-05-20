@@ -1,5 +1,6 @@
 import React from "react";
-import { Card, CardContent, CardHeader } from "../../components/Card";
+import { AdminPageShell } from "../../layout/AdminPageShell";
+import { Card, CardContent } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
 import { Modal } from "../../components/Modal";
@@ -244,19 +245,13 @@ export function AdminProductsPage() {
   );
 
   return (
+    <AdminPageShell
+      title="Продукты"
+      subtitle="Профили: паспорт, ЛПР, документы и AI-промпты"
+      actions={<Button onClick={createNew} disabled={saving}>+ Продукт</Button>}
+    >
     <div className="grid gap-4">
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <div className="text-base font-extrabold tracking-wide">Настройка продуктов</div>
-              <div className="text-xs text-text2 mt-1">
-                Неограниченное число продуктовых профилей: паспорт, карты ЛПР, документы и отдельные AI-промпты.
-              </div>
-            </div>
-            <Button onClick={createNew} disabled={saving}>+ Продукт</Button>
-          </div>
-        </CardHeader>
         <CardContent>
           {loading ? <div className="text-sm text-text2">Загрузка...</div> : (
             <div className="grid grid-cols-12 gap-4">
@@ -371,6 +366,7 @@ export function AdminProductsPage() {
         </div>
       </Modal>
     </div>
+    </AdminPageShell>
   );
 }
 

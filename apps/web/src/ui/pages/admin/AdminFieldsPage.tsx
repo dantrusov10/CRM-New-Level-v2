@@ -1,5 +1,6 @@
 import React from "react";
-import { Card, CardContent, CardHeader } from "../../components/Card";
+import { AdminPageShell } from "../../layout/AdminPageShell";
+import { Card, CardContent } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
 import { pb } from "../../../lib/pb";
@@ -440,20 +441,16 @@ export function AdminFieldsPage() {
     .sort((a, b) => (a.order ?? a.sort_order ?? 0) - (b.order ?? b.sort_order ?? 0));
 
   return (
+    <AdminPageShell
+      title="Конструктор полей"
+      subtitle="Разделы, порядок, типы и настройки полей сделок и компаний"
+      actions={
+        <Button small variant="secondary" onClick={() => setGuidedMode((v) => !v)}>
+          {guidedMode ? "Скрыть подсказки" : "Пошаговый режим"}
+        </Button>
+      }
+    >
     <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <div className="text-base font-extrabold tracking-wide">Конструктор полей и разделов</div>
-            <div className="text-xs text-text2 mt-1">
-              Управляет карточками сделок/компаний: разделы, порядок, типы и настройки сложных полей.
-            </div>
-          </div>
-          <Button small variant="secondary" onClick={() => setGuidedMode((v) => !v)}>
-            {guidedMode ? "Скрыть подсказки" : "Пошаговый режим"}
-          </Button>
-        </div>
-      </CardHeader>
       <CardContent>
         <div className="grid gap-4">
           {guidedMode ? (
@@ -744,5 +741,6 @@ export function AdminFieldsPage() {
         </div>
       </CardContent>
     </Card>
+    </AdminPageShell>
   );
 }

@@ -2859,7 +2859,7 @@ export function DealDetailPage() {
       {/* MAIN AREA */}
       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-12 min-w-0 xl:col-span-3 grid gap-4 self-start">
-          <Card className="h-[calc(100vh-170px)] overflow-hidden flex flex-col">
+          <Card className="h-auto max-h-[70vh] xl:h-[calc(100vh-170px)] xl:max-h-none overflow-hidden flex flex-col">
             <CardHeader>
               <div className="text-sm font-semibold">Сделка: общая информация</div>
             </CardHeader>
@@ -3124,7 +3124,7 @@ export function DealDetailPage() {
 
         <div className={`col-span-12 min-w-0 grid gap-4 ${tab === "overview" ? "xl:col-span-6" : "xl:col-span-9"}`}>
           {tab === "overview" ? (
-          <Card className="h-[calc(100vh-170px)] overflow-hidden flex flex-col">
+          <Card className="h-auto max-h-[70vh] xl:h-[calc(100vh-170px)] xl:max-h-none overflow-hidden flex flex-col">
             <CardHeader>
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -3274,7 +3274,7 @@ export function DealDetailPage() {
           ) : null}
 
           {tab === "ai" ? (
-            <Card className="border-infoBorder bg-infoBg neon-accent h-[calc(100vh-170px)] overflow-hidden flex flex-col">
+            <Card className="border-infoBorder bg-infoBg neon-accent h-auto max-h-[70vh] xl:h-[calc(100vh-170px)] xl:max-h-none overflow-hidden flex flex-col">
               <CardHeader className="border-infoBorder">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -3515,7 +3515,7 @@ export function DealDetailPage() {
           ) : null}
 
           {tab === "relationship" ? (
-            <Card className="h-[calc(100vh-170px)] overflow-hidden flex flex-col">
+            <Card className="h-auto max-h-[70vh] xl:h-[calc(100vh-170px)] xl:max-h-none overflow-hidden flex flex-col">
               <CardHeader>
                 <div className="text-sm font-semibold">Карточки контактов</div>
                 <div className="text-xs text-text2 mt-1">Полноценные карточки: должность, роль, каналы связи, редактирование и удаление</div>
@@ -3658,7 +3658,7 @@ export function DealDetailPage() {
           ) : null}
 
           {tab === "kp" ? (
-            <div className="h-[calc(100vh-170px)]">
+            <div className="h-auto max-h-[70vh] xl:h-[calc(100vh-170px)] xl:max-h-none">
               <div className="crm-scrollbar h-full overflow-y-auto pr-1">
                 <DealKpModule deal={deal!} onTimeline={createTimelineEvent} />
               </div>
@@ -3666,7 +3666,7 @@ export function DealDetailPage() {
           ) : null}
 
           {tab === "workspace" ? (
-            <Card className="h-[calc(100vh-170px)] overflow-hidden flex flex-col">
+            <Card className="h-auto max-h-[70vh] xl:h-[calc(100vh-170px)] xl:max-h-none overflow-hidden flex flex-col">
               <CardHeader>
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -3863,7 +3863,7 @@ export function DealDetailPage() {
         {/* RIGHT: AI rail (overview only) */}
         {tab === "overview" ? (
         <div className="col-span-12 min-w-0 xl:col-span-3 grid gap-4 self-start">
-          <Card className="neon-accent h-[calc(100vh-170px)] overflow-hidden flex flex-col">
+          <Card className="neon-accent h-auto max-h-[70vh] xl:h-[calc(100vh-170px)] xl:max-h-none overflow-hidden flex flex-col">
             <CardHeader>
               <div className="flex items-center justify-between gap-2">
                 <div>

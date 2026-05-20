@@ -472,7 +472,7 @@ export function DealsKanbanPage() {
                 <div className="text-xl font-semibold mt-1">{topStats.hot}</div>
                 <div className="text-xs text-text2 mt-1">приоритет на неделю</div>
               </div>
-              <div className="pointer-events-none fixed bottom-3 right-4 z-20 rounded-xl border border-[rgba(255,255,255,0.22)] bg-[rgba(15,23,42,0.82)] p-2 shadow-[0_0_24px_rgba(45,123,255,0.28)]">
+              <div className="pointer-events-none fixed bottom-16 sm:bottom-3 right-3 sm:right-4 z-20 rounded-xl border border-[rgba(255,255,255,0.22)] bg-[rgba(15,23,42,0.82)] p-2 shadow-[0_0_24px_rgba(45,123,255,0.28)] max-w-[calc(100vw-1.5rem)]">
                 <div className="mb-1 text-[10px] text-text2">Навигация по доске</div>
                 <div
                   ref={miniTrackRef}

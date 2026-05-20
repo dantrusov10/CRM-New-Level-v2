@@ -1,5 +1,6 @@
 import React from "react";
-import { Card, CardContent, CardHeader } from "../../components/Card";
+import { AdminPageShell } from "../../layout/AdminPageShell";
+import { Card, CardContent } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
 import { pb } from "../../../lib/pb";
@@ -146,32 +147,28 @@ export function AdminFunnelPage() {
   }
 
   return (
+    <AdminPageShell
+      title="Воронка продаж"
+      subtitle="Этапы: название, порядок, цвет, финальность"
+      actions={
+        <>
+          <Button variant="secondary" onClick={exportJson}>Экспорт</Button>
+          <label className="inline-flex">
+            <input
+              type="file"
+              accept="application/json"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) importJson(f);
+              }}
+            />
+            <Button variant="secondary">Импорт</Button>
+          </label>
+        </>
+      }
+    >
     <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm font-semibold">Воронка продаж</div>
-            <div className="text-xs text-text2 mt-1">Этапы: название, порядок, цвет, финальность + импорт/экспорт шаблона</div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={exportJson}>
-              Экспорт
-            </Button>
-            <label className="inline-flex">
-              <input
-                type="file"
-                accept="application/json"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) importJson(f);
-                }}
-              />
-              <Button variant="secondary">Импорт</Button>
-            </label>
-          </div>
-        </div>
-      </CardHeader>
       <CardContent>
         <div className="grid gap-3">
           <div className="grid grid-cols-[1fr_140px_120px] gap-2 items-end">
@@ -265,5 +262,6 @@ export function AdminFunnelPage() {
         </div>
       </CardContent>
     </Card>
+    </AdminPageShell>
   );
 }

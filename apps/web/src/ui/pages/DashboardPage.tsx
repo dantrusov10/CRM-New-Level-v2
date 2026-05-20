@@ -9,6 +9,8 @@ import { pb } from "../../lib/pb";
 import { analyzeAdminDashboardWithAi } from "../../lib/aiGateway";
 import { useAuth } from "../../app/AuthProvider";
 import { StatCard } from "../components/dashboard/StatCard";
+import { DashboardTodayPanel } from "../components/dashboard/DashboardTodayPanel";
+import { DashboardAiQuickActions } from "../components/dashboard/DashboardAiQuickActions";
 
 const ChartFallback = () => <div className="h-32 flex items-center justify-center text-xs text-text2">Загрузка графика…</div>;
 
@@ -1212,6 +1214,22 @@ export function DashboardPage() {
             </div>
           )}
         </div>
+
+        {user?.id ? (
+          <div className="mt-4">
+            <DashboardTodayPanel userId={String(user.id)} />
+          </div>
+        ) : null}
+
+        {!loading ? (
+          <div className="mt-4">
+            <DashboardAiQuickActions
+              priorityDeals={priorityActions.map((a) => ({ id: a.id, title: a.title }))}
+              onRefreshSummary={refreshAdminAiSummary}
+              summaryLoading={aiSummaryLoading}
+            />
+          </div>
+        ) : null}
 
         {loading ? (
           <div className="mt-6 text-sm text-text2">Загрузка данных...</div>

@@ -3,10 +3,8 @@ import { Card, CardContent, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
 import { pb } from "../../../lib/pb";
-import { KpTemplateEditor } from "../../modules/kp/KpTemplateEditor";
-import { DEFAULT_KP_TEMPLATE_V1 } from "../../modules/kp/defaultTemplate";
-import { PriceListAdmin } from "../../modules/kp/PriceListAdmin";
-import type { KpTemplateConfig, KpTemplateRecord } from "../../modules/kp/types";
+import { KpAdminPanel } from "../../modules/kp/KpAdminPanel";
+import { AdminPageShell } from "../../layout/AdminPageShell";
 
 type Tab = "contacts" | "media" | "tenders" | "ai" | "kp";
 
@@ -22,7 +20,6 @@ type TenderParserSettings = { id: string; enabled?: boolean; schedule_cron?: str
 type TenderPlatform = { id: string; name: string; integration_type?: string };
 type TenderLink = { id: string; platform_id: string };
 
-type KpTemplatePatch = { template_json?: KpTemplateConfig; name?: string };
 type DealScoringFactor = { code: string; name: string; weight: number; enabled: boolean };
 type DealScoringModel = { version: string; recommended: boolean; acknowledged?: boolean; factors: DealScoringFactor[] };
 
@@ -45,11 +42,14 @@ export function AdminParsersPage() {
   const [tab, setTab] = React.useState<Tab>("contacts");
 
   return (
+    <AdminPageShell
+      title="Парсеры и AI"
+      subtitle="Контакты, медиа, тендеры, промпты. Полный редактор КП — раздел «КП» в меню."
+    >
     <div className="grid gap-4">
       <Card>
         <CardHeader>
-          <div className="text-sm font-semibold">Парсеры и AI-настройки</div>
-          <div className="text-xs text-text2 mt-1">Контакты (карта ролей), медиа (источники + ключевые слова), тендеры (площадки + токены) + каркас КП</div>
+          <div className="text-sm font-semibold">Разделы</div>
         </CardHeader>
         <CardContent>
           <div className="flex gap-2">
@@ -66,8 +66,9 @@ export function AdminParsersPage() {
       {tab === "media" ? <MediaParser /> : null}
       {tab === "tenders" ? <TenderParser /> : null}
       {tab === "ai" ? <AiPromptsSettings /> : null}
-      {tab === "kp" ? <KpSettings /> : null}
+      {tab === "kp" ? <KpAdminPanel /> : null}
     </div>
+    </AdminPageShell>
   );
 }
 
@@ -677,60 +678,4 @@ function AiPromptsSettings() {
     </Card>
   );
 }
-
-/** KP SETTINGS (skeleton) */
-function KpSettings() {
-  const [tpl, setTpl] = React.useState<KpTemplateRecord | null>(null);
-
-  async function ensureDefault() {
-    const list = await pb
-      .collection("settings_kp_templates")
-      .getList(1, 1, { filter: "is_default=true && is_active=true" })
-      .catch(() => ({ items: [] as KpTemplateRecord[] }));
-
-    if (list.items[0]) return list.items[0];
-
-    const created = await pb
-      .collection("settings_kp_templates")
-      .create({ name: DEFAULT_KP_TEMPLATE_V1.name, is_active: true, is_default: true, template_json: DEFAULT_KP_TEMPLATE_V1 })
-      .catch(() => null);
-
-    return created;
-  }
-
-  async function load() {
-    const t = await ensureDefault();
-    setTpl(t);
-  }
-  React.useEffect(() => { load(); }, []);
-
-  async function save(patch: KpTemplatePatch) {
-    if (!tpl?.id) return;
-    await pb.collection("settings_kp_templates").update(tpl.id, patch);
-  }
-
-  return (
-    <div className="grid gap-4">
-      {!tpl ? (
-        <Card>
-          <CardHeader>
-            <div className="text-sm font-semibold">КП (каркас)</div>
-            <div className="text-xs text-text2 mt-1">Загрузка…</div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm text-text2">Проверь, что в PocketBase создана коллекция <code>settings_kp_templates</code> (см. JSON патч).</div>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          <KpTemplateEditor templateRecord={tpl} onSave={save} onReload={load} />
-          <PriceListAdmin />
-        </>
-      )}
-    </div>
-  );
-}
-
-
-
 

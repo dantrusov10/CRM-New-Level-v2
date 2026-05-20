@@ -9,6 +9,7 @@ import { Button } from "../../components/Button";
 import { pb } from "../../../lib/pb";
 import type { Deal, FunnelStage, UserSummary } from "../../../lib/types";
 import { DealsDataTable } from "./DealsDataTable";
+import { DealsMobileList } from "./DealsMobileList";
 import { DealsTableViewsBar } from "./DealsTableViewsBar";
 import { DealsFiltersModal } from "./DealsFiltersModal";
 import { DealsBulkActionsModal } from "./DealsBulkActionsModal";
@@ -156,18 +157,22 @@ export function DealsTablePage() {
               ) : null}
             </div>
 
-            <DealsDataTable
-              items={items}
-              selected={selected}
-              allPageSelected={allPageSelected}
-              onToggleOne={toggleOne}
-              onTogglePage={togglePage}
-              onRowClick={(id) => nav(`/deals/${id}`)}
-              visibilityOverride={columnVisibility}
-              onVisibilityChange={setColumnVisibility}
-              sortParam={sortParam}
-              onSortColumn={setSortColumn}
-            />
+            <DealsMobileList items={items} onOpen={(id) => nav(`/deals/${id}`)} />
+
+            <div className="hidden md:block">
+              <DealsDataTable
+                items={items}
+                selected={selected}
+                allPageSelected={allPageSelected}
+                onToggleOne={toggleOne}
+                onTogglePage={togglePage}
+                onRowClick={(id) => nav(`/deals/${id}`)}
+                visibilityOverride={columnVisibility}
+                onVisibilityChange={setColumnVisibility}
+                sortParam={sortParam}
+                onSortColumn={setSortColumn}
+              />
+            </div>
             {!items.length ? <div className="text-sm text-text2 py-6">Сделок пока нет.</div> : null}
 
             <Pagination

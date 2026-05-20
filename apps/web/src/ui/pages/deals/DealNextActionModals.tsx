@@ -28,7 +28,7 @@ export function CreateTaskFromActionModal({ open, actionText, onClose, onConfirm
   }, [open, actionText]);
 
   return (
-    <Modal open={open} title="Создать задачу" onClose={onClose}>
+    <Modal open={open} title="Создать задачу" onClose={onClose} widthClass="max-w-lg" bodyOverflow="visible">
       <div className="grid gap-3">
         <div>
           <div className="text-xs text-text2 mb-1">Текст задачи</div>
@@ -36,7 +36,7 @@ export function CreateTaskFromActionModal({ open, actionText, onClose, onConfirm
         </div>
         <div>
           <div className="text-xs text-text2 mb-1">Срок выполнения</div>
-          <DateTimePicker value={dueAt} onChange={setDueAt} className="w-full" />
+          <DateTimePicker value={dueAt} onChange={setDueAt} className="w-full" calendarMode="inline" defaultOpen />
         </div>
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onClose} disabled={saving}>

@@ -17,14 +17,19 @@ export function DateTimePicker({
   placeholder = "ДД.ММ.ГГГГ --:--",
   className,
   disabled,
+  calendarMode = "popover",
+  defaultOpen = false,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  /** popover — выпадающий; inline — в потоке (для модалок, без обрезки). */
+  calendarMode?: "popover" | "inline";
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpen] = React.useState(defaultOpen || calendarMode === "inline");
   const [monthCursor, setMonthCursor] = React.useState(() => (value ? dayjs(value) : dayjs()).startOf("month"));
 
   const parsed = React.useMemo(() => {
@@ -65,24 +70,29 @@ export function DateTimePicker({
     onChange(toLocalInputValue(next));
   }
 
+  const panelClass =
+    calendarMode === "inline"
+      ? "relative z-0 mt-2 w-full max-w-[380px] rounded-card border border-[rgba(255,255,255,0.14)] bg-[rgba(10,20,32,0.96)] shadow-card overflow-hidden"
+      : "absolute left-0 right-0 z-[70] mt-2 w-full min-w-[360px] max-w-[380px] rounded-card border border-[rgba(255,255,255,0.14)] bg-[rgba(10,20,32,0.92)] backdrop-blur-xl shadow-card overflow-hidden sm:left-auto sm:right-0";
+
   return (
-    <div className={clsx("relative", className)}>
+    <div className={clsx(calendarMode === "popover" ? "relative" : "", className)}>
       <button
         type="button"
         disabled={disabled}
         className={clsx(
-          "ui-input text-left",
+          "ui-input w-full text-left",
           !display && "text-[rgba(255,255,255,0.6)]",
           disabled && "opacity-60 cursor-not-allowed"
         )}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => calendarMode !== "inline" && setOpen((v) => !v)}
       >
         {display || placeholder}
       </button>
 
       {open ? (
         <div
-          className="absolute right-0 z-[70] mt-2 w-[360px] rounded-card border border-[rgba(255,255,255,0.14)] bg-[rgba(10,20,32,0.92)] backdrop-blur-xl shadow-card overflow-hidden"
+          className={panelClass}
           onMouseDown={(e) => {
             // keep popover open while interacting
             e.preventDefault();

@@ -4,8 +4,11 @@ import { Modal } from "../components/Modal";
 import { Button } from "../components/Button";
 import { downloadCsv, downloadXlsx } from "../../lib/importExport";
 import { pb } from "../../lib/pb";
+import { humanizePbError } from "../../lib/pbError";
 import { DEAL_EXPORT_COLUMNS, DEAL_EXPORT_DEFAULT_FIELDS } from "../../lib/dealImportExportFields";
 import { dealFieldLabel, normalizeDealFieldName } from "../../lib/canonicalFields";
+import { enrichDealsNumericFields } from "../pages/deals/dealNumeric";
+import { buildDealsFilter, filterDealsClient, hasClientNumericFilters } from "../pages/deals/dealsFilters";
 import type { Company, Deal, UserSummary, FunnelStage } from "../../lib/types";
 
 type EntityType = "deal" | "company";
@@ -14,7 +17,6 @@ type Format = "xlsx" | "csv";
 const LS_KEY = "reshenie_export_presets_v1";
 
 
-type ListResponse<T> = { items: T[] };
 type DealExportRow = Deal & {
   expand?: {
     company_id?: Company | null;
@@ -37,8 +39,32 @@ type ExportPreset = {
   useCurrentFilters: boolean;
 };
 
-function safeText(v: string) {
-  return v.replace(/"/g, "\\\"");
+function exportCell(val: unknown): string {
+  if (val == null || val === "") return "";
+  if (typeof val === "object") return JSON.stringify(val);
+  return String(val);
+}
+
+function buildDealExportRow(d: DealExportRow, fields: Record<string, boolean>): Record<string, string> {
+  const company = d.expand?.company_id;
+  const stage = d.expand?.stage_id;
+  const resp = d.expand?.responsible_id;
+  const row: Record<string, string> = {};
+  if (fields.title) row["Название сделки"] = d.title ?? "";
+  if (fields.company) row["Компания"] = company?.name ?? "";
+  if (fields.inn) row["ИНН"] = company?.inn ?? "";
+  if (fields.stage) row["Этап"] = stage?.stage_name ?? "";
+  if (fields.responsible) row["Ответственный"] = resp?.full_name || resp?.email || "";
+  for (const col of DEAL_EXPORT_COLUMNS) {
+    if (!col.canonical || !fields[col.key]) continue;
+    const canon = normalizeDealFieldName(col.canonical);
+    if (!canon || ["title", "company_id", "stage_id", "responsible_id"].includes(canon)) continue;
+    row[dealFieldLabel(canon)] = exportCell((d as Record<string, unknown>)[canon]);
+  }
+  if (fields.delivery_date) row["Поставка"] = exportCell((d as Record<string, unknown>).delivery_date);
+  if (fields.expected_payment_date) row["Ожид. оплата"] = exportCell((d as Record<string, unknown>).expected_payment_date);
+  if (fields.updated) row["Обновлено"] = exportCell(d.updated);
+  return row;
 }
 
 function loadPresets(): ExportPreset[] {
@@ -110,91 +136,70 @@ export function ExportModal({
     setFields(entity === "deal" ? defaultFieldsDeals : defaultFieldsCompanies);
   }, [open, entity, fields, defaultFieldsDeals, defaultFieldsCompanies]);
 
-  function buildDealsFilterFromUrl() {
-    const stage = sp.get("stage") || "";
-    const owner = sp.get("owner") || "";
-    const channel = sp.get("channel") || "";
-    const parts: string[] = [];
-    if (stage) parts.push(`stage_id="${safeText(stage)}"`);
-    if (owner) parts.push(`responsible_id="${safeText(owner)}"`);
-    if (channel) parts.push(`sales_channel~"${safeText(channel)}"`);
-    return parts.join(" && ");
-  }
-
   function buildCompaniesFilterFromUrl() {
     const city = sp.get("city") || "";
     const responsible = sp.get("responsible") || "";
     const parts: string[] = [];
-    if (city) parts.push(`city~"${safeText(city)}"`);
-    if (responsible) parts.push(`responsible_id="${safeText(responsible)}"`);
+    if (city) parts.push(`city~"${city.replace(/"/g, '\\"')}"`);
+    if (responsible) parts.push(`responsible_id="${responsible.replace(/"/g, '\\"')}"`);
     return parts.join(" && ");
   }
 
-  async function fetchAll<T extends Record<string, unknown>>(collection: string, params: Record<string, unknown>) {
-    const items: T[] = [];
-    let page = 1;
-    const perPage = 200;
-    while (true) {
-      const res = await pb.collection(collection).getList<T>(page, perPage, params) as ListResponse<T>;
-      items.push(...res.items);
-      if (res.items.length < perPage) break;
-      page++;
-      if (page > 50) break; // safety
-      setStatus(`Загружаю данные: ${items.length}...`);
+  async function fetchDealsForExport(): Promise<DealExportRow[]> {
+    const filter = useCurrentFilters ? buildDealsFilter(sp) : "";
+    const params: Record<string, unknown> = {
+      sort: "-updated",
+      expand: "company_id,stage_id,responsible_id",
+      batch: 200,
+    };
+    if (filter.trim()) params.filter = filter.trim();
+    setStatus("Загружаю сделки...");
+    let deals = await pb.collection("deals").getFullList<DealExportRow>(params);
+    deals = await enrichDealsNumericFields(deals);
+    if (useCurrentFilters && hasClientNumericFilters(sp)) {
+      deals = filterDealsClient(deals, sp);
     }
-    return items;
+    return deals;
+  }
+
+  async function fetchCompaniesForExport(): Promise<CompanyExportRow[]> {
+    const filter = useCurrentFilters ? buildCompaniesFilterFromUrl() : "";
+    const params: Record<string, unknown> = {
+      sort: "name",
+      expand: "responsible_id",
+      batch: 200,
+    };
+    if (filter.trim()) params.filter = filter.trim();
+    setStatus("Загружаю компании...");
+    return pb.collection("companies").getFullList<CompanyExportRow>(params);
   }
 
   async function exportNow() {
+    const selectedFields = Object.values(fields).filter(Boolean).length;
+    if (!selectedFields) {
+      setStatus("Выберите хотя бы одно поле для экспорта");
+      return;
+    }
+
     setRunning(true);
     setStatus("Готовлю экспорт...");
 
     try {
       if (entity === "deal") {
-        const filter = useCurrentFilters ? buildDealsFilterFromUrl() : "";
-        const deals = await fetchAll<DealExportRow>("deals", {
-          sort: "-updated",
-          filter: filter || undefined,
-          expand: "company_id,stage_id,responsible_id",
-        });
-
-        const rows = deals.map((d) => {
-          const company = d.expand?.company_id;
-          const stage = d.expand?.stage_id;
-          const resp = d.expand?.responsible_id;
-          const row: Record<string, string | number> = {};
-          if (fields.title) row["Название сделки"] = d.title ?? "";
-          if (fields.company) row["Компания"] = company?.name ?? "";
-          if (fields.inn) row["ИНН"] = company?.inn ?? "";
-          if (fields.stage) row["Этап"] = stage?.stage_name ?? "";
-          if (fields.responsible) row["Ответственный"] = resp?.full_name || resp?.email || "";
-          for (const col of DEAL_EXPORT_COLUMNS) {
-            if (!col.canonical || !fields[col.key]) continue;
-            const canon = normalizeDealFieldName(col.canonical);
-            if (!canon || ["title", "company_id", "stage_id", "responsible_id"].includes(canon)) continue;
-            const label = dealFieldLabel(canon);
-            const val = (d as Record<string, unknown>)[canon];
-            row[label] = val != null && val !== "" ? String(val) : "";
-          }
-          if (fields.delivery_date) row["Поставка"] = String((d as Record<string, unknown>).delivery_date ?? "");
-          if (fields.expected_payment_date) row["Ожид. оплата"] = String((d as Record<string, unknown>).expected_payment_date ?? "");
-          if (fields.updated) row["Обновлено"] = d.updated ?? "";
-          return row;
-        });
-
+        const deals = await fetchDealsForExport();
+        const rows = deals.map((d) => buildDealExportRow(d, fields));
+        if (!rows.length) {
+          setStatus("Нет сделок для экспорта по выбранным фильтрам");
+          return;
+        }
         if (format === "xlsx") downloadXlsx(rows, "deals", "deals_export.xlsx");
         else downloadCsv(rows, "deals_export.csv");
       } else {
-        const filter = useCurrentFilters ? buildCompaniesFilterFromUrl() : "";
-        const companies = await fetchAll<CompanyExportRow>("companies", {
-          sort: "name",
-          filter: filter || undefined,
-          expand: "responsible_id",
-        });
+        const companies = await fetchCompaniesForExport();
 
         const rows = companies.map((c) => {
           const resp = c.expand?.responsible_id;
-          const row: Record<string, string | number> = {};
+          const row: Record<string, string> = {};
           if (fields.name) row["Название компании"] = c.name ?? "";
           if (fields.inn) row["ИНН"] = c.inn ?? "";
           if (fields.city) row["Город"] = c.city ?? "";
@@ -202,9 +207,13 @@ export function ExportModal({
           if (fields.phone) row["Телефон"] = c.phone ?? "";
           if (fields.email) row["Email"] = c.email ?? "";
           if (fields.responsible) row["Ответственный"] = resp?.full_name || resp?.email || "";
-          if (fields.updated) row["Обновлено"] = c.updated ?? "";
+          if (fields.updated) row["Обновлено"] = exportCell(c.updated);
           return row;
         });
+        if (!rows.length) {
+          setStatus("Нет компаний для экспорта по выбранным фильтрам");
+          return;
+        }
 
         if (format === "xlsx") downloadXlsx(rows, "companies", "companies_export.xlsx");
         else downloadCsv(rows, "companies_export.csv");
@@ -212,8 +221,7 @@ export function ExportModal({
 
       setStatus("Готово ✅");
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : String(e);
-      setStatus(`Ошибка: ${message}`);
+      setStatus(`Ошибка: ${humanizePbError(e)}`);
     } finally {
       setRunning(false);
     }
@@ -290,7 +298,7 @@ export function ExportModal({
 
   return (
     <Modal open={open} title="Экспорт" onClose={onClose} widthClass="max-w-3xl">
-      <div className="grid gap-4">
+      <div className="grid max-h-[min(78vh,720px)] grid-rows-[auto_auto_auto_auto_1fr_auto_auto] gap-4">
         <div className="grid gap-2">
           <div className="text-sm font-semibold">Что экспортируем</div>
           <div className="flex gap-2">
@@ -316,19 +324,21 @@ export function ExportModal({
           </div>
         </div>
 
-        <div className="grid gap-2">
+        <div className="grid min-h-0 gap-2 overflow-hidden">
           <div className="text-sm font-semibold">Поля</div>
-          <div className="grid grid-cols-2 gap-2">
-            {fieldList.map(([k, label]) => (
-              <label key={k} className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={Boolean(fields[k])} onChange={() => toggleField(k)} />
-                {label}
-              </label>
-            ))}
+          <div className="crm-scrollbar min-h-0 max-h-[min(36vh,280px)] overflow-y-auto pr-1">
+            <div className="grid grid-cols-2 gap-2">
+              {fieldList.map(([k, label]) => (
+                <label key={k} className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={Boolean(fields[k])} onChange={() => toggleField(k)} />
+                  {label}
+                </label>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center justify-between">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <input
               className="h-10 rounded-card border border-border bg-white px-3 text-sm"

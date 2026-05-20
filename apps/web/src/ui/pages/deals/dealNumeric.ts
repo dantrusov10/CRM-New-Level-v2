@@ -1,3 +1,4 @@
+import { pb } from "../../../lib/pb";
 import type { Deal } from "../../../lib/types";
 
 /** Нормализация числа из PB (number | string с пробелами). */
@@ -16,4 +17,60 @@ export function dealBudget(deal: Deal): number | null {
 
 export function dealTurnover(deal: Deal): number | null {
   return parseDealNumber(deal.turnover);
+}
+
+type FieldValueRow = {
+  deal_id?: string;
+  field_id?: string;
+  value_number?: number | null;
+  value_text?: string | null;
+};
+
+/** Подмешать бюджет/оборот из deal_field_values, если в deals.* пусто. */
+export async function enrichDealsNumericFields(deals: Deal[]): Promise<Deal[]> {
+  if (!deals.length) return deals;
+
+  const fields = await pb
+    .collection("settings_fields")
+    .getFullList<{ id: string; field_name?: string }>({
+      filter: 'entity_type="deal" && (field_name="budget" || field_name="turnover")',
+    })
+    .catch(() => []);
+
+  const budgetFieldId = fields.find((f) => f.field_name === "budget")?.id;
+  const turnoverFieldId = fields.find((f) => f.field_name === "turnover")?.id;
+  if (!budgetFieldId && !turnoverFieldId) return deals;
+
+  const fieldFilter = [budgetFieldId && `field_id="${budgetFieldId}"`, turnoverFieldId && `field_id="${turnoverFieldId}"`]
+    .filter(Boolean)
+    .join(" || ");
+  if (!fieldFilter) return deals;
+
+  const rows = await pb
+    .collection("deal_field_values")
+    .getFullList<FieldValueRow>({ filter: fieldFilter, batch: 500 })
+    .catch(() => []);
+
+  const budgetByDeal = new Map<string, number>();
+  const turnoverByDeal = new Map<string, number>();
+  for (const row of rows) {
+    const dealId = String(row.deal_id || "");
+    if (!dealId) continue;
+    const n = parseDealNumber(row.value_number ?? row.value_text);
+    if (n === null) continue;
+    if (row.field_id === budgetFieldId) budgetByDeal.set(dealId, n);
+    if (row.field_id === turnoverFieldId) turnoverByDeal.set(dealId, n);
+  }
+
+  return deals.map((d) => {
+    const id = String(d.id || "");
+    const budget = dealBudget(d) ?? (budgetByDeal.has(id) ? budgetByDeal.get(id)! : null);
+    const turnover = dealTurnover(d) ?? (turnoverByDeal.has(id) ? turnoverByDeal.get(id)! : null);
+    if (budget === dealBudget(d) && turnover === dealTurnover(d)) return d;
+    return {
+      ...d,
+      ...(budget !== null ? { budget } : {}),
+      ...(turnover !== null ? { turnover } : {}),
+    };
+  });
 }

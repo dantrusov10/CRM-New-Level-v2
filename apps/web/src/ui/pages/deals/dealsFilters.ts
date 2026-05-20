@@ -1,4 +1,6 @@
 import dayjs from "dayjs";
+import type { Deal } from "../../../lib/types";
+import { dealBudget, dealTurnover, parseDealNumber } from "./dealNumeric";
 
 export const DEAL_FILTER_PARAM_KEYS = [
   "stage",
@@ -55,14 +57,96 @@ function dateLte(key: string, iso: string) {
   return `${key} <= "${dayjs(d).endOf("day").format("YYYY-MM-DD HH:mm:ss")}"`;
 }
 
+function parseFilterNum(v: string): number | null {
+  const cleaned = String(v || "").trim().replace(/\s/g, "").replace(",", ".");
+  if (!cleaned || cleaned === "безлимита") return null;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
+}
+
 function numGte(key: string, v: string) {
-  const n = Number(v);
-  return Number.isFinite(n) ? `${key} >= ${n}` : "";
+  const n = parseFilterNum(v);
+  return n !== null ? `${key} >= ${n}` : "";
 }
 
 function numLte(key: string, v: string) {
-  const n = Number(v);
-  return Number.isFinite(n) ? `${key} <= ${n}` : "";
+  const n = parseFilterNum(v);
+  return n !== null ? `${key} <= ${n}` : "";
+}
+
+/** Числовые фильтры — в памяти (корректный парсинг, в т.ч. пустые значения). */
+export const CLIENT_NUMERIC_FILTER_KEYS = [
+  "budgetMin",
+  "budgetMax",
+  "turnoverMin",
+  "turnoverMax",
+  "marginMin",
+  "marginMax",
+  "discountMin",
+  "discountMax",
+  "scoreMin",
+  "scoreMax",
+  "endpointsMin",
+  "endpointsMax",
+] as const;
+
+export function hasClientNumericFilters(sp: URLSearchParams): boolean {
+  return CLIENT_NUMERIC_FILTER_KEYS.some((k) => parseFilterNum(sp.get(k) ?? "") !== null);
+}
+
+export function filterDealsClient(items: Deal[], sp: URLSearchParams): Deal[] {
+  const budgetMin = parseFilterNum(sp.get("budgetMin") ?? "");
+  const budgetMax = parseFilterNum(sp.get("budgetMax") ?? "");
+  const turnoverMin = parseFilterNum(sp.get("turnoverMin") ?? "");
+  const turnoverMax = parseFilterNum(sp.get("turnoverMax") ?? "");
+  const marginMin = parseFilterNum(sp.get("marginMin") ?? "");
+  const marginMax = parseFilterNum(sp.get("marginMax") ?? "");
+  const discountMin = parseFilterNum(sp.get("discountMin") ?? "");
+  const discountMax = parseFilterNum(sp.get("discountMax") ?? "");
+  const scoreMin = parseFilterNum(sp.get("scoreMin") ?? "");
+  const scoreMax = parseFilterNum(sp.get("scoreMax") ?? "");
+  const endpointsMin = parseFilterNum(sp.get("endpointsMin") ?? "");
+  const endpointsMax = parseFilterNum(sp.get("endpointsMax") ?? "");
+
+  if (
+    budgetMin === null &&
+    budgetMax === null &&
+    turnoverMin === null &&
+    turnoverMax === null &&
+    marginMin === null &&
+    marginMax === null &&
+    discountMin === null &&
+    discountMax === null &&
+    scoreMin === null &&
+    scoreMax === null &&
+    endpointsMin === null &&
+    endpointsMax === null
+  ) {
+    return items;
+  }
+
+  return items.filter((d) => {
+    const budget = dealBudget(d);
+    const turnover = dealTurnover(d);
+    const margin = parseDealNumber(d.margin_percent);
+    const discount = parseDealNumber(d.discount_percent);
+    const score = parseDealNumber(d.current_score);
+    const endpoints = parseDealNumber(d.endpoints);
+
+    if (budgetMin !== null && (budget ?? -Infinity) < budgetMin) return false;
+    if (budgetMax !== null && (budget ?? Infinity) > budgetMax) return false;
+    if (turnoverMin !== null && (turnover ?? -Infinity) < turnoverMin) return false;
+    if (turnoverMax !== null && (turnover ?? Infinity) > turnoverMax) return false;
+    if (marginMin !== null && (margin ?? -Infinity) < marginMin) return false;
+    if (marginMax !== null && (margin ?? Infinity) > marginMax) return false;
+    if (discountMin !== null && (discount ?? -Infinity) < discountMin) return false;
+    if (discountMax !== null && (discount ?? Infinity) > discountMax) return false;
+    if (scoreMin !== null && (score ?? -Infinity) < scoreMin) return false;
+    if (scoreMax !== null && (score ?? Infinity) > scoreMax) return false;
+    if (endpointsMin !== null && (endpoints ?? -Infinity) < endpointsMin) return false;
+    if (endpointsMax !== null && (endpoints ?? Infinity) > endpointsMax) return false;
+    return true;
+  });
 }
 
 function contains(key: string, v: string) {
@@ -70,7 +154,7 @@ function contains(key: string, v: string) {
   return t ? `${key}~"${esc(t)}"` : "";
 }
 
-/** PocketBase filter string for deals list. */
+/** PocketBase filter (без числовых полей — они через filterDealsClient). */
 export function buildDealsFilter(sp: URLSearchParams): string {
   const p = (k: string) => sp.get(k) ?? "";
 
@@ -87,18 +171,6 @@ export function buildDealsFilter(sp: URLSearchParams): string {
     contains("presale", p("presale")),
     contains("attraction_channel", p("attraction_channel")),
     contains("infrastructure_size", p("infrastructure_size")),
-    numGte("budget", p("budgetMin")),
-    numLte("budget", p("budgetMax")),
-    numGte("turnover", p("turnoverMin")),
-    numLte("turnover", p("turnoverMax")),
-    numGte("margin_percent", p("marginMin")),
-    numLte("margin_percent", p("marginMax")),
-    numGte("discount_percent", p("discountMin")),
-    numLte("discount_percent", p("discountMax")),
-    numGte("current_score", p("scoreMin")),
-    numLte("current_score", p("scoreMax")),
-    numGte("endpoints", p("endpointsMin")),
-    numLte("endpoints", p("endpointsMax")),
     dateGte("created", p("from")),
     dateLte("created", p("to")),
     dateGte("updated", p("updatedFrom")),

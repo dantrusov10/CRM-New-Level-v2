@@ -152,34 +152,44 @@ export function useDeals(params?: { search?: string; filter?: string; sort?: str
 export function useDealsList(params?: {
   search?: string;
   filter?: string;
+  /** URLSearchParams — для клиентских числовых фильтров. */
+  searchParams?: URLSearchParams;
   /** URL sort param: column id or -column (e.g. budget, -title). */
   sortParam?: string;
   page?: number;
   perPage?: number;
 }) {
-  const { search, filter, sortParam, page = 1, perPage = 25 } = params ?? {};
+  const { search, filter, searchParams, sortParam, page = 1, perPage = 25 } = params ?? {};
   const q = search ? `title~"${search.replace(/\"/g, "\\\"")}"` : "";
   const f = [filter, q].filter(Boolean).join(" && ");
+  const spKey = searchParams?.toString() ?? "";
   return useQuery({
-    queryKey: ["dealsList", f, sortParam ?? "-updated", page, perPage],
+    queryKey: ["dealsList", f, spKey, sortParam ?? "-updated", page, perPage],
     queryFn: async () => {
       const expand = "company_id,stage_id,responsible_id";
       const listOpts: Record<string, unknown> = { expand };
       if (f && String(f).trim().length) listOpts.filter = f;
 
       const { needsRelationSort, pocketBaseSortFromParam, sortDealsGlobal } = await import("../pages/deals/dealsTableSort");
+      const { hasClientNumericFilters, filterDealsClient } = await import("../pages/deals/dealsFilters");
+      const { enrichDealsNumericFields } = await import("../pages/deals/dealNumeric");
 
-      if (!needsRelationSort(sortParam)) {
+      const needsFullList =
+        needsRelationSort(sortParam) || Boolean(searchParams && hasClientNumericFilters(searchParams));
+
+      if (!needsFullList) {
         return pb.collection("deals").getList(page, perPage, {
           ...listOpts,
           sort: pocketBaseSortFromParam(sortParam),
         });
       }
 
-      const all = await pb.collection("deals").getFullList<Deal>({
+      let all = await pb.collection("deals").getFullList<Deal>({
         ...listOpts,
         batch: 500,
       });
+      all = await enrichDealsNumericFields(all);
+      if (searchParams) all = filterDealsClient(all, searchParams);
       const sorted = sortDealsGlobal(all, sortParam);
       const totalItems = sorted.length;
       const totalPages = Math.max(1, Math.ceil(totalItems / perPage));

@@ -31,7 +31,7 @@ export function DealsTablePage() {
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const [bulkOpen, setBulkOpen] = React.useState(false);
 
-  const dealsQ = useDealsList({ search, filter, sortParam, page, perPage: 25 });
+  const dealsQ = useDealsList({ search, filter, searchParams: sp, sortParam, page, perPage: 25 });
   const stagesQ = useFunnelStages();
   const usersQ = useUsers();
 

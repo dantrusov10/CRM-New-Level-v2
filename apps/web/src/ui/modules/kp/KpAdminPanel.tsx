@@ -17,6 +17,8 @@ export function KpAdminPanel() {
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [actionError, setActionError] = React.useState("");
+  /** Увеличивается при «Редактировать» — мастер открывает шаг шаблона и прокручивает к редактору. */
+  const [editFocusTick, setEditFocusTick] = React.useState(0);
 
   async function load() {
     const list = await ensureKpAndTkpTemplates();
@@ -32,6 +34,11 @@ export function KpAdminPanel() {
   }, []);
 
   const active = templates.find((t) => t.id === activeId) || null;
+
+  function openTemplateEditor(id: string) {
+    setActiveId(id);
+    setEditFocusTick((n) => n + 1);
+  }
 
   async function save(patch: { template_json: KpTemplateConfig; name: string }) {
     if (!active?.id) return;
@@ -64,7 +71,7 @@ export function KpAdminPanel() {
         template_json,
       });
       await load();
-      if (created?.id) setActiveId(created.id);
+      if (created?.id) openTemplateEditor(created.id);
     } finally {
       setBusy(false);
     }
@@ -154,7 +161,7 @@ export function KpAdminPanel() {
       <KpTemplateSwitcher
         templates={templates}
         activeId={activeId}
-        onSelect={setActiveId}
+        onEdit={openTemplateEditor}
         onCreate={createTemplate}
         onRename={renameTemplate}
         onDelete={deleteTemplate}
@@ -162,7 +169,13 @@ export function KpAdminPanel() {
       />
       {actionError ? <div className="text-sm text-danger px-1">{actionError}</div> : null}
       {active ? (
-        <KpAdminWizard templateRecord={active} onSave={save} onReload={load} />
+        <KpAdminWizard
+          key={active.id}
+          templateRecord={active}
+          onSave={save}
+          onReload={load}
+          editFocusTick={editFocusTick}
+        />
       ) : (
         <Card>
           <CardContent className="py-6 text-sm text-text2">Выберите шаблон для редактирования.</CardContent>

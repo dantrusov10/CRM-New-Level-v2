@@ -12,7 +12,7 @@ type ModalMode = null | { kind: "create"; docType: KpDocumentType } | { kind: "r
 export function KpTemplateSwitcher({
   templates,
   activeId,
-  onSelect,
+  onEdit,
   onCreate,
   onRename,
   onDelete,
@@ -20,7 +20,7 @@ export function KpTemplateSwitcher({
 }: {
   templates: KpTemplateRecord[];
   activeId: string | null;
-  onSelect: (id: string) => void;
+  onEdit: (id: string) => void;
   onCreate: (type: KpDocumentType, name: string) => Promise<void>;
   onRename: (id: string, name: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -106,7 +106,7 @@ export function KpTemplateSwitcher({
                 <button
                   type="button"
                   className="flex items-center gap-2 text-left flex-1 min-w-0"
-                  onClick={() => onSelect(t.id)}
+                  onClick={() => onEdit(t.id)}
                 >
                   <FileText size={18} className="shrink-0 text-primary" />
                   <span className="min-w-0">
@@ -123,8 +123,8 @@ export function KpTemplateSwitcher({
                     small
                     variant={active ? "primary" : "secondary"}
                     disabled={busy}
-                    onClick={() => onSelect(t.id)}
-                    title="Редактировать оформление и разделы"
+                    onClick={() => onEdit(t.id)}
+                    title="Открыть редактор оформления и разделов PDF"
                   >
                     <Pencil size={14} className="mr-1" />
                     Редактировать

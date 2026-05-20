@@ -38,11 +38,15 @@ export function KpAdminWizard({
   templateRecord,
   onSave,
   onReload,
+  editFocusTick = 0,
 }: {
   templateRecord: KpTemplateRecord;
   onSave: (patch: { template_json: KpTemplateConfig; name: string }) => Promise<void>;
   onReload: () => void;
+  /** Счётчик кликов «Редактировать» — открывает шаг «Шаблон PDF». */
+  editFocusTick?: number;
 }) {
+  const editorAnchorRef = React.useRef<HTMLDivElement | null>(null);
   const [step, setStep] = React.useState("intro");
   const [readiness, setReadiness] = React.useState<KpReadiness | null>(null);
   const completed = React.useMemo(() => {
@@ -62,6 +66,15 @@ export function KpAdminWizard({
   React.useEffect(() => {
     void refreshReadiness();
   }, [templateRecord?.id]);
+
+  React.useEffect(() => {
+    if (editFocusTick < 1) return;
+    setStep("template");
+    const t = window.setTimeout(() => {
+      editorAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+    return () => window.clearTimeout(t);
+  }, [editFocusTick, templateRecord?.id]);
 
   React.useEffect(() => {
     if (step === "check") void onReload();
@@ -124,6 +137,10 @@ export function KpAdminWizard({
                 Начать настройку
                 <ArrowRight size={16} className="ml-1" />
               </Button>
+              <Button variant="secondary" onClick={() => setStep("template")}>
+                Редактировать шаблон
+                <ArrowRight size={16} className="ml-1" />
+              </Button>
               {readiness?.ready ? (
                 <span className="text-xs text-success self-center">Система готова — менеджеры могут собирать КП</span>
               ) : null}
@@ -158,7 +175,7 @@ export function KpAdminWizard({
       ) : null}
 
       {step === "template" ? (
-        <div className="grid gap-4">
+        <div ref={editorAnchorRef} className="grid gap-4 scroll-mt-4">
           <KpTemplateEditor
             templateRecord={templateRecord}
             onSave={onSave}

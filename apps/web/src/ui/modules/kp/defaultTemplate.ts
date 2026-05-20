@@ -1,4 +1,6 @@
-export const DEFAULT_KP_TEMPLATE_V1 = {
+import type { KpTemplateConfig } from "./types";
+
+export const DEFAULT_KP_TEMPLATE_V1: KpTemplateConfig = {
   version: 1,
   name: "КП — Стандарт",
   isActive: true,
@@ -116,6 +118,14 @@ export const DEFAULT_KP_TEMPLATE_V1 = {
       { id: "managerName", label: "Менеджер", type: "text", required: false, mapping: { source: "user.name" } }
     ]
   },
+  pdfBlocks: [
+    { id: "blk_header", type: "header", enabled: true },
+    { id: "blk_client", type: "client_cards", enabled: true },
+    { id: "blk_table", type: "specification_table", enabled: true },
+    { id: "blk_totals", type: "totals", enabled: true },
+    { id: "blk_conditions", type: "conditions", enabled: true },
+    { id: "blk_signature", type: "signature", enabled: true },
+  ],
   specification: {
     title: "Спецификация",
     showVatColumn: true,

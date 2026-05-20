@@ -6,7 +6,7 @@ import { KpTemplateEditor } from "./KpTemplateEditor";
 import { PriceListAdmin } from "./PriceListAdmin";
 import type { KpTemplateConfig, KpTemplateRecord } from "./types";
 
-/** Админка КП: шаблон + прайс (используется в /admin/kp и вкладке парсеров). */
+/** Админка КП: конструктор шаблона + прайс (`/admin/kp`). */
 export function KpAdminPanel() {
   const [tpl, setTpl] = React.useState<KpTemplateRecord | null>(null);
 

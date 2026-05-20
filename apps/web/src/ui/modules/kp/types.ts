@@ -58,6 +58,21 @@ export type KpBranding = JsonObject & {
   disclaimer?: string;
   signature?: { name?: string; title?: string; phone?: string; email?: string };
 };
+export type KpPdfBlockType =
+  | "header"
+  | "client_cards"
+  | "specification_table"
+  | "totals"
+  | "conditions"
+  | "signature";
+
+export type KpPdfBlock = {
+  id: string;
+  type: KpPdfBlockType;
+  enabled: boolean;
+  title?: string;
+};
+
 export type KpTemplateConfig = JsonObject & {
   version?: number;
   name?: string;
@@ -66,7 +81,13 @@ export type KpTemplateConfig = JsonObject & {
   branding?: KpBranding;
   defaults?: { currency?: string; vatPercent?: number; partnerModeEnabled?: boolean };
   ui?: { layout?: string; sections?: KpSection[]; managerFields?: KpField[] };
-  specification?: { title?: string; showVatColumn?: boolean; columns?: Array<{ key: string; label?: string; width?: string | number; align?: string; optional?: boolean }> };
+  pdfBlocks?: KpPdfBlock[];
+  specification?: {
+    title?: string;
+    showVatColumn?: boolean;
+    columns?: Array<{ key: string; label?: string; width?: string | number; align?: string; optional?: boolean }>;
+    totals?: Array<{ key: string; label?: string }>;
+  };
   calcRules?: { applyPartnerDiscountFirst?: boolean; discounts?: JsonObject };
   pdfDesign?: { paperBg?: string; textColor?: string; tableHeaderBg?: string; tableHeaderText?: string };
   pdf?: JsonObject;

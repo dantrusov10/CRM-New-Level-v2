@@ -258,18 +258,26 @@ export function DealKpModule({ deal, onTimeline }: { deal: Deal; onTimeline?: (a
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="text-sm font-semibold">КП / Спецификация</div>
-              <div className="text-xs text-text2 mt-1">Шаблон задаётся админом централизованно (Parsers/AI → КП)</div>
+              <div className="text-xs text-text2 mt-1">Шаблон настраивается в админке → КП</div>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge>НДС {vatPercent}%</Badge>
-              <Button variant="secondary" onClick={saveDraft}>Сохранить черновик</Button>
-              <Button onClick={generatePdfAndDownload} disabled={requiredMissing || !items.length}>Сформировать PDF</Button>
+            <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 w-full sm:w-auto">
+              <Badge className="self-start">НДС {vatPercent}%</Badge>
+              <Button variant="secondary" className="w-full sm:w-auto" onClick={saveDraft}>
+                Сохранить черновик
+              </Button>
+              <Button
+                className="w-full sm:w-auto"
+                onClick={generatePdfAndDownload}
+                disabled={requiredMissing || !items.length}
+              >
+                Сформировать PDF
+              </Button>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-12 gap-4">
-            <div className="col-span-6 grid gap-4">
+            <div className="col-span-12 xl:col-span-6 grid gap-4">
               {sections.map((sec) => (
                 <div key={sec.id} className="rounded-card border border-border bg-white p-3">
                   <div className="text-sm font-semibold">{sec.title}</div>
@@ -317,12 +325,17 @@ export function DealKpModule({ deal, onTimeline }: { deal: Deal; onTimeline?: (a
                   <Input value={priceSearch} onChange={(e) => setPriceSearch(e.target.value)} placeholder="Поиск по прайсу…" />
                   <div className="max-h-[240px] overflow-auto rounded-card border border-border">
                     {priceItems.map((pi) => (
-                      <div key={pi.id} className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border last:border-b-0">
-                        <div className="text-sm">
-                          <div className="font-medium">{pi.product_name || pi.name}</div>
+                      <div
+                        key={pi.id}
+                        className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3 py-2 border-b border-border last:border-b-0"
+                      >
+                        <div className="text-sm min-w-0">
+                          <div className="font-medium truncate">{pi.product_name || pi.name}</div>
                           <div className="text-xs text-text2">{Number(pi.price || 0)} {currency}</div>
                         </div>
-                        <Button variant="secondary" onClick={() => addFromPrice(pi)}>Добавить</Button>
+                        <Button variant="secondary" className="w-full sm:w-auto shrink-0" onClick={() => addFromPrice(pi)}>
+                          Добавить
+                        </Button>
                       </div>
                     ))}
                     {!priceItems.length ? <div className="px-3 py-4 text-sm text-text2">Ничего не найдено.</div> : null}
@@ -332,29 +345,29 @@ export function DealKpModule({ deal, onTimeline }: { deal: Deal; onTimeline?: (a
 
               <div className="rounded-card border border-border bg-white p-3">
                 <div className="text-sm font-semibold">Текущая спецификация</div>
-                <div className="mt-2 overflow-auto">
-                  <table className="w-full text-sm">
+                <div className="mt-2 overflow-x-auto">
+                  <table className="w-full text-sm min-w-[520px]">
                     <thead>
                       <tr className="h-10 bg-[#EEF1F6] text-[#374151] font-semibold">
                         <th className="text-left px-3">Наименование</th>
-                        <th className="text-right px-3">Кол-во</th>
-                        <th className="text-right px-3">Цена</th>
-                        <th className="text-right px-3">Действия</th>
+                        <th className="text-right px-3 w-20">Кол-во</th>
+                        <th className="text-right px-3 w-24">Цена</th>
+                        <th className="text-right px-3 w-24">Действия</th>
                       </tr>
                     </thead>
                     <tbody>
                       {items.map((it) => (
-                        <tr key={it.id} className="h-11 border-b border-border">
-                          <td className="px-3">
+                        <tr key={it.id} className="border-b border-border">
+                          <td className="px-3 py-2">
                             <Input value={it.name} onChange={(e) => updateItem(it.id, { name: e.target.value })} />
                           </td>
-                          <td className="px-3 text-right">
+                          <td className="px-3 py-2 text-right">
                             <Input type="number" value={String(it.qty)} onChange={(e) => updateItem(it.id, { qty: Number(e.target.value || 0) })} />
                           </td>
-                          <td className="px-3 text-right">
+                          <td className="px-3 py-2 text-right">
                             <Input type="number" value={String(it.unitPrice)} onChange={(e) => updateItem(it.id, { unitPrice: Number(e.target.value || 0) })} />
                           </td>
-                          <td className="px-3 text-right">
+                          <td className="px-3 py-2 text-right">
                             <Button variant="secondary" onClick={() => removeItem(it.id)}>Удалить</Button>
                           </td>
                         </tr>
@@ -373,9 +386,9 @@ export function DealKpModule({ deal, onTimeline }: { deal: Deal; onTimeline?: (a
               </div>
             </div>
 
-            <div className="col-span-6 grid gap-2">
+            <div className="col-span-12 xl:col-span-6 grid gap-2">
               <div className="text-xs text-text2">Предпросмотр PDF (то, что будет скачано)</div>
-              <div ref={printRef} className="rounded-card border border-border bg-white">
+              <div ref={printRef} className="rounded-card border border-border bg-white overflow-x-auto">
                 <KpPreview template={template} input={input} items={items} dealId={dealId} mode="pdf" />
               </div>
               {requiredMissing ? <div className="text-xs text-danger mt-1">Заполните обязательные поля формы (со звездочкой).</div> : null}

@@ -3,10 +3,9 @@ import { Card, CardContent, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
 import { pb } from "../../../lib/pb";
-import { KpAdminPanel } from "../../modules/kp/KpAdminPanel";
 import { AdminPageShell } from "../../layout/AdminPageShell";
 
-type Tab = "contacts" | "media" | "tenders" | "ai" | "kp";
+type Tab = "contacts" | "media" | "tenders" | "ai";
 
 type TabButtonProps = { active: boolean; children: React.ReactNode; onClick: () => void };
 type ParserKeywordBag = { phrases?: string[] };
@@ -44,7 +43,7 @@ export function AdminParsersPage() {
   return (
     <AdminPageShell
       title="Парсеры и AI"
-      subtitle="Контакты, медиа, тендеры, промпты. Полный редактор КП — раздел «КП» в меню."
+      subtitle="Контакты, медиа, тендеры, промпты AI. Редактор коммерческих предложений — пункт «КП» в боковом меню."
     >
     <div className="grid gap-4">
       <Card>
@@ -57,7 +56,6 @@ export function AdminParsersPage() {
             <TabButton active={tab==="media"} onClick={() => setTab("media")}>Медиа</TabButton>
             <TabButton active={tab==="tenders"} onClick={() => setTab("tenders")}>Тендеры</TabButton>
             <TabButton active={tab==="ai"} onClick={() => setTab("ai")}>Парсеры + AI</TabButton>
-            <TabButton active={tab==="kp"} onClick={() => setTab("kp")}>КП (каркас)</TabButton>
           </div>
         </CardContent>
       </Card>
@@ -66,7 +64,6 @@ export function AdminParsersPage() {
       {tab === "media" ? <MediaParser /> : null}
       {tab === "tenders" ? <TenderParser /> : null}
       {tab === "ai" ? <AiPromptsSettings /> : null}
-      {tab === "kp" ? <KpAdminPanel /> : null}
     </div>
     </AdminPageShell>
   );

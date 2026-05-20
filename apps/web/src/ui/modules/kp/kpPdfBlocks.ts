@@ -1,0 +1,90 @@
+import type { KpTemplateConfig } from "./types";
+
+export type KpPdfBlockType =
+  | "header"
+  | "client_cards"
+  | "specification_table"
+  | "totals"
+  | "conditions"
+  | "signature";
+
+export type KpPdfBlock = {
+  id: string;
+  type: KpPdfBlockType;
+  enabled: boolean;
+  title?: string;
+};
+
+export const KP_PDF_BLOCK_META: Record<KpPdfBlockType, { label: string; hint: string }> = {
+  header: { label: "Шапка", hint: "Логотип, название компании, клиент, сделка" },
+  client_cards: { label: "Карточки клиента", hint: "Email, ИНН и др. краткие поля" },
+  specification_table: { label: "Таблица спецификации", hint: "Позиции, кол-во, цены" },
+  totals: { label: "Итоги", hint: "Сумма без НДС, НДС, итого" },
+  conditions: { label: "Условия", hint: "Оплата, поставка, комментарий менеджера" },
+  signature: { label: "Подпись и дисклеймер", hint: "Дисклеймер, ФИО менеджера" },
+};
+
+export const DEFAULT_KP_PDF_BLOCKS: KpPdfBlock[] = [
+  { id: "blk_header", type: "header", enabled: true },
+  { id: "blk_client", type: "client_cards", enabled: true },
+  { id: "blk_table", type: "specification_table", enabled: true },
+  { id: "blk_totals", type: "totals", enabled: true },
+  { id: "blk_conditions", type: "conditions", enabled: true },
+  { id: "blk_signature", type: "signature", enabled: true },
+];
+
+function blockIdForType(type: KpPdfBlockType, index: number) {
+  return `blk_${type}_${index}`;
+}
+
+export function ensurePdfBlocks(template: KpTemplateConfig): KpPdfBlock[] {
+  const raw = template.pdfBlocks;
+  if (!Array.isArray(raw) || !raw.length) return deepCloneBlocks(DEFAULT_KP_PDF_BLOCKS);
+
+  const normalized: KpPdfBlock[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const item = raw[i];
+    if (!item || typeof item !== "object") continue;
+    const type = String((item as KpPdfBlock).type || "") as KpPdfBlockType;
+    if (!KP_PDF_BLOCK_META[type]) continue;
+    normalized.push({
+      id: String((item as KpPdfBlock).id || blockIdForType(type, i)),
+      type,
+      enabled: (item as KpPdfBlock).enabled !== false,
+      title: String((item as KpPdfBlock).title || "") || undefined,
+    });
+  }
+  if (!normalized.length) return deepCloneBlocks(DEFAULT_KP_PDF_BLOCKS);
+
+  const present = new Set(normalized.map((b) => b.type));
+  for (const def of DEFAULT_KP_PDF_BLOCKS) {
+    if (!present.has(def.type)) normalized.push({ ...def, id: blockIdForType(def.type, normalized.length) });
+  }
+  return normalized;
+}
+
+export function deepCloneBlocks(blocks: KpPdfBlock[]): KpPdfBlock[] {
+  return JSON.parse(JSON.stringify(blocks)) as KpPdfBlock[];
+}
+
+export function applyPdfBlockPreset(preset: "standard" | "minimal" | "full"): KpPdfBlock[] {
+  if (preset === "minimal") {
+    return [
+      { id: "blk_header", type: "header", enabled: true },
+      { id: "blk_table", type: "specification_table", enabled: true },
+      { id: "blk_totals", type: "totals", enabled: true },
+      { id: "blk_signature", type: "signature", enabled: true },
+    ];
+  }
+  if (preset === "full") {
+    return deepCloneBlocks(DEFAULT_KP_PDF_BLOCKS);
+  }
+  return [
+    { id: "blk_header", type: "header", enabled: true },
+    { id: "blk_client", type: "client_cards", enabled: true },
+    { id: "blk_table", type: "specification_table", enabled: true },
+    { id: "blk_totals", type: "totals", enabled: true },
+    { id: "blk_conditions", type: "conditions", enabled: false },
+    { id: "blk_signature", type: "signature", enabled: true },
+  ];
+}

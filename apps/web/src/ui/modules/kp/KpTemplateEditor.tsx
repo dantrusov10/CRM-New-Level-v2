@@ -6,7 +6,9 @@ import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
 import { Badge } from "../../components/Badge";
 import { KpPreview } from "./KpPreview";
+import { KpPdfBlocksEditor } from "./KpPdfBlocksEditor";
 import { DEFAULT_KP_TEMPLATE_V1 } from "./defaultTemplate";
+import { ensurePdfBlocks } from "./kpPdfBlocks";
 import { pb } from "../../../lib/pb";
 import type { KpInput, KpSection, KpTemplateConfig, KpTemplateRecord, SpecItem } from "./types";
 
@@ -33,7 +35,10 @@ export function KpTemplateEditor({
 }) {
   const initial = React.useMemo(() => {
     const json = templateRecord?.template_json;
-    return json && typeof json === "object" ? deepClone(json) : deepClone(DEFAULT_KP_TEMPLATE_V1);
+    const base =
+      json && typeof json === "object" ? (deepClone(json) as KpTemplateConfig) : deepClone(DEFAULT_KP_TEMPLATE_V1);
+    base.pdfBlocks = ensurePdfBlocks(base);
+    return base;
   }, [templateRecord?.id]);
 
   const [draft, setDraft] = React.useState<KpTemplateConfig>(initial);
@@ -235,8 +240,8 @@ export function KpTemplateEditor({
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-sm font-semibold">Конструктор КП (каркас)</div>
-                <div className="text-xs text-text2 mt-1">Редактирование наименований полей + обязательность + шаблон спецификации</div>
+                <div className="text-sm font-semibold">Конструктор КП</div>
+                <div className="text-xs text-text2 mt-1">Блоки PDF (drag-and-drop), поля формы, прайс, предпросмотр</div>
               </div>
               <div className="flex gap-2">
                 <Button variant="secondary" onClick={() => { setDraft(deepClone(DEFAULT_KP_TEMPLATE_V1)); }}>
@@ -299,6 +304,11 @@ export function KpTemplateEditor({
                   </div>
                 </div>
               </div>
+
+              <KpPdfBlocksEditor
+                blocks={ensurePdfBlocks(draft)}
+                onChange={(pdfBlocks) => setDraft((p) => ({ ...p, pdfBlocks }))}
+              />
 
               <div className="rounded-card border border-border bg-rowHover p-3">
                 <div className="text-sm font-semibold mb-2">Дизайн PDF</div>

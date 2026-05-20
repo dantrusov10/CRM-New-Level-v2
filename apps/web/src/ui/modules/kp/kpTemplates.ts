@@ -11,6 +11,14 @@ export async function listActiveKpTemplates(): Promise<KpTemplateRecord[]> {
   return res.items || [];
 }
 
+export async function countKpInstancesForTemplate(templateId: string): Promise<number> {
+  const res = await pb
+    .collection("kp_instances")
+    .getList(1, 1, { filter: `template_id="${templateId}"`, fields: "id" })
+    .catch(() => ({ totalItems: 0 }));
+  return Number(res.totalItems || 0);
+}
+
 function hasType(templates: KpTemplateRecord[], type: KpDocumentType) {
   return templates.some((t) => {
     const json = t.template_json;
@@ -59,4 +67,12 @@ export function pickDefaultTemplate(templates: KpTemplateRecord[], prefer: KpDoc
   if (byType) return byType;
   const def = templates.find((t) => t.is_default);
   return def || templates[0];
+}
+
+export function buildNewTemplateConfig(type: KpDocumentType, displayName: string): KpTemplateConfig {
+  const base = type === "tkp" ? DEFAULT_TKP_TEMPLATE_V1 : DEFAULT_KP_TEMPLATE_V1;
+  const json = JSON.parse(JSON.stringify(base)) as KpTemplateConfig;
+  json.name = displayName;
+  json.documentType = type;
+  return json;
 }

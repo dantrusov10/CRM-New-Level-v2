@@ -414,8 +414,8 @@ export function AutoExportModal({
 
         <p className="text-xs text-text2">
           {webhookOn
-            ? "SMTP webhook настроен (VITE_AUTO_EXPORT_WEBHOOK): письма с вложением отправляются автоматически."
-            : "Автоотправка вложений по почте не настроена: задайте VITE_AUTO_EXPORT_WEBHOOK на сервере. Сейчас файл скачивается локально."}
+            ? "Письма с вложением: crm@nwlvl.ru (через /api/send-export-email). Задачи дублируются в PocketBase для серверного cron."
+            : "Почта: настройте RESEND_API_KEY или SMTP на Vercel (см. docs/AUTO_EXPORT_EMAIL.md). Пока файл только скачивается."}
         </p>
 
         <div className="flex justify-between gap-2">

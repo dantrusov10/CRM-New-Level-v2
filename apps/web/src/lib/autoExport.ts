@@ -1,4 +1,5 @@
 import type { ExportFormat, ExportEntity, TimelineExportFields } from "./exportRunner";
+import { pb } from "./pb";
 
 export type AutoExportSchedule = {
   type: "daily" | "weekly";
@@ -51,6 +52,47 @@ export function loadAutoExportJobs(): AutoExportJob[] {
 
 export function saveAutoExportJobs(jobs: AutoExportJob[]) {
   localStorage.setItem(LS_KEY, JSON.stringify(jobs.slice(0, 50)));
+  void syncExportJobsToPb(jobs.slice(0, 50));
+}
+
+/** Синхронизация в PocketBase для серверного cron (коллекция export_jobs). */
+export async function syncExportJobsToPb(jobs: AutoExportJob[]) {
+  const user = pb.authStore.model as { id?: string } | null;
+  if (!user?.id || !pb.authStore.token) return;
+  let buildDealsFilter: ((sp: URLSearchParams) => string) | null = null;
+  try {
+    const m = await import("../ui/pages/deals/dealsFilters");
+    buildDealsFilter = m.buildDealsFilter;
+  } catch {
+    return;
+  }
+
+  for (const job of jobs) {
+    const sp = searchParamsFromSnapshot(job.filterSnapshot);
+    const pb_filter = job.useCurrentFilters && buildDealsFilter ? buildDealsFilter(sp) : "";
+    const config_json = { ...job, pb_filter };
+    const payload = {
+      job_id: job.id,
+      name: job.name,
+      enabled: job.enabled,
+      owner_id: user.id,
+      config_json,
+      last_run_key: job.lastRunKey || "",
+      last_run_at: job.lastRunAt || null,
+    };
+    try {
+      const existing = await pb.collection("export_jobs").getList(1, 1, {
+        filter: `job_id="${job.id.replace(/"/g, '\\"')}"`,
+      });
+      if (existing.items[0]) {
+        await pb.collection("export_jobs").update(existing.items[0].id, payload);
+      } else {
+        await pb.collection("export_jobs").create(payload);
+      }
+    } catch {
+      // коллекция export_jobs ещё не импортирована в PB
+    }
+  }
 }
 
 export function runKeyForNow(d = new Date()): string {
@@ -90,8 +132,17 @@ export function snapshotFromSearchParams(sp: URLSearchParams): Record<string, st
 }
 
 /** Отправка: webhook (если задан) или скачивание + уведомление. */
+export function autoExportWebhookUrl(): string {
+  const custom = import.meta.env.VITE_AUTO_EXPORT_WEBHOOK?.trim();
+  if (custom) return custom;
+  if (typeof window !== "undefined") {
+    return `${window.location.origin}/api/send-export-email`;
+  }
+  return "";
+}
+
 export function hasAutoExportWebhook(): boolean {
-  return Boolean(import.meta.env.VITE_AUTO_EXPORT_WEBHOOK?.trim());
+  return Boolean(autoExportWebhookUrl());
 }
 
 export async function deliverExportByEmail(
@@ -100,16 +151,20 @@ export async function deliverExportByEmail(
   filename: string,
 ): Promise<{ sent: boolean; message: string }> {
   const list = emails.map((e) => e.trim()).filter(Boolean);
-  const webhook = import.meta.env.VITE_AUTO_EXPORT_WEBHOOK?.trim();
+  const webhook = autoExportWebhookUrl();
+  const token = pb.authStore.token || "";
 
-  if (webhook && list.length) {
+  if (webhook && list.length && token) {
     try {
       const b64 = await blobToBase64(blob);
       const results = await Promise.all(
         list.map((to) =>
           fetch(webhook, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: token,
+            },
             body: JSON.stringify({ to, filename, contentBase64: b64 }),
           }),
         ),

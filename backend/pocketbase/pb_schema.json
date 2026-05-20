@@ -1797,5 +1797,96 @@
     "updateRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
     "deleteRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")",
     "options": {}
+  },
+  {
+    "id": "pbc_export_jobs01",
+    "name": "export_jobs",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "system": false,
+        "id": "expjob_id",
+        "name": "job_id",
+        "type": "text",
+        "required": true,
+        "presentable": true,
+        "unique": true,
+        "options": { "min": null, "max": 64, "pattern": "" }
+      },
+      {
+        "system": false,
+        "id": "expjob_name",
+        "name": "name",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": { "min": null, "max": 200, "pattern": "" }
+      },
+      {
+        "system": false,
+        "id": "expjob_en",
+        "name": "enabled",
+        "type": "bool",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "system": false,
+        "id": "expjob_owner",
+        "name": "owner_id",
+        "type": "relation",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "_pb_users_auth_",
+          "cascadeDelete": false,
+          "minSelect": 0,
+          "maxSelect": 1,
+          "displayFields": null
+        }
+      },
+      {
+        "system": false,
+        "id": "expjob_cfg",
+        "name": "config_json",
+        "type": "json",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": { "maxSize": 2000000 }
+      },
+      {
+        "system": false,
+        "id": "expjob_lrk",
+        "name": "last_run_key",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": { "min": null, "max": 32, "pattern": "" }
+      },
+      {
+        "system": false,
+        "id": "expjob_lra",
+        "name": "last_run_at",
+        "type": "date",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": { "min": "", "max": "" }
+      }
+    ],
+    "indexes": [],
+    "listRule": "@request.auth.id != \"\" && (owner_id = @request.auth.id || @request.auth.role = \"admin\")",
+    "viewRule": "@request.auth.id != \"\" && (owner_id = @request.auth.id || @request.auth.role = \"admin\")",
+    "createRule": "@request.auth.id != \"\"",
+    "updateRule": "@request.auth.id != \"\" && (owner_id = @request.auth.id || @request.auth.role = \"admin\")",
+    "deleteRule": "@request.auth.id != \"\" && (owner_id = @request.auth.id || @request.auth.role = \"admin\")",
+    "options": {}
   }
 ]

@@ -1,7 +1,7 @@
 import React from "react";
 import { useParams } from "react-router-dom";
 import dayjs from "dayjs";
-import { AlertTriangle, CheckCircle2, CircleHelp, Filter, Lightbulb, Pencil, RefreshCw, Sparkles } from "lucide-react";
+import { AlertTriangle, Building2, CheckCircle2, CircleHelp, Filter, Lightbulb, Pencil, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
@@ -31,7 +31,6 @@ import { InlineConfirmActions } from "../../components/InlineConfirmActions";
 import type { AiInsight, Deal, TimelineItem } from "../../../lib/types";
 import type { ContactFound, EntityFileLink, ProductProfile } from "../../data/hooks";
 import { analyzeDealWithAi, enrichCompanyByInnWithChecko } from "../../../lib/aiGateway";
-import { toast } from "../../../lib/toast";
 import {
   buildScoringExplainability,
   extractNextActions,
@@ -1751,6 +1750,7 @@ export function DealDetailPage() {
   const primaryResearchHintRef = React.useRef<HTMLDivElement | null>(null);
   const [productFiles, setProductFiles] = React.useState<Array<{ id: string; profileId: string; profileName: string; filename: string; url: string; tag?: string }>>([]);
   const formRef = React.useRef<DynamicEntityFormHandle | null>(null);
+  const checkoSectionRef = React.useRef<HTMLElement | null>(null);
 
   const auth = getAuthUser();
   const createTaskM = useCreateTask();
@@ -1983,6 +1983,11 @@ export function DealDetailPage() {
     } finally {
       setCheckoLoading(false);
     }
+  }
+
+  async function runCheckoFromContour() {
+    checkoSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    await runCheckoEnrichment();
   }
 
   const companyRaw = asObject(deal?.expand?.company_id?.checko_raw_json);
@@ -2552,28 +2557,6 @@ export function DealDetailPage() {
     }
   }
 
-  async function refreshScoringOnly() {
-    if (!deal?.id) return;
-    setAiRunError("");
-    setAiRunLoading(true);
-    try {
-      await analyzeDealWithAi({
-        dealId: deal.id,
-        userId: auth?.id,
-        taskCode: "deal_analysis",
-        context: { refresh_scoring_only: true, source: "deal_card" },
-      });
-      await Promise.all([aiQ.refetch(), dealQ.refetch()]);
-      toast.success("Скоринг обновлён");
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Не удалось обновить скоринг";
-      setAiRunError(msg);
-      toast.error(msg);
-    } finally {
-      setAiRunLoading(false);
-    }
-  }
-
   const latestAi = ((aiQ.data ?? [])[0] ?? null) as AiInsight | null;
   const aiHistory = (aiQ.data ?? []) as AiInsight[];
   const tlAll = (tlQ.data ?? []) as Array<TimelineWithAuthor>;
@@ -3005,9 +2988,13 @@ export function DealDetailPage() {
                     tlQ.refetch();
                   }}
                 />
-                <section className="board-shell neon-accent p-2.5 mb-3">
+                <section
+                  ref={checkoSectionRef}
+                  id="deal-checko-sources"
+                  className="board-shell neon-accent p-2.5 mb-3 scroll-mt-24"
+                >
                   <div className="mb-2 flex items-center gap-2 border-b border-border/70 pb-2">
-                    <span className="neon-pill">Информация из источников</span>
+                    <span className="neon-pill">Информация из источников (Checko)</span>
                   </div>
                   <div className="grid gap-2">
                     <div className="flex items-center justify-between gap-2">
@@ -3941,20 +3928,24 @@ export function DealDetailPage() {
                 </Button>
                 <Button
                   variant="secondary"
-                  onClick={() => void refreshScoringOnly()}
-                  disabled={aiRunLoading || !deal?.id}
+                  onClick={() => void runCheckoFromContour()}
+                  disabled={
+                    checkoLoading ||
+                    !deal?.expand?.company_id?.id ||
+                    !companyInnDraft.replace(/[^\d]/g, "")
+                  }
+                  title={
+                    !deal?.expand?.company_id?.id
+                      ? "Привяжите компанию к сделке"
+                      : !companyInnDraft.replace(/[^\d]/g, "")
+                        ? "Укажите ИНН компании в блоке компании"
+                        : "Загрузить реквизиты, контакты и риски из Checko по ИНН"
+                  }
                 >
                   <span className="inline-flex items-center gap-1.5">
-                    <RefreshCw size={14} className={aiRunLoading ? "animate-spin" : ""} />
-                    Пересчитать скоринг
+                    <Building2 size={14} />
+                    {checkoLoading ? "Checko..." : "Обогатить по Checko (ИНН)"}
                   </span>
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => void runAiAnalysis("full", "semantic_enrichment")}
-                  disabled={aiRunLoading || !deal?.id}
-                >
-                  Обогатить поля (AI)
                 </Button>
 
                 <div className="rounded-card border border-border bg-white p-3">

@@ -11,7 +11,17 @@
 
 Импортируйте обновлённый `backend/pocketbase/pb_schema.json` (коллекция **export_jobs**) или создайте вручную в админке PB.
 
-## Шаг 2 — почта crm@nwlvl.ru на Vercel
+## Шаг 2 — пароль приложения Яндекс (обязательно для SMTP)
+
+Обычный пароль от `dantrusov10@yandex.ru` **не подходит** для SMTP (ошибка 535).
+
+1. https://id.yandex.ru/security/app-passwords → пароль для «Почта»
+2. На сервере: `bash /opt/pb-control/set_smtp_app_password.sh`
+3. В Vercel → `SMTP_PASS` = тот же пароль → Redeploy
+
+Пока пароль не задан, выгрузки **сохраняются**, но письма не уходят.
+
+## Шаг 3 — почта на Vercel (резервный канал)
 
 ### Вариант A — Resend (рекомендуется)
 

@@ -34,6 +34,7 @@ import { analyzeDealWithAi, enrichCompanyByInnWithChecko } from "../../../lib/ai
 import {
   buildScoringExplainability,
   extractNextActions,
+  extractNextActionsFromInsight,
   extractRisksFromInsight,
 } from "./dealAiDisplay";
 import { DealNextActionsList, DealRisksPanel, DealScoringExplainPanel } from "./DealAiPanels";
@@ -2338,10 +2339,8 @@ export function DealDetailPage() {
   const score = resolveDisplayScore(latestAi);
   const sb = scoreBadge(score);
   const dynamicSections = React.useMemo(() => buildDynamicSections(latestAi), [latestAi]);
-  const nextActions = React.useMemo(
-    () => extractNextActions(latestAi?.suggestions || latestAi?.recommendations || ""),
-    [latestAi],
-  );
+  const nextActionGroups = React.useMemo(() => extractNextActionsFromInsight(latestAi), [latestAi]);
+  const nextActions = React.useMemo(() => nextActionGroups.flatMap((g) => g.items), [nextActionGroups]);
   const researchSections = React.useMemo(
     () => buildResearchTemplate(latestAi, aiHistory, tlAll, dynamicSections, nextActions, score),
     [latestAi, aiHistory, tlAll, dynamicSections, nextActions, score],
@@ -3559,7 +3558,7 @@ export function DealDetailPage() {
 
                 <div className="rounded-card border border-border bg-white p-3">
                   <div className="text-xs font-semibold uppercase tracking-wide text-text2 mb-2">Следующие действия</div>
-                  <DealNextActionsList actions={nextActions.slice(0, 3)} onCreateTask={(t) => void createTaskFromAction(t)} />
+                  <DealNextActionsList groups={nextActionGroups} onCreateTask={(t) => void createTaskFromAction(t)} />
                 </div>
                 <div className="rounded-card border border-border bg-white p-3">
                   <div className="text-sm font-semibold mb-2">Почему изменилась вероятность</div>

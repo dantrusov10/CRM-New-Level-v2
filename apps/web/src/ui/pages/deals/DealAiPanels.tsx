@@ -1,37 +1,60 @@
 import React from "react";
 import { Button } from "../../components/Button";
 import {
+  type NextActionGroup,
   type ParsedRisk,
   type ScoringExplainability,
   formatDelta,
 } from "./dealAiDisplay";
 
 export function DealNextActionsList({
+  groups,
   actions,
   onCreateTask,
 }: {
-  actions: string[];
+  groups?: NextActionGroup[];
+  actions?: string[];
   onCreateTask: (text: string) => void;
 }) {
-  if (!actions.length) {
+  const resolved: NextActionGroup[] =
+    groups && groups.length
+      ? groups
+      : actions?.length
+        ? [{ items: actions }]
+        : [];
+
+  if (!resolved.length || !resolved.some((g) => g.items.length)) {
     return <div className="text-sm text-text2">Запусти AI, чтобы получить список следующих шагов.</div>;
   }
+
   return (
-    <ul className="grid gap-3 text-sm">
-      {actions.map((item, idx) => (
-        <li key={`${item}-${idx}`} className="grid gap-2">
-          <p className="leading-relaxed text-text w-full">{item}</p>
-          <Button
-            small
-            variant="secondary"
-            className="w-full sm:w-auto self-start"
-            onClick={() => onCreateTask(item)}
-          >
-            Создать задачу
-          </Button>
-        </li>
+    <div className="grid gap-4">
+      {resolved.map((group, gi) => (
+        <div key={`${group.title ?? "group"}-${gi}`} className="grid gap-2">
+          {group.title ? (
+            <div className="text-xs font-semibold uppercase tracking-wide text-text2">{group.title}</div>
+          ) : null}
+          <ul className="grid gap-3 text-sm">
+            {group.items.map((item, idx) => (
+              <li
+                key={`${item.slice(0, 40)}-${idx}`}
+                className="rounded-md border border-border bg-rowHover/70 p-2.5 grid gap-2"
+              >
+                <p className="leading-relaxed text-text w-full">{item}</p>
+                <Button
+                  small
+                  variant="secondary"
+                  className="w-full sm:w-auto self-start"
+                  onClick={() => onCreateTask(item)}
+                >
+                  Создать задачу
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
       ))}
-    </ul>
+    </div>
   );
 }
 

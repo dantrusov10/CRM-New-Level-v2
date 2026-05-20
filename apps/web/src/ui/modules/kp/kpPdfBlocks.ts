@@ -3,6 +3,7 @@ import type { KpTemplateConfig } from "./types";
 export type KpPdfBlockType =
   | "header"
   | "client_cards"
+  | "technical"
   | "specification_table"
   | "totals"
   | "conditions"
@@ -18,6 +19,7 @@ export type KpPdfBlock = {
 export const KP_PDF_BLOCK_META: Record<KpPdfBlockType, { label: string; hint: string }> = {
   header: { label: "Шапка", hint: "Логотип, ваша компания, название клиента" },
   client_cards: { label: "Реквизиты клиента", hint: "Email и ИНН — блок под шапкой" },
+  technical: { label: "Техническое описание", hint: "Текст решения — обычно для ТКП, перед таблицей" },
   specification_table: { label: "Таблица товаров", hint: "Позиции из прайса — основа КП" },
   totals: { label: "Итоговая сумма", hint: "Подтаблица: без НДС, НДС, к оплате" },
   conditions: { label: "Условия сделки", hint: "Оплата, сроки, комментарий менеджера" },
@@ -27,6 +29,7 @@ export const KP_PDF_BLOCK_META: Record<KpPdfBlockType, { label: string; hint: st
 export const DEFAULT_KP_PDF_BLOCKS: KpPdfBlock[] = [
   { id: "blk_header", type: "header", enabled: true },
   { id: "blk_client", type: "client_cards", enabled: true },
+  { id: "blk_technical", type: "technical", enabled: false },
   { id: "blk_table", type: "specification_table", enabled: true },
   { id: "blk_totals", type: "totals", enabled: true },
   { id: "blk_conditions", type: "conditions", enabled: true },
@@ -67,6 +70,15 @@ export function deepCloneBlocks(blocks: KpPdfBlock[]): KpPdfBlock[] {
   return JSON.parse(JSON.stringify(blocks)) as KpPdfBlock[];
 }
 
+export function applyPdfBlockPresetForDoc(
+  preset: "standard" | "minimal" | "full",
+  documentType: "kp" | "tkp" = "kp",
+): KpPdfBlock[] {
+  const blocks = applyPdfBlockPreset(preset);
+  if (documentType !== "tkp") return blocks;
+  return blocks.map((b) => (b.type === "technical" ? { ...b, enabled: true } : b));
+}
+
 export function applyPdfBlockPreset(preset: "standard" | "minimal" | "full"): KpPdfBlock[] {
   if (preset === "minimal") {
     return [
@@ -77,7 +89,9 @@ export function applyPdfBlockPreset(preset: "standard" | "minimal" | "full"): Kp
     ];
   }
   if (preset === "full") {
-    return deepCloneBlocks(DEFAULT_KP_PDF_BLOCKS);
+    return deepCloneBlocks(
+      DEFAULT_KP_PDF_BLOCKS.map((b) => (b.type === "technical" ? { ...b, enabled: true } : b)),
+    );
   }
   return [
     { id: "blk_header", type: "header", enabled: true },

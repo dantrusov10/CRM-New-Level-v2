@@ -1,5 +1,7 @@
 import React from "react";
 import { computeSpecification } from "./calc";
+import { documentTitle, getDocumentType } from "./kpDocumentMeta";
+import { designCssVars, normalizePdfDesign } from "./kpDesign";
 import { ensurePdfBlocks, type KpPdfBlock } from "./kpPdfBlocks";
 import type { SpecItem, KpInput, KpTemplateConfig } from "./types";
 import "./kpDocument.css";
@@ -34,10 +36,10 @@ export function KpPreview({
   const isDocument = mode === "pdf" || mode === "document";
   const currency = template?.defaults?.currency || "RUB";
   const vatPercent = Number(template?.defaults?.vatPercent ?? 20);
-  const pdfDesign = template?.pdfDesign || {};
-  const accent = template?.branding?.primaryColor || "#004EEB";
-  const tableHeaderBg = pdfDesign.tableHeaderBg || "#EEF1F6";
-  const tableHeaderText = pdfDesign.tableHeaderText || "#374151";
+  const resolvedDesign = normalizePdfDesign(template);
+  const docType = getDocumentType(template);
+  const docTitle = documentTitle(docType);
+  const showVatNote = template?.specification?.showVatColumn !== false;
 
   const partner = Number(input?.discountPartnerPercent || 0);
   const manual = Number(input?.discountManualPercent || 0);
@@ -68,13 +70,14 @@ export function KpPreview({
     return String(v);
   };
 
-  const docStyle = isDocument
-    ? ({
-        ["--kp-accent" as string]: accent,
-        ["--kp-table-head-bg" as string]: tableHeaderBg,
-        ["--kp-table-head-text" as string]: tableHeaderText,
-      } as React.CSSProperties)
-    : undefined;
+  const rootClass = isDocument
+    ? [
+        "kp-document-root",
+        `kp-layout-${resolvedDesign.layoutStyle}`,
+        `kp-font-${resolvedDesign.fontScale}`,
+        `kp-table-${resolvedDesign.tableStyle}`,
+      ].join(" ")
+    : "";
 
   function renderBlock(blk: KpPdfBlock) {
     if (!isDocument) {
@@ -87,10 +90,13 @@ export function KpPreview({
           <header key={blk.id} className="kp-doc-header">
             <div className="flex justify-between gap-4">
               <div className="min-w-0 flex-1">
-                <div className="kp-doc-title">Коммерческое предложение</div>
+                <div className="kp-doc-title">{docTitle}</div>
                 <div className="kp-doc-company">{b.companyName || "—"}</div>
                 <div className="kp-doc-client">{fieldValue("clientName")}</div>
                 <div className="kp-doc-meta">№ сделки {dealId}</div>
+                {resolvedDesign.showValidityLine ? (
+                  <div className="kp-doc-meta">Срок действия: {resolvedDesign.validityDays} календарных дней</div>
+                ) : null}
               </div>
               {b.logoUrl ? (
                 <img src={b.logoUrl} alt="" className="h-12 max-w-[140px] object-contain shrink-0" />
@@ -99,6 +105,20 @@ export function KpPreview({
             {b.footerText ? <div className="kp-doc-meta mt-2">{b.footerText}</div> : null}
           </header>
         );
+
+      case "technical": {
+        const text =
+          String(input?.technicalIntro || "").trim() ||
+          String(b.technicalIntroDefault || "").trim() ||
+          "";
+        if (!text) return null;
+        return (
+          <section key={blk.id} className="kp-doc-technical">
+            <div className="kp-doc-section-title">{blk.title || "Техническое описание"}</div>
+            {text}
+          </section>
+        );
+      }
 
       case "client_cards":
         return (
@@ -145,7 +165,7 @@ export function KpPreview({
                 ) : null}
               </tbody>
             </table>
-            <div className="text-[9pt] text-[#6b7280] mb-2">НДС {vatPercent}%</div>
+            {showVatNote ? <div className="text-[9pt] text-[#6b7280] mb-2">НДС {vatPercent}%</div> : null}
           </section>
         );
 
@@ -216,7 +236,7 @@ export function KpPreview({
           <div key={blk.id} className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between border-b border-border pb-3">
             <div>
               <div className="text-xs text-text2">Коммерческое предложение</div>
-              <div className="text-lg font-semibold" style={{ color: accent }}>
+              <div className="text-lg font-semibold" style={{ color: resolvedDesign.accentColor }}>
                 {b.companyName || "—"}
               </div>
               <div className="text-sm mt-1">{fieldValue("clientName")}</div>
@@ -247,7 +267,7 @@ export function KpPreview({
 
   if (isDocument) {
     return (
-      <div className="kp-document-root p-8 sm:p-10" style={docStyle}>
+      <div className={`${rootClass} p-8 sm:p-10`} style={designCssVars(template)}>
         {inner}
       </div>
     );

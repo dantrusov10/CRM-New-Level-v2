@@ -11,9 +11,11 @@ import { KpPreview } from "./KpPreview";
 import { KpDocumentFrame } from "./KpDocumentFrame";
 import { computeSpecification } from "./calc";
 import { DEFAULT_KP_TEMPLATE_V1 } from "./defaultTemplate";
+import { documentFilePrefix, documentTypeLabel, getDocumentType } from "./kpDocumentMeta";
 import { KpStepNav } from "./KpStepNav";
 import { KpReadinessCard } from "./KpReadinessCard";
 import { DEAL_KP_STEPS, dealWizardSectionKind, fetchKpReadiness, type KpReadiness } from "./kpProcess";
+import { ensureKpAndTkpTemplates, pickDefaultTemplate } from "./kpTemplates";
 import type { Deal } from "../../../lib/types";
 import type { SpecItem, KpInput, KpTemplateConfig, KpTemplateRecord, KpInstanceRecord, PriceListItem, KpSection, KpField } from "./types";
 
@@ -34,22 +36,11 @@ function vatOf(template: KpTemplateConfig) {
   return Number.isFinite(v) ? v : 20;
 }
 
-async function ensureDefaultTemplate() {
-  const list = await pb
-    .collection("settings_kp_templates")
-    .getList(1, 1, { filter: "is_default=true && is_active=true" })
-    .catch(() => ({ items: [] as KpTemplateRecord[] }));
-
-  if (list.items[0]) return list.items[0];
-
+async function loadInstanceForTemplate(dealId: string, templateId: string) {
   return pb
-    .collection("settings_kp_templates")
-    .create({
-      name: DEFAULT_KP_TEMPLATE_V1.name,
-      is_active: true,
-      is_default: true,
-      template_json: DEFAULT_KP_TEMPLATE_V1,
-    })
+    .collection("kp_instances")
+    .getList(1, 1, { filter: `deal_id="${dealId}" && template_id="${templateId}"`, sort: "-created" })
+    .then((res) => (res.items[0] as unknown as KpInstanceRecord | undefined) || null)
     .catch(() => null);
 }
 
@@ -110,8 +101,10 @@ export function DealKpModule({
   const [loading, setLoading] = React.useState(true);
   const [step, setStep] = React.useState("client");
   const [readiness, setReadiness] = React.useState<KpReadiness | null>(null);
+  const [templates, setTemplates] = React.useState<KpTemplateRecord[]>([]);
   const [templateRec, setTemplateRec] = React.useState<KpTemplateRecord | null>(null);
   const [template, setTemplate] = React.useState<KpTemplateConfig>(DEFAULT_KP_TEMPLATE_V1);
+  const docType = getDocumentType(template);
   const [instance, setInstance] = React.useState<KpInstanceRecord | null>(null);
   const [input, setInput] = React.useState<KpInput>({});
   const [items, setItems] = React.useState<SpecItem[]>([]);
@@ -123,40 +116,55 @@ export function DealKpModule({
     setReadiness(await fetchKpReadiness());
   }
 
+  function applyTemplateRecord(rec: KpTemplateRecord | null, inst: KpInstanceRecord | null) {
+    setTemplateRec(rec);
+    const json = rec?.template_json && typeof rec.template_json === "object" ? rec.template_json : DEFAULT_KP_TEMPLATE_V1;
+    setTemplate(json);
+    if (inst) {
+      setInstance(inst);
+      setInput(inst.input_json || {});
+      setItems((inst.computed_json?.items || inst.input_json?.items || []) as SpecItem[]);
+    } else {
+      setInstance(null);
+      const introDefault =
+        json?.branding && typeof json.branding === "object"
+          ? String((json.branding as { technicalIntroDefault?: string }).technicalIntroDefault || "")
+          : "";
+      setInput({
+        clientName: company?.name || "",
+        clientInn: company?.inn || "",
+        clientEmail: company?.email || "",
+        endpoints: typeof deal?.endpoints === "number" ? deal.endpoints : "",
+        discountPartnerPercent: 0,
+        discountManualPercent: 0,
+        ...(getDocumentType(json) === "tkp" && introDefault ? { technicalIntro: introDefault } : {}),
+      });
+      setItems([]);
+    }
+  }
+
   React.useEffect(() => {
     if (!dealId) return;
     (async () => {
       setLoading(true);
-      const [t, r] = await Promise.all([ensureDefaultTemplate(), fetchKpReadiness()]);
+      const [list, r] = await Promise.all([ensureKpAndTkpTemplates(), fetchKpReadiness()]);
       setReadiness(r);
-      setTemplateRec(t);
-      const json = t?.template_json && typeof t.template_json === "object" ? t.template_json : DEFAULT_KP_TEMPLATE_V1;
-      setTemplate(json);
-
-      const inst = await pb
-        .collection("kp_instances")
-        .getList(1, 1, { filter: `deal_id="${dealId}" && template_id="${t?.id}"`, sort: "-created" })
-        .then((res) => res.items[0])
-        .catch(() => null);
-
-      if (inst) {
-        setInstance(inst as unknown as KpInstanceRecord);
-        setInput(inst.input_json || {});
-        setItems((inst.computed_json?.items || inst.input_json?.items || []) as SpecItem[]);
-      } else {
-        setInput({
-          clientName: company?.name || "",
-          clientInn: company?.inn || "",
-          clientEmail: company?.email || "",
-          endpoints: typeof deal?.endpoints === "number" ? deal.endpoints : "",
-          discountPartnerPercent: 0,
-          discountManualPercent: 0,
-        });
-        setItems([]);
-      }
+      setTemplates(list);
+      const def = pickDefaultTemplate(list, "kp");
+      const inst = def?.id ? await loadInstanceForTemplate(dealId, def.id) : null;
+      applyTemplateRecord(def, inst);
       setLoading(false);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dealId]);
+
+  async function switchTemplate(templateId: string) {
+    if (!dealId || templateId === templateRec?.id) return;
+    const rec = templates.find((t) => t.id === templateId) || null;
+    const inst = await loadInstanceForTemplate(dealId, templateId);
+    applyTemplateRecord(rec, inst);
+    setStep("client");
+  }
 
   React.useEffect(() => {
     (async () => {
@@ -269,6 +277,7 @@ export function DealKpModule({
 
   function resetFromScratch() {
     setInstance(null);
+    const introDefault = String(template?.branding?.technicalIntroDefault || "");
     setInput({
       clientName: company?.name || "",
       clientInn: company?.inn || "",
@@ -276,6 +285,7 @@ export function DealKpModule({
       endpoints: typeof deal?.endpoints === "number" ? deal.endpoints : "",
       discountPartnerPercent: 0,
       discountManualPercent: 0,
+      ...(docType === "tkp" && introDefault ? { technicalIntro: introDefault } : {}),
     });
     setItems([]);
     setStep("client");
@@ -303,9 +313,10 @@ export function DealKpModule({
       heightLeft -= pageHeight;
     }
     const clientName = String(input?.clientName || company?.name || "Клиент");
-    pdf.save(safeFileName(`КП_${clientName}_${dealId}.pdf`));
+    const prefix = documentFilePrefix(getDocumentType(template));
+    pdf.save(safeFileName(`${prefix}_${clientName}_${dealId}.pdf`));
     if (onTimeline)
-      await onTimeline("kp_pdf_generated", "Сформировано КП (PDF)", {
+      await onTimeline("kp_pdf_generated", `Сформировано ${documentTypeLabel(docType)} (PDF)`, {
         totals: computed.totals,
         kp_instance_id: instance?.id || null,
       });
@@ -329,14 +340,34 @@ export function DealKpModule({
         <CardHeader>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <div className="text-base font-extrabold">Собрать КП для сделки</div>
+              <div className="text-base font-extrabold">Документ для сделки</div>
               <div className="text-xs text-text2 mt-1">
-                4 шага: клиент → позиции → условия → PDF. Черновик сохраняется автоматически при скачивании.
+                Выберите КП или ТКП → 4 шага до PDF. У каждого типа свой черновик.
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
+              {templates.length > 1 ? (
+                <select
+                  className="h-9 rounded-card border border-border bg-white px-2 text-sm max-w-[220px]"
+                  value={templateRec?.id || ""}
+                  onChange={(e) => void switchTemplate(e.target.value)}
+                >
+                  {templates.map((t) => {
+                    const json = t.template_json;
+                    const type =
+                      json && typeof json === "object" ? getDocumentType(json as KpTemplateConfig) : "kp";
+                    return (
+                      <option key={t.id} value={t.id}>
+                        {documentTypeLabel(type)} — {t.name}
+                      </option>
+                    );
+                  })}
+                </select>
+              ) : (
+                <Badge>{documentTypeLabel(docType)}</Badge>
+              )}
               <Badge>НДС {vatPercent}%</Badge>
-              {instance ? <Badge>Черновик v{instance.version || 1}</Badge> : <Badge>Новое КП</Badge>}
+              {instance ? <Badge>Черновик v{instance.version || 1}</Badge> : <Badge>Новый документ</Badge>}
               <Button small variant="secondary" onClick={resetFromScratch} title="Очистить и начать заново">
                 <RotateCcw size={14} className="mr-1" />
                 С нуля
@@ -476,8 +507,12 @@ export function DealKpModule({
       {step === "conditions" ? (
         <Card>
           <CardHeader>
-            <div className="text-sm font-semibold">Шаг 3 — Условия и комментарий</div>
-            <div className="text-xs text-text2 mt-1">Попадут в PDF, если блок «Условия» включён в шаблоне.</div>
+            <div className="text-sm font-semibold">Шаг 3 — Условия{docType === "tkp" ? " и техописание" : ""}</div>
+            <div className="text-xs text-text2 mt-1">
+              {docType === "tkp"
+                ? "Технический блок и условия оплаты попадут в PDF."
+                : "Попадут в PDF, если соответствующие разделы включены в шаблоне."}
+            </div>
           </CardHeader>
           <CardContent className="grid gap-4 max-w-xl">
             {conditionSections.length ? (

@@ -1,60 +1,73 @@
 import React from "react";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import { pb } from "../../../lib/pb";
-import { DEFAULT_KP_TEMPLATE_V1 } from "./defaultTemplate";
+import { DEFAULT_KP_TEMPLATE_V1, DEFAULT_TKP_TEMPLATE_V1 } from "./defaultTemplate";
 import { KpAdminWizard } from "./KpAdminWizard";
-import type { KpTemplateConfig, KpTemplateRecord } from "./types";
+import { KpTemplateSwitcher } from "./KpTemplateSwitcher";
+import { ensureKpAndTkpTemplates } from "./kpTemplates";
+import type { KpDocumentType, KpTemplateConfig, KpTemplateRecord } from "./types";
 
 /** Админка КП: конструктор шаблона + прайс (`/admin/kp`). */
 export function KpAdminPanel() {
-  const [tpl, setTpl] = React.useState<KpTemplateRecord | null>(null);
-
-  async function ensureDefault() {
-    const list = await pb
-      .collection("settings_kp_templates")
-      .getList(1, 1, { filter: "is_default=true && is_active=true" })
-      .catch(() => ({ items: [] as KpTemplateRecord[] }));
-    if (list.items[0]) return list.items[0];
-    return pb
-      .collection("settings_kp_templates")
-      .create({
-        name: DEFAULT_KP_TEMPLATE_V1.name,
-        is_active: true,
-        is_default: true,
-        template_json: DEFAULT_KP_TEMPLATE_V1,
-      })
-      .catch(() => null);
-  }
+  const [templates, setTemplates] = React.useState<KpTemplateRecord[]>([]);
+  const [activeId, setActiveId] = React.useState<string | null>(null);
 
   async function load() {
-    const t = await ensureDefault();
-    setTpl(t);
+    const list = await ensureKpAndTkpTemplates();
+    setTemplates(list);
+    setActiveId((prev) => {
+      if (prev && list.some((t) => t.id === prev)) return prev;
+      return list[0]?.id || null;
+    });
   }
 
   React.useEffect(() => {
     void load();
   }, []);
 
+  const active = templates.find((t) => t.id === activeId) || null;
+
   async function save(patch: { template_json: KpTemplateConfig; name: string }) {
-    if (!tpl?.id) return;
-    await pb.collection("settings_kp_templates").update(tpl.id, patch);
+    if (!active?.id) return;
+    await pb.collection("settings_kp_templates").update(active.id, patch);
+    await load();
   }
 
-  if (!tpl) {
+  async function createTemplate(type: KpDocumentType) {
+    const base = type === "tkp" ? DEFAULT_TKP_TEMPLATE_V1 : DEFAULT_KP_TEMPLATE_V1;
+    const created = await pb.collection("settings_kp_templates").create({
+      name: base.name,
+      is_active: true,
+      is_default: type === "kp",
+      template_json: base,
+    });
+    await load();
+    if (created?.id) setActiveId(created.id);
+  }
+
+  if (!templates.length) {
     return (
       <Card>
         <CardHeader>
-          <div className="text-sm font-semibold">КП</div>
-          <div className="text-xs text-text2 mt-1">Загрузка шаблона…</div>
+          <div className="text-sm font-semibold">КП / ТКП</div>
+          <div className="text-xs text-text2 mt-1">Загрузка шаблонов…</div>
         </CardHeader>
         <CardContent>
-          <div className="text-sm text-text2">
-            Проверьте коллекцию <code>settings_kp_templates</code> в PocketBase.
-          </div>
+          <div className="text-sm text-text2">Проверьте коллекцию settings_kp_templates в PocketBase.</div>
         </CardContent>
       </Card>
     );
   }
 
-  return <KpAdminWizard templateRecord={tpl} onSave={save} onReload={load} />;
+  return (
+    <div className="grid gap-4">
+      <KpTemplateSwitcher
+        templates={templates}
+        activeId={activeId}
+        onSelect={setActiveId}
+        onCreate={(type) => void createTemplate(type)}
+      />
+      {active ? <KpAdminWizard templateRecord={active} onSave={save} onReload={load} /> : null}
+    </div>
+  );
 }

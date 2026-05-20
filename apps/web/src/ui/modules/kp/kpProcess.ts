@@ -96,6 +96,7 @@ export async function fetchKpReadiness(): Promise<KpReadiness> {
 /** Секции формы менеджера по шагам мастера в сделке */
 export function dealWizardSectionKind(sectionId: string): "client" | "conditions" | "other" {
   if (sectionId === "client" || sectionId === "dealParams") return "client";
-  if (sectionId === "discounts" || sectionId === "payment" || sectionId === "notes") return "conditions";
+  if (sectionId === "discounts" || sectionId === "payment" || sectionId === "notes" || sectionId === "technical")
+    return "conditions";
   return "other";
 }

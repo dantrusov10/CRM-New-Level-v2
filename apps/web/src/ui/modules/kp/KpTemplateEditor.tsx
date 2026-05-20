@@ -6,7 +6,11 @@ import { Input } from "../../components/Input";
 import { KpPreview } from "./KpPreview";
 import { KpDocumentFrame } from "./KpDocumentFrame";
 import { KpDocumentSectionsEditor } from "./KpDocumentSectionsEditor";
-import { DEFAULT_KP_TEMPLATE_V1 } from "./defaultTemplate";
+import { KpDesignSettings } from "./KpDesignSettings";
+import { DEFAULT_KP_TEMPLATE_V1, DEFAULT_TKP_TEMPLATE_V1 } from "./defaultTemplate";
+import { documentTypeLabel } from "./kpDocumentMeta";
+import { applyPdfBlockPresetForDoc } from "./kpPdfBlocks";
+import type { KpDocumentType } from "./types";
 import { ensurePdfBlocks } from "./kpPdfBlocks";
 import { pb } from "../../../lib/pb";
 import type { KpInput, KpTemplateConfig, KpTemplateRecord, SpecItem } from "./types";
@@ -22,13 +26,19 @@ const BRAND_PRESETS: { id: string; label: string; color: string }[] = [
   { id: "violet", label: "Фиолетовый", color: "#6D28D9" },
 ];
 
-const DEMO_INPUT: KpInput = {
+const DEMO_INPUT_KP: KpInput = {
   clientName: "ООО «Ромашка»",
   clientInn: "7701234567",
   clientEmail: "it@romashka.ru",
   paymentTerms: "split50_50",
   deliveryDate: "в течение 10 рабочих дней",
-  comment: "Демо-данные для предпросмотра. Так увидит клиент.",
+  comment: "Демо-данные для предпросмотра.",
+};
+
+const DEMO_INPUT_TKP: KpInput = {
+  ...DEMO_INPUT_KP,
+  technicalIntro:
+    "Поставка лицензий и техподдержки. Внедрение: аудит → пилот → промышленная эксплуатация. SLA 8×5, время реакции до 4 ч.",
 };
 
 const DEMO_ITEMS: SpecItem[] = [
@@ -137,6 +147,21 @@ export function KpTemplateEditor({
   }
 
   const accent = draft?.branding?.primaryColor || "#004EEB";
+  const docType: KpDocumentType = draft?.documentType === "tkp" ? "tkp" : "kp";
+  const demoInput = docType === "tkp" ? DEMO_INPUT_TKP : DEMO_INPUT_KP;
+
+  function setDocumentType(type: KpDocumentType) {
+    setDraft((p) => {
+      const n = deepClone(p);
+      n.documentType = type;
+      if (type === "tkp" && !n.branding?.technicalIntroDefault) {
+        n.branding = n.branding || {};
+        n.branding.technicalIntroDefault = DEFAULT_TKP_TEMPLATE_V1.branding?.technicalIntroDefault || "";
+      }
+      n.pdfBlocks = applyPdfBlockPresetForDoc("standard", type);
+      return n;
+    });
+  }
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 min-h-[640px]">
@@ -158,6 +183,27 @@ export function KpTemplateEditor({
             <div>
               <div className="text-xs text-text2 mb-1">Название шаблона (для админки)</div>
               <Input value={draft?.name || ""} onChange={(e) => setDraft((p) => ({ ...p, name: e.target.value }))} />
+            </div>
+
+            <div>
+              <div className="text-xs text-text2 mb-2">Тип документа</div>
+              <div className="flex flex-wrap gap-2">
+                {(["kp", "tkp"] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setDocumentType(t)}
+                    className={`rounded-card border px-4 py-2 text-sm font-semibold ${
+                      docType === t ? "border-primary bg-primary/15" : "border-border bg-white"
+                    }`}
+                  >
+                    {documentTypeLabel(t)}
+                    <span className="block text-[10px] font-normal text-text2 mt-0.5">
+                      {t === "kp" ? "Коммерческое предложение" : "Технико-коммерческое"}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="rounded-card border border-border bg-rowHover p-4 grid gap-3">
@@ -280,11 +326,27 @@ export function KpTemplateEditor({
                   }
                 />
               </div>
+
+              {docType === "tkp" ? (
+                <div>
+                  <div className="text-xs text-text2 mb-1">Текст технического блока по умолчанию</div>
+                  <textarea
+                    className="w-full min-h-[88px] rounded-card border border-[#9CA3AF] bg-white p-3 text-sm"
+                    value={draft?.branding?.technicalIntroDefault || ""}
+                    onChange={(e) => updateBrand("technicalIntroDefault", e.target.value)}
+                    placeholder="Описание решения, этапы, SLA…"
+                  />
+                  <p className="text-[10px] text-text2 mt-1">Менеджер может переопределить в сделке на шаге «Условия».</p>
+                </div>
+              ) : null}
             </div>
+
+            <KpDesignSettings draft={draft} onChange={setDraft} />
 
             <KpDocumentSectionsEditor
               blocks={ensurePdfBlocks(draft)}
               onChange={(pdfBlocks) => setDraft((p) => ({ ...p, pdfBlocks }))}
+              documentType={docType}
             />
           </CardContent>
         </Card>
@@ -297,7 +359,7 @@ export function KpTemplateEditor({
         >
           <KpPreview
             template={draft}
-            input={DEMO_INPUT}
+            input={demoInput}
             items={DEMO_ITEMS}
             dealId={dealIdForPreview}
             mode="document"

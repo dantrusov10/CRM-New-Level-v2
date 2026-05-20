@@ -56,15 +56,34 @@ export type KpBranding = JsonObject & {
   primaryColor?: string;
   footerText?: string;
   disclaimer?: string;
+  technicalIntroDefault?: string;
   signature?: { name?: string; title?: string; phone?: string; email?: string };
 };
+export type KpDocumentType = "kp" | "tkp";
+
 export type KpPdfBlockType =
   | "header"
   | "client_cards"
+  | "technical"
   | "specification_table"
   | "totals"
   | "conditions"
   | "signature";
+
+export type KpPdfDesign = {
+  layoutStyle?: "classic" | "modern" | "compact";
+  fontScale?: "sm" | "md" | "lg";
+  tableStyle?: "bordered" | "plain" | "striped";
+  paperTone?: "white" | "warm";
+  paperBg?: string;
+  textColor?: string;
+  tableHeaderBg?: string;
+  tableHeaderText?: string;
+  tableHeaderUseAccent?: boolean;
+  accentColor?: string;
+  showValidityLine?: boolean;
+  validityDays?: number;
+};
 
 export type KpPdfBlock = {
   id: string;
@@ -76,6 +95,7 @@ export type KpPdfBlock = {
 export type KpTemplateConfig = JsonObject & {
   version?: number;
   name?: string;
+  documentType?: KpDocumentType;
   isActive?: boolean;
   isDefault?: boolean;
   branding?: KpBranding;
@@ -89,7 +109,7 @@ export type KpTemplateConfig = JsonObject & {
     totals?: Array<{ key: string; label?: string }>;
   };
   calcRules?: { applyPartnerDiscountFirst?: boolean; discounts?: JsonObject };
-  pdfDesign?: { paperBg?: string; textColor?: string; tableHeaderBg?: string; tableHeaderText?: string };
+  pdfDesign?: KpPdfDesign;
   pdf?: JsonObject;
 };
 export type KpInput = Record<string, JsonValue>;
@@ -106,6 +126,8 @@ export type KpTemplateRecord = {
   id: string;
   name?: string;
   logo?: string;
+  is_active?: boolean;
+  is_default?: boolean;
   template_json?: KpTemplateConfig;
 };
 export type KpInstanceRecord = {

@@ -2,6 +2,7 @@ import type { KpTemplateConfig } from "./types";
 
 export const DEFAULT_KP_TEMPLATE_V1: KpTemplateConfig = {
   version: 1,
+  documentType: "kp",
   name: "КП — Стандарт",
   isActive: true,
   isDefault: true,
@@ -118,9 +119,18 @@ export const DEFAULT_KP_TEMPLATE_V1: KpTemplateConfig = {
       { id: "managerName", label: "Менеджер", type: "text", required: false, mapping: { source: "user.name" } }
     ]
   },
+  pdfDesign: {
+    layoutStyle: "classic",
+    fontScale: "md",
+    tableStyle: "bordered",
+    paperTone: "white",
+    showValidityLine: true,
+    validityDays: 10,
+  },
   pdfBlocks: [
     { id: "blk_header", type: "header", enabled: true },
     { id: "blk_client", type: "client_cards", enabled: true },
+    { id: "blk_technical", type: "technical", enabled: false },
     { id: "blk_table", type: "specification_table", enabled: true },
     { id: "blk_totals", type: "totals", enabled: true },
     { id: "blk_conditions", type: "conditions", enabled: true },
@@ -151,4 +161,54 @@ export const DEFAULT_KP_TEMPLATE_V1: KpTemplateConfig = {
     fileNamePattern: "КП_{clientName}_{dealId}",
     renderMode: "html2canvas_jspdf"
   }
+};
+
+const TKP_INTRO =
+  "Настоящее технико-коммерческое предложение описывает состав решения, этапы внедрения и условия поставки. Детализация по запросу заказчика.";
+
+export const DEFAULT_TKP_TEMPLATE_V1: KpTemplateConfig = {
+  ...JSON.parse(JSON.stringify(DEFAULT_KP_TEMPLATE_V1)),
+  documentType: "tkp",
+  name: "ТКП — Стандарт",
+  isDefault: false,
+  branding: {
+    ...DEFAULT_KP_TEMPLATE_V1.branding,
+    disclaimer:
+      "Технико-коммерческое предложение носит информационный характер и не является публичной офертой. Срок действия: 14 календарных дней.",
+    technicalIntroDefault: TKP_INTRO,
+  },
+  pdfBlocks: [
+    { id: "blk_header", type: "header", enabled: true },
+    { id: "blk_client", type: "client_cards", enabled: true },
+    { id: "blk_technical", type: "technical", enabled: true, title: "Техническое описание" },
+    { id: "blk_table", type: "specification_table", enabled: true },
+    { id: "blk_totals", type: "totals", enabled: true },
+    { id: "blk_conditions", type: "conditions", enabled: true },
+    { id: "blk_signature", type: "signature", enabled: true },
+  ],
+  ui: {
+    ...DEFAULT_KP_TEMPLATE_V1.ui,
+    sections: [
+      ...(DEFAULT_KP_TEMPLATE_V1.ui?.sections || []).filter((s) => s.id !== "notes"),
+      {
+        id: "technical",
+        title: "Техническое описание",
+        fields: [
+          {
+            id: "technicalIntro",
+            label: "Описание решения для ТКП",
+            type: "textarea",
+            required: false,
+            placeholder: "Архитектура, этапы, состав поставки…",
+          },
+        ],
+      },
+      ...(DEFAULT_KP_TEMPLATE_V1.ui?.sections || []).filter((s) => s.id === "notes"),
+    ],
+  },
+  pdf: {
+    page: "A4",
+    fileNamePattern: "ТКП_{clientName}_{dealId}",
+    renderMode: "html2canvas_jspdf"
+  },
 };

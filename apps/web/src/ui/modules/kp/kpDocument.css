@@ -3,8 +3,47 @@
   font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-size: 11pt;
   line-height: 1.45;
-  color: #111827;
-  background: #ffffff;
+  color: var(--kp-text, #111827);
+  background: var(--kp-paper-bg, #ffffff);
+  min-height: 100%;
+}
+
+.kp-font-sm { font-size: 10pt; }
+.kp-font-lg { font-size: 12pt; }
+
+.kp-layout-compact.kp-document-root { padding: 1.25rem 1.5rem !important; }
+.kp-layout-compact .kp-doc-header { margin-bottom: 10px; padding-bottom: 8px; }
+
+.kp-layout-modern .kp-doc-header {
+  border-bottom: none;
+  background: var(--kp-accent, #004eeb);
+  color: #fff;
+  margin: -2rem -2rem 1rem -2rem;
+  padding: 1.25rem 2rem;
+  border-radius: 0;
+}
+.kp-layout-modern .kp-doc-title,
+.kp-layout-modern .kp-doc-meta,
+.kp-layout-modern .kp-doc-company,
+.kp-layout-modern .kp-doc-client { color: #fff; }
+.kp-layout-modern .kp-doc-company { color: #fff; }
+
+.kp-table-plain .kp-doc-table th,
+.kp-table-plain .kp-doc-table td { border-left: none; border-right: none; }
+.kp-table-plain .kp-doc-table th { border-top: none; }
+
+.kp-table-striped .kp-doc-table tbody tr:nth-child(even) td { background: #f3f4f6; }
+.kp-table-bordered .kp-doc-table th,
+.kp-table-bordered .kp-doc-table td { border: 1px solid #e5e7eb; }
+
+.kp-doc-technical {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  font-size: 9.5pt;
+  white-space: pre-wrap;
 }
 
 .kp-doc-header {

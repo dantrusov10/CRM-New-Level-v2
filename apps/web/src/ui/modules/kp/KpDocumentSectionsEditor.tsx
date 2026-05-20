@@ -1,8 +1,9 @@
 import React from "react";
 import { ArrowDown, ArrowUp, Check, Circle } from "lucide-react";
 import { Button } from "../../components/Button";
+import type { KpDocumentType } from "./types";
 import type { KpPdfBlock } from "./kpPdfBlocks";
-import { KP_PDF_BLOCK_META, applyPdfBlockPreset } from "./kpPdfBlocks";
+import { KP_PDF_BLOCK_META, applyPdfBlockPresetForDoc } from "./kpPdfBlocks";
 
 const PRESETS: { id: "standard" | "minimal" | "full"; label: string; desc: string }[] = [
   { id: "standard", label: "Стандарт", desc: "Шапка, клиент, таблица, итоги, подпись" },
@@ -13,9 +14,11 @@ const PRESETS: { id: "standard" | "minimal" | "full"; label: string; desc: strin
 export function KpDocumentSectionsEditor({
   blocks,
   onChange,
+  documentType = "kp",
 }: {
   blocks: KpPdfBlock[];
   onChange: (next: KpPdfBlock[]) => void;
+  documentType?: KpDocumentType;
 }) {
   function toggleBlock(id: string, enabled: boolean) {
     onChange(blocks.map((b) => (b.id === id ? { ...b, enabled } : b)));
@@ -33,7 +36,7 @@ export function KpDocumentSectionsEditor({
   }
 
   function applyPreset(preset: "standard" | "minimal" | "full") {
-    onChange(applyPdfBlockPreset(preset));
+    onChange(applyPdfBlockPresetForDoc(preset, documentType));
   }
 
   const enabledBlocks = blocks.filter((b) => b.enabled);
@@ -64,6 +67,7 @@ export function KpDocumentSectionsEditor({
         {blocks.map((b, index) => {
           const meta = KP_PDF_BLOCK_META[b.type];
           const isRequired = b.type === "specification_table";
+          const tkpHint = b.type === "technical" && documentType === "tkp";
           return (
             <div
               key={b.id}
@@ -96,9 +100,8 @@ export function KpDocumentSectionsEditor({
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold">{meta.label}</div>
                 <div className="text-[11px] text-text2 mt-0.5">{meta.hint}</div>
-                {isRequired ? (
-                  <div className="text-[10px] text-primary mt-1">Обязательный раздел</div>
-                ) : null}
+                {isRequired ? <div className="text-[10px] text-primary mt-1">Обязательный раздел</div> : null}
+                {tkpHint ? <div className="text-[10px] text-primary mt-1">Рекомендуется для ТКП</div> : null}
               </div>
 
               <label className="flex flex-col items-center gap-1 shrink-0 cursor-pointer">

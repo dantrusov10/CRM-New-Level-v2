@@ -1,8 +1,11 @@
 import React, { Suspense } from "react";
 import { AdminPageShell } from "../../layout/AdminPageShell";
+import { lazyImportWithReload } from "../../../lib/chunkReload";
 
 const KpAdminPanel = React.lazy(() =>
-  import("../../modules/kp/KpAdminPanel").then((m) => ({ default: m.KpAdminPanel })),
+  lazyImportWithReload(() => import("../../modules/kp/KpAdminPanel"))().then((m) => ({
+    default: m.KpAdminPanel,
+  })),
 );
 
 export function AdminKpPage() {

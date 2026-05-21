@@ -13,6 +13,10 @@ import { router } from "./router";
 import { AuthProvider } from "./app/AuthProvider";
 import { queryClient } from "./app/queryClient";
 import { Toaster } from "./ui/components/Toaster";
+import { clearChunkReloadFlag, setupChunkReloadListeners } from "./lib/chunkReload";
+
+setupChunkReloadListeners();
+clearChunkReloadFlag();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

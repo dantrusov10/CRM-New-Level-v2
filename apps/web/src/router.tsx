@@ -5,6 +5,8 @@ import { LoginPage } from "./ui/pages/LoginPage";
 import { RegisterTenantPage } from "./ui/pages/RegisterTenantPage";
 import { Protected } from "./ui/layout/Protected";
 import { AdminOnly } from "./ui/layout/AdminOnly";
+import { RouteErrorFallback } from "./ui/components/RouteErrorFallback";
+import { lazyImportWithReload } from "./lib/chunkReload";
 
 function PageLoader() {
   return (
@@ -21,7 +23,11 @@ function lazyNamed<T extends Record<string, React.ComponentType<object>>>(
   factory: () => Promise<T>,
   name: keyof T
 ) {
-  const Comp = React.lazy(() => factory().then((m) => ({ default: m[name] as React.ComponentType<object> })));
+  const Comp = React.lazy(() =>
+    lazyImportWithReload(factory)().then((m) => ({
+      default: m[name] as React.ComponentType<object>,
+    })),
+  );
   return (
     <Suspense fallback={<PageLoader />}>
       <Comp />
@@ -30,8 +36,8 @@ function lazyNamed<T extends Record<string, React.ComponentType<object>>>(
 }
 
 export const router = createBrowserRouter([
-  { path: "/login", element: <LoginPage /> },
-  { path: "/register", element: <RegisterTenantPage /> },
+  { path: "/login", element: <LoginPage />, errorElement: <RouteErrorFallback /> },
+  { path: "/register", element: <RegisterTenantPage />, errorElement: <RouteErrorFallback /> },
   {
     path: "/",
     element: (
@@ -39,6 +45,7 @@ export const router = createBrowserRouter([
         <AppLayout />
       </Protected>
     ),
+    errorElement: <RouteErrorFallback />,
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: "dashboard", element: lazyNamed(() => import("./ui/pages/DashboardPage"), "DashboardPage") },

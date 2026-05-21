@@ -11,6 +11,7 @@ import { useAuth } from "../../app/AuthProvider";
 import { StatCard } from "../components/dashboard/StatCard";
 import { DashboardTodayPanel } from "../components/dashboard/DashboardTodayPanel";
 import { DashboardAiQuickActions } from "../components/dashboard/DashboardAiQuickActions";
+import { lazyImportWithReload } from "../../lib/chunkReload";
 
 const ChartFallback = () => <div className="h-32 flex items-center justify-center text-xs text-text2">Загрузка графика…</div>;
 
@@ -19,16 +20,24 @@ function ChartSuspense({ children }: { children: React.ReactNode }) {
 }
 
 const DynamicsBarChart = React.lazy(() =>
-  import("../components/dashboard/DashboardCharts").then((m) => ({ default: m.DynamicsBarChart }))
+  lazyImportWithReload(() => import("../components/dashboard/DashboardCharts"))().then((m) => ({
+    default: m.DynamicsBarChart,
+  })),
 );
 const WinRateDonutChart = React.lazy(() =>
-  import("../components/dashboard/DashboardCharts").then((m) => ({ default: m.WinRateDonutChart }))
+  lazyImportWithReload(() => import("../components/dashboard/DashboardCharts"))().then((m) => ({
+    default: m.WinRateDonutChart,
+  })),
 );
 const BudgetByStageChart = React.lazy(() =>
-  import("../components/dashboard/DashboardCharts").then((m) => ({ default: m.BudgetByStageChart }))
+  lazyImportWithReload(() => import("../components/dashboard/DashboardCharts"))().then((m) => ({
+    default: m.BudgetByStageChart,
+  })),
 );
 const AiInsightCard = React.lazy(() =>
-  import("../components/AiInsightCard").then((m) => ({ default: m.AiInsightCard }))
+  lazyImportWithReload(() => import("../components/AiInsightCard"))().then((m) => ({
+    default: m.AiInsightCard,
+  })),
 );
 
 function money(n: number) {

@@ -3,6 +3,7 @@
   font-family: var(--kp-font-stack, "Inter", system-ui, sans-serif);
   font-size: calc(var(--kp-body-pt, 11) * 1pt);
   line-height: var(--kp-line-height, 1.45);
+  letter-spacing: var(--kp-letter-spacing, 0);
   color: var(--kp-text, #111827);
   background: var(--kp-paper-bg, #ffffff);
   min-height: 100%;

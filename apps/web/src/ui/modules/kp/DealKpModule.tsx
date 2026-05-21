@@ -10,7 +10,7 @@ import { KpPagedDocumentPreview } from "./KpPagedDocumentPreview";
 import { KP_A4_WIDTH_PX } from "./KpDocumentFrame";
 import { ensurePdfBlocks } from "./kpPdfBlocks";
 import { downloadPdfFromPageElements } from "./kpPdfExport";
-import { splitBlocksIntoPages } from "./kpPageLayout";
+import { getDocumentPages } from "./kpCanvasPages";
 import { computeSpecification } from "./calc";
 import { DEFAULT_KP_TEMPLATE_V1 } from "./defaultTemplate";
 import { documentFilePrefix, documentTypeLabel, getDocumentType } from "./kpDocumentMeta";
@@ -115,7 +115,7 @@ export function DealKpModule({
   const pagePrintRefs = React.useRef<(HTMLDivElement | null)[]>([]);
 
   const pdfPageBlocks = React.useMemo(
-    () => splitBlocksIntoPages(ensurePdfBlocks(template).filter((b) => b.enabled)),
+    () => getDocumentPages(template),
     [template],
   );
 

@@ -60,6 +60,31 @@ export type KpBranding = JsonObject & {
   signature?: { name?: string; title?: string; phone?: string; email?: string };
 };
 export type KpDocumentType = "kp" | "tkp";
+export type KpDocumentLayoutMode = "flow" | "canvas";
+
+/** Позиция блока на листе A4 (режим «холст / Figma»), px от верхнего левого угла листа */
+export type KpBlockRect = {
+  pageIndex?: number;
+  x: number;
+  y: number;
+  w: number;
+  h?: number;
+  zIndex?: number;
+};
+
+/** Локальные стили блока (перекрывают общий дизайн документа) */
+export type KpBlockStyle = {
+  fontFamily?: KpPdfDesign["fontFamily"];
+  fontSizePt?: number;
+  textColor?: string;
+  bgColor?: string;
+  paddingPx?: number;
+  borderRadiusPx?: number;
+  textAlign?: "left" | "center" | "right";
+  borderColor?: string;
+  borderWidthPx?: number;
+  opacity?: number;
+};
 
 export type KpPdfBlockType =
   | "header"
@@ -71,24 +96,42 @@ export type KpPdfBlockType =
   | "conditions"
   | "signature";
 
+export type KpFontFamilyId =
+  | "inter"
+  | "roboto"
+  | "open-sans"
+  | "merriweather"
+  | "lato"
+  | "montserrat"
+  | "nunito-sans"
+  | "source-sans-3"
+  | "pt-sans"
+  | "ibm-plex-sans"
+  | "rubik"
+  | "manrope"
+  | "oswald"
+  | "playfair-display"
+  | "fira-sans"
+  | "noto-sans"
+  | "jetbrains-mono"
+  | "system";
+
 export type KpPdfDesign = {
+  /** flow — список разделов; canvas — свободное размещение на листе */
+  layoutMode?: KpDocumentLayoutMode;
   layoutStyle?: "classic" | "modern" | "compact";
   fontScale?: "sm" | "md" | "lg";
-  fontFamily?:
-    | "inter"
-    | "roboto"
-    | "open-sans"
-    | "merriweather"
-    | "lato"
-    | "montserrat"
-    | "nunito-sans"
-    | "source-sans-3"
-    | "system";
+  fontFamily?: KpFontFamilyId;
   bodyFontSizePt?: number;
   headingFontSizePt?: number;
   lineHeight?: number;
+  letterSpacingPx?: number;
   pageMarginMm?: number;
   secondaryColor?: string;
+  /** Сетка на холсте (px) */
+  canvasGridPx?: number;
+  canvasSnap?: boolean;
+  canvasShowGrid?: boolean;
   tableStyle?: "bordered" | "plain" | "striped";
   paperTone?: "white" | "warm";
   paperBg?: string;
@@ -108,8 +151,12 @@ export type KpPdfBlock = {
   title?: string;
   /** Текст произвольного раздела (HTML: p, strong, ul, li, br) */
   bodyHtml?: string;
-  /** Начать с нового листа A4 */
+  /** Начать с нового листа A4 (режим flow) */
   pageBreakBefore?: boolean;
+  /** Позиция на холсте (режим canvas) */
+  rect?: KpBlockRect;
+  /** Стили конкретного блока */
+  style?: KpBlockStyle;
 };
 
 export type KpTemplateConfig = JsonObject & {

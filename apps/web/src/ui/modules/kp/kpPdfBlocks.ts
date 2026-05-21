@@ -1,4 +1,4 @@
-import type { KpPdfBlock, KpPdfBlockType, KpTemplateConfig } from "./types";
+import type { KpBlockRect, KpBlockStyle, KpPdfBlock, KpPdfBlockType, KpTemplateConfig } from "./types";
 
 export type { KpPdfBlock, KpPdfBlockType };
 
@@ -40,6 +40,24 @@ function blockIdForType(type: KpPdfBlockType, index: number) {
 function normalizeBlock(item: KpPdfBlock, index: number): KpPdfBlock | null {
   const type = String(item.type || "") as KpPdfBlockType;
   if (!KP_PDF_BLOCK_META[type]) return null;
+  const rectRaw = item.rect;
+  let rect: KpBlockRect | undefined;
+  if (rectRaw && typeof rectRaw === "object") {
+    rect = {
+      pageIndex: Number(rectRaw.pageIndex) || 0,
+      x: Number(rectRaw.x) || 0,
+      y: Number(rectRaw.y) || 0,
+      w: Number(rectRaw.w) || 0,
+      h: rectRaw.h != null ? Number(rectRaw.h) : undefined,
+      zIndex: rectRaw.zIndex != null ? Number(rectRaw.zIndex) : undefined,
+    };
+  }
+  const styleRaw = item.style;
+  let style: KpBlockStyle | undefined;
+  if (styleRaw && typeof styleRaw === "object") {
+    style = { ...(styleRaw as KpBlockStyle) };
+  }
+
   return {
     id: String(item.id || blockIdForType(type, index)),
     type,
@@ -47,6 +65,8 @@ function normalizeBlock(item: KpPdfBlock, index: number): KpPdfBlock | null {
     title: item.title ? String(item.title) : undefined,
     bodyHtml: item.bodyHtml != null ? String(item.bodyHtml) : undefined,
     pageBreakBefore: !!item.pageBreakBefore,
+    rect,
+    style,
   };
 }
 

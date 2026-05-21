@@ -1,4 +1,5 @@
 import type { KpDocumentType, KpPdfDesign, KpTemplateConfig } from "./types";
+import { ensureBlockRects, isCanvasLayoutMode, migrateFlowBlocksToCanvas } from "./kpCanvasLayout";
 import { applyDesignPreset } from "./kpDesign";
 import { applyPdfBlockPresetForDoc } from "./kpPdfBlocks";
 
@@ -101,7 +102,8 @@ export const KP_TEMPLATE_PRESETS: KpTemplatePreset[] = [
 
 export function applyTemplatePreset(draft: KpTemplateConfig, preset: KpTemplatePreset): KpTemplateConfig {
   const designBase = applyDesignPreset(preset.designPreset);
-  return {
+  let pdfBlocks = applyPdfBlockPresetForDoc(preset.blockPreset, preset.documentType);
+  const next: KpTemplateConfig = {
     ...draft,
     documentType: preset.documentType,
     branding: {
@@ -114,6 +116,11 @@ export function applyTemplatePreset(draft: KpTemplateConfig, preset: KpTemplateP
       ...designBase,
       ...(preset.designExtra || {}),
     },
-    pdfBlocks: applyPdfBlockPresetForDoc(preset.blockPreset, preset.documentType),
+    pdfBlocks,
   };
+  if (isCanvasLayoutMode(next)) {
+    pdfBlocks = ensureBlockRects(migrateFlowBlocksToCanvas(pdfBlocks, next), next);
+    return { ...next, pdfBlocks };
+  }
+  return next;
 }

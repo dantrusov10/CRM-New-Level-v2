@@ -1,6 +1,5 @@
 import { fontStackById } from "./kpDocumentFonts";
-import type { KpFontFamilyId } from "./kpDocumentFonts";
-import type { KpPdfDesign, KpTemplateConfig } from "./types";
+import type { KpFontFamilyId, KpPdfDesign, KpTemplateConfig } from "./types";
 
 export type LayoutStyle = "classic" | "modern" | "compact";
 export type FontScale = "sm" | "md" | "lg";
@@ -46,6 +45,7 @@ export function normalizePdfDesign(template: KpTemplateConfig) {
   const fontFamily = (d.fontFamily as KpFontFamilyId) || "inter";
 
   return {
+    layoutMode: d.layoutMode === "canvas" ? "canvas" : "flow",
     layoutStyle: (d.layoutStyle as LayoutStyle) || "classic",
     fontScale: scale,
     fontFamily,
@@ -53,7 +53,11 @@ export function normalizePdfDesign(template: KpTemplateConfig) {
     bodyFontSizePt: Number(d.bodyFontSizePt) > 0 ? Number(d.bodyFontSizePt) : scalePt.body,
     headingFontSizePt: Number(d.headingFontSizePt) > 0 ? Number(d.headingFontSizePt) : scalePt.heading,
     lineHeight: Number(d.lineHeight) > 0 ? Number(d.lineHeight) : 1.45,
+    letterSpacingPx: Number(d.letterSpacingPx) >= 0 ? Number(d.letterSpacingPx) : 0,
     pageMarginMm: Number(d.pageMarginMm) >= 0 ? Number(d.pageMarginMm) : 12,
+    canvasGridPx: Number(d.canvasGridPx) > 0 ? Number(d.canvasGridPx) : 8,
+    canvasSnap: d.canvasSnap !== false,
+    canvasShowGrid: d.canvasShowGrid !== false,
     secondaryColor: d.secondaryColor || "#6b7280",
     tableStyle: (d.tableStyle as TableStyle) || "bordered",
     paperTone: tone,
@@ -119,6 +123,7 @@ export function designCssVars(template: KpTemplateConfig): Record<string, string
     "--kp-body-pt": String(d.bodyFontSizePt),
     "--kp-heading-pt": String(d.headingFontSizePt),
     "--kp-line-height": String(d.lineHeight),
+    "--kp-letter-spacing": d.letterSpacingPx ? `${d.letterSpacingPx}px` : "0",
     "--kp-page-margin": `${marginPx}px`,
     "--kp-table-head-bg": headBg || "#EEF1F6",
     "--kp-table-head-text": headText || "#374151",

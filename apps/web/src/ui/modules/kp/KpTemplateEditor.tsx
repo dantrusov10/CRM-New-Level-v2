@@ -4,6 +4,9 @@ import { Card, CardContent, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
 import { KpPagedDocumentPreview } from "./KpPagedDocumentPreview";
+import { KpCanvasEditor } from "./KpCanvasEditor";
+import { KpLayoutModeSwitch } from "./KpLayoutModeSwitch";
+import { isCanvasLayoutMode } from "./kpCanvasLayout";
 import { KpTemplateImportExport } from "./KpTemplateImportExport";
 import { KpTemplatePresetGallery } from "./KpTemplatePresetGallery";
 import { KpRichTextEditor } from "./KpRichTextEditor";
@@ -152,6 +155,7 @@ export function KpTemplateEditor({
   const accent = draft?.branding?.primaryColor || "#004EEB";
   const docType: KpDocumentType = draft?.documentType === "tkp" ? "tkp" : "kp";
   const demoInput = docType === "tkp" ? DEMO_INPUT_TKP : DEMO_INPUT_KP;
+  const canvasMode = isCanvasLayoutMode(draft);
 
   function setDocumentType(type: KpDocumentType) {
     setDraft((p) => {
@@ -167,8 +171,8 @@ export function KpTemplateEditor({
   }
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 min-h-[640px]">
-      <div className="xl:col-span-5 grid gap-4 content-start">
+    <div className={`grid grid-cols-1 gap-4 min-h-[640px] ${canvasMode ? "" : "xl:grid-cols-12"}`}>
+      <div className={`${canvasMode ? "" : "xl:col-span-5"} grid gap-4 content-start`}>
         <Card>
           <CardHeader>
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -344,6 +348,8 @@ export function KpTemplateEditor({
               ) : null}
             </div>
 
+            <KpLayoutModeSwitch draft={draft} onChange={setDraft} />
+
             <KpTemplatePresetGallery draft={draft} onApply={setDraft} />
 
             <KpTemplateImportExport
@@ -361,18 +367,29 @@ export function KpTemplateEditor({
               blocks={ensurePdfBlocks(draft)}
               onChange={(pdfBlocks) => setDraft((p) => ({ ...p, pdfBlocks }))}
               documentType={docType}
+              template={draft}
             />
           </CardContent>
         </Card>
       </div>
 
-      <div className="xl:col-span-7 xl:sticky xl:top-4 self-start min-h-[560px]">
-        <KpPagedDocumentPreview
-          template={draft}
-          input={demoInput}
-          items={DEMO_ITEMS}
-          dealId={dealIdForPreview}
-        />
+      <div className={`${canvasMode ? "xl:col-span-12" : "xl:col-span-7"} xl:sticky xl:top-4 self-start min-h-[560px]`}>
+        {canvasMode ? (
+          <KpCanvasEditor
+            template={draft}
+            onTemplateChange={setDraft}
+            input={demoInput}
+            items={DEMO_ITEMS}
+            dealId={dealIdForPreview}
+          />
+        ) : (
+          <KpPagedDocumentPreview
+            template={draft}
+            input={demoInput}
+            items={DEMO_ITEMS}
+            dealId={dealIdForPreview}
+          />
+        )}
       </div>
     </div>
   );

@@ -4,6 +4,8 @@ import { documentTitle, getDocumentType } from "./kpDocumentMeta";
 import { designCssVars, normalizePdfDesign } from "./kpDesign";
 import { ensurePdfBlocks, type KpPdfBlock } from "./kpPdfBlocks";
 import type { SpecItem, KpInput, KpTemplateConfig } from "./types";
+import { CANVAS_PAGE_HEIGHT, defaultRectForBlock, isCanvasLayoutMode } from "./kpCanvasLayout";
+import { blockInlineStyleCss } from "./kpBlockStyle";
 import { renderRichOrPlain, sanitizeKpHtml } from "./kpHtmlSanitize";
 import "./kpDocument.css";
 
@@ -28,6 +30,7 @@ export function KpPreview({
   dealId,
   mode = "document",
   blocksOverride,
+  embedded = false,
 }: {
   template: KpTemplateConfig;
   input: KpInput;
@@ -36,6 +39,8 @@ export function KpPreview({
   mode?: "manager" | "pdf" | "document";
   /** Только эти блоки (для постраничного превью) */
   blocksOverride?: KpPdfBlock[];
+  /** Внутри Rnd на холсте — без полей листа */
+  embedded?: boolean;
 }) {
   const isDocument = mode === "pdf" || mode === "document";
   const currency = template?.defaults?.currency || "RUB";
@@ -289,12 +294,62 @@ export function KpPreview({
   );
 
   if (isDocument) {
+    const canvasMode = isCanvasLayoutMode(template) && !embedded;
+    const useCanvasLayout =
+      canvasMode && blocks.length > 0 && blocks.every((blk) => blk.rect && blk.rect.w > 0);
+
+    if (useCanvasLayout) {
+      return (
+        <div
+          className={`${rootClass} kp-canvas-export-page`}
+          style={{
+            ...designCssVars(template),
+            padding: 0,
+            position: "relative",
+            width: "100%",
+            minHeight: CANVAS_PAGE_HEIGHT,
+            height: CANVAS_PAGE_HEIGHT,
+          }}
+        >
+          {blocks.map((blk) => {
+            const r = blk.rect || defaultRectForBlock(blk.type, 0, template, 0);
+            const h = r.h || 80;
+            return (
+              <div
+                key={blk.id}
+                style={{
+                  position: "absolute",
+                  left: r.x,
+                  top: r.y,
+                  width: r.w,
+                  minHeight: h,
+                  height: h,
+                  zIndex: r.zIndex ?? 1,
+                  ...blockInlineStyleCss(blk, template),
+                }}
+              >
+                <KpPreview
+                  template={template}
+                  input={input}
+                  items={items}
+                  dealId={dealId}
+                  mode="document"
+                  blocksOverride={[blk]}
+                  embedded
+                />
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
     return (
       <div
         className={rootClass}
         style={{
           ...designCssVars(template),
-          padding: "var(--kp-page-margin, 32px)",
+          padding: embedded ? 8 : "var(--kp-page-margin, 32px)",
         }}
       >
         {inner}

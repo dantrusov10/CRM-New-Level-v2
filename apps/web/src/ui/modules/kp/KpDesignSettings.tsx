@@ -1,6 +1,7 @@
 import React from "react";
 import { Input } from "../../components/Input";
 import { KP_FONT_FAMILIES } from "./kpDocumentFonts";
+import { KpColorPicker } from "./KpColorPicker";
 import {
   FONT_OPTIONS,
   LAYOUT_OPTIONS,
@@ -40,7 +41,7 @@ export function KpDesignSettings({
       <div>
         <div className="text-sm font-semibold">Оформление PDF</div>
         <p className="text-xs text-text2 mt-1">
-          9 шрифтов (Fontsource), цвета, отступы листа — сразу в превью. Готовые стили — в галерее выше.
+          {KP_FONT_FAMILIES.length} шрифтов (Fontsource), типографика, цвета, холст Figma — в превью сразу.
         </p>
       </div>
 
@@ -123,44 +124,64 @@ export function KpDesignSettings({
             onChange={(e) => patchDesign({ pageMarginMm: Number(e.target.value || 12) })}
           />
         </div>
+        <div>
+          <div className="text-xs text-text2 mb-1">Межбуквенный, px</div>
+          <Input
+            type="number"
+            step="0.5"
+            value={String(design.letterSpacingPx)}
+            onChange={(e) => patchDesign({ letterSpacingPx: Number(e.target.value || 0) })}
+          />
+        </div>
       </div>
 
+      {design.layoutMode === "canvas" ? (
+        <div className="rounded-card border border-primary/30 bg-primary/5 p-3 grid gap-3">
+          <div className="text-xs font-semibold">Холст Figma</div>
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={design.canvasShowGrid}
+              onChange={(e) => patchDesign({ canvasShowGrid: e.target.checked })}
+            />
+            Показывать сетку
+          </label>
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={design.canvasSnap}
+              onChange={(e) => patchDesign({ canvasSnap: e.target.checked })}
+            />
+            Привязка к сетке
+          </label>
+          <div>
+            <div className="text-xs text-text2 mb-1">Шаг сетки, px</div>
+            <Input
+              type="number"
+              className="max-w-[100px]"
+              value={String(design.canvasGridPx)}
+              onChange={(e) => patchDesign({ canvasGridPx: Number(e.target.value || 8) })}
+            />
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <div>
-          <div className="text-xs text-text2 mb-1">Цвет текста</div>
-          <label className="flex items-center gap-2">
-            <input
-              type="color"
-              value={design.textColor || "#111827"}
-              onChange={(e) => patchDesign({ textColor: e.target.value })}
-              className="h-8 w-10 border-0"
-            />
-            <span className="text-[10px] text-text2">{design.textColor}</span>
-          </label>
-        </div>
-        <div>
-          <div className="text-xs text-text2 mb-1">Вторичный цвет</div>
-          <label className="flex items-center gap-2">
-            <input
-              type="color"
-              value={design.secondaryColor || "#6b7280"}
-              onChange={(e) => patchDesign({ secondaryColor: e.target.value })}
-              className="h-8 w-10 border-0"
-            />
-          </label>
-        </div>
-        <div>
-          <div className="text-xs text-text2 mb-1">Фон таблицы</div>
-          <label className="flex items-center gap-2">
-            <input
-              type="color"
-              value={design.tableHeaderBg || "#EEF1F6"}
-              disabled={design.tableHeaderUseAccent}
-              onChange={(e) => patchDesign({ tableHeaderBg: e.target.value })}
-              className="h-8 w-10 border-0"
-            />
-          </label>
-        </div>
+        <KpColorPicker
+          label="Цвет текста"
+          value={design.textColor || "#111827"}
+          onChange={(c) => patchDesign({ textColor: c })}
+        />
+        <KpColorPicker
+          label="Вторичный"
+          value={design.secondaryColor || "#6b7280"}
+          onChange={(c) => patchDesign({ secondaryColor: c })}
+        />
+        <KpColorPicker
+          label="Фон шапки таблицы"
+          value={design.tableHeaderBg || "#EEF1F6"}
+          onChange={(c) => patchDesign({ tableHeaderBg: c, tableHeaderUseAccent: false })}
+        />
       </div>
 
       <div>

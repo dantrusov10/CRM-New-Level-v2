@@ -1,0 +1,59 @@
+.kp-canvas-stage {
+  position: relative;
+  width: 100%;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.kp-canvas-stage--grid {
+  background-image:
+    linear-gradient(to right, rgba(0, 78, 235, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 78, 235, 0.06) 1px, transparent 1px);
+  background-size: var(--kp-canvas-grid, 8px) var(--kp-canvas-grid, 8px);
+}
+
+.kp-canvas-rnd {
+  border: 1px dashed transparent;
+  box-sizing: border-box;
+}
+
+.kp-canvas-rnd.is-selected {
+  border-color: #004eeb;
+  box-shadow: 0 0 0 1px #004eeb;
+}
+
+.kp-canvas-rnd-label {
+  position: absolute;
+  top: -18px;
+  left: 0;
+  font-size: 9px;
+  font-weight: 600;
+  color: #004eeb;
+  background: #dbeafe;
+  padding: 1px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.kp-canvas-layer-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: grab;
+  font-size: 11px;
+  color: #e5e7eb;
+}
+
+.kp-canvas-layer-item.is-selected {
+  border-color: #004eeb;
+  background: rgba(0, 78, 235, 0.15);
+}
+
+.kp-canvas-layer-item.is-dragging {
+  opacity: 0.5;
+}

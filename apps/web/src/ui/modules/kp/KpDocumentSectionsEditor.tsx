@@ -2,8 +2,9 @@ import React from "react";
 import { ArrowDown, ArrowUp, Check, Circle, FilePlus, Trash2 } from "lucide-react";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
-import type { KpDocumentType, KpPdfBlock } from "./types";
-import { countDocumentPages } from "./kpPageLayout";
+import type { KpDocumentType, KpPdfBlock, KpTemplateConfig } from "./types";
+import { countTemplatePages } from "./kpCanvasPages";
+import { isCanvasLayoutMode } from "./kpCanvasLayout";
 import { KpRichTextEditor } from "./KpRichTextEditor";
 import { KP_PDF_BLOCK_META, applyPdfBlockPresetForDoc, createCustomBlock } from "./kpPdfBlocks";
 
@@ -22,10 +23,12 @@ export function KpDocumentSectionsEditor({
   blocks,
   onChange,
   documentType = "kp",
+  template,
 }: {
   blocks: KpPdfBlock[];
   onChange: (next: KpPdfBlock[]) => void;
   documentType?: KpDocumentType;
+  template?: KpTemplateConfig;
 }) {
   function patchBlock(id: string, patch: Partial<KpPdfBlock>) {
     onChange(blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)));
@@ -61,7 +64,8 @@ export function KpDocumentSectionsEditor({
   }
 
   const enabledBlocks = blocks.filter((b) => b.enabled);
-  const pageCount = countDocumentPages(blocks);
+  const canvasMode = template ? isCanvasLayoutMode(template) : false;
+  const pageCount = template ? countTemplatePages({ ...template, pdfBlocks: blocks }) : 1;
 
   return (
     <div className="rounded-card border border-border bg-rowHover p-4">
@@ -69,7 +73,9 @@ export function KpDocumentSectionsEditor({
         <div>
           <div className="text-sm font-semibold">Разделы в документе</div>
           <p className="text-xs text-text2 mt-1 leading-relaxed max-w-lg">
-            Порядок = порядок в PDF. «Новый лист» — разрыв страницы. Свои разделы — редактор как в Word (TipTap).
+            {canvasMode
+              ? "Режим Figma: порядок слоёв и позиции — на холсте справа. Здесь — включение разделов."
+              : "Порядок = порядок в PDF. «Новый лист» — разрыв. Свои разделы — TipTap."}
           </p>
         </div>
         <Button small variant="secondary" onClick={addCustom}>
@@ -133,10 +139,10 @@ export function KpDocumentSectionsEditor({
                         <input
                           type="checkbox"
                           checked={!!b.pageBreakBefore}
-                          disabled={index === 0}
+                          disabled={index === 0 || canvasMode}
                           onChange={(e) => patchBlock(b.id, { pageBreakBefore: e.target.checked })}
                         />
-                        Новый лист
+                        {canvasMode ? "Лист (холст)" : "Новый лист"}
                       </label>
                       {isCustom ? (
                         <Button small variant="secondary" onClick={() => removeBlock(b.id)} title="Удалить раздел">

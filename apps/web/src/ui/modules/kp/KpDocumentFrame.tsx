@@ -12,11 +12,14 @@ export function KpDocumentFrame({
   subtitle,
   children,
   toolbarExtra,
+  canvasAlign = "center",
 }: {
   title?: string;
   subtitle?: string;
   children: React.ReactNode;
   toolbarExtra?: React.ReactNode;
+  /** На холсте — лист слева, без пустого поля по центру */
+  canvasAlign?: "center" | "start";
 }) {
   const viewportRef = React.useRef<HTMLDivElement | null>(null);
   const [zoom, setZoom] = React.useState<ZoomMode>("fit");
@@ -68,7 +71,9 @@ export function KpDocumentFrame({
 
       <div
         ref={viewportRef}
-        className="flex-1 overflow-auto p-6 flex justify-center items-start"
+        className={`flex-1 overflow-auto p-4 flex items-start ${
+          canvasAlign === "start" ? "justify-start" : "justify-center"
+        }`}
         style={{
           background:
             "repeating-conic-gradient(#4a5060 0% 25%, #454b5a 0% 50%) 50% / 16px 16px",
@@ -77,7 +82,7 @@ export function KpDocumentFrame({
         <div
           style={{
             transform: `scale(${scale})`,
-            transformOrigin: "top center",
+            transformOrigin: canvasAlign === "start" ? "top left" : "top center",
             marginBottom: scale < 1 ? 24 : 0,
           }}
         >

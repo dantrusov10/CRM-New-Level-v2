@@ -24,11 +24,14 @@ export function KpDocumentSectionsEditor({
   onChange,
   documentType = "kp",
   template,
+  variant = "full",
 }: {
   blocks: KpPdfBlock[];
   onChange: (next: KpPdfBlock[]) => void;
   documentType?: KpDocumentType;
   template?: KpTemplateConfig;
+  /** compact — боковая колонка на холсте (одна линия с слоями и листом) */
+  variant?: "full" | "compact";
 }) {
   function patchBlock(id: string, patch: Partial<KpPdfBlock>) {
     onChange(blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)));
@@ -66,39 +69,44 @@ export function KpDocumentSectionsEditor({
   const enabledBlocks = blocks.filter((b) => b.enabled);
   const canvasMode = template ? isCanvasLayoutMode(template) : false;
   const pageCount = template ? countTemplatePages({ ...template, pdfBlocks: blocks }) : 1;
+  const compact = variant === "compact";
 
   return (
-    <div className="rounded-card border border-border bg-rowHover p-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <div className="text-sm font-semibold">Разделы в документе</div>
-          <p className="text-xs text-text2 mt-1 leading-relaxed max-w-lg">
-            {canvasMode
-              ? "Режим Figma: порядок слоёв и позиции — на холсте справа. Здесь — включение разделов."
-              : "Порядок = порядок в PDF. «Новый лист» — разрыв. Свои разделы — TipTap."}
-          </p>
-        </div>
+    <div
+      className={`rounded-card border border-border ${compact ? "bg-[#2a2f38] p-2" : "bg-rowHover p-4"}`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className={`font-semibold ${compact ? "text-xs text-white" : "text-sm"}`}>Разделы</div>
         <Button small variant="secondary" onClick={addCustom}>
           <FilePlus size={14} className="mr-1" />
-          Свой раздел
+          {compact ? "+" : "Свой раздел"}
         </Button>
       </div>
+      {!compact ? (
+        <p className="text-xs text-text2 mt-1 leading-relaxed max-w-lg">
+          {canvasMode
+            ? "Включение разделов. Позиции — на холсте."
+            : "Порядок = порядок в PDF. «Новый лист» — разрыв. Свои разделы — TipTap."}
+        </p>
+      ) : null}
 
-      <div className="mt-3 flex flex-wrap gap-2">
-        {PRESETS.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => applyPreset(p.id)}
-            className="rounded-card border border-border bg-white px-3 py-2 text-left hover:border-primary transition-colors"
-          >
-            <div className="text-xs font-semibold">{p.label}</div>
-            <div className="text-[10px] text-text2">{p.desc}</div>
-          </button>
-        ))}
-      </div>
+      {!compact ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {PRESETS.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => applyPreset(p.id)}
+              className="rounded-card border border-border bg-white px-3 py-2 text-left hover:border-primary transition-colors"
+            >
+              <div className="text-xs font-semibold">{p.label}</div>
+              <div className="text-[10px] text-text2">{p.desc}</div>
+            </button>
+          ))}
+        </div>
+      ) : null}
 
-      <div className="mt-4 grid gap-2">
+      <div className={`${compact ? "mt-2" : "mt-4"} grid gap-2`}>
         {blocks.map((b, index) => {
           const meta = KP_PDF_BLOCK_META[b.type];
           const isRequired = b.type === "specification_table";
@@ -108,8 +116,14 @@ export function KpDocumentSectionsEditor({
           return (
             <div
               key={b.id}
-              className={`rounded-card border p-3 transition-colors ${
-                b.enabled ? "border-primary/40 bg-white" : "border-border bg-[rgba(255,255,255,0.03)] opacity-75"
+              className={`rounded-card border transition-colors ${
+                compact ? "p-2" : "p-3"
+              } ${
+                b.enabled
+                  ? compact
+                    ? "border-primary/50 bg-[rgba(255,255,255,0.06)]"
+                    : "border-primary/40 bg-white"
+                  : "border-border bg-[rgba(255,255,255,0.03)] opacity-75"
               }`}
             >
               <div className="flex gap-2">

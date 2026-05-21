@@ -79,12 +79,15 @@ export function KpCanvasEditor({
   input,
   items,
   dealId,
+  sectionsPanel,
 }: {
   template: KpTemplateConfig;
   onTemplateChange: (next: KpTemplateConfig) => void;
   input: KpInput;
   items: SpecItem[];
   dealId: string;
+  /** Разделы документа — в одной линии со слоями и холстом */
+  sectionsPanel?: React.ReactNode;
 }) {
   const design = normalizePdfDesign(template);
   const grid = design.canvasGridPx;
@@ -157,9 +160,9 @@ export function KpCanvasEditor({
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-full min-h-[560px]">
-      <div className="lg:col-span-3 grid gap-3 content-start max-h-[720px] overflow-y-auto">
-        <div className="rounded-card border border-border bg-[#2a2f38] p-3">
+    <div className="grid grid-cols-12 gap-2 w-full items-start min-h-[560px]">
+      <div className="col-span-12 xl:col-span-2 grid gap-2 content-start max-h-[min(78vh,820px)] overflow-y-auto crm-scrollbar">
+        <div className="rounded-card border border-border bg-[#2a2f38] p-2">
           <div className="flex items-center gap-2 text-xs font-semibold text-white mb-2">
             <Layers size={14} />
             Слои (страница {pageIndex + 1})
@@ -185,18 +188,23 @@ export function KpCanvasEditor({
             </Button>
           </div>
         </div>
-        <KpBlockInspector
-          block={selected}
-          template={template}
-          onPatch={patchBlock}
-          pageCount={countTemplatePages(template)}
-        />
       </div>
 
-      <div className="lg:col-span-9 min-h-[560px]">
+      {sectionsPanel ? (
+        <div className="col-span-12 xl:col-span-3 max-h-[min(78vh,820px)] overflow-y-auto crm-scrollbar">
+          {sectionsPanel}
+        </div>
+      ) : null}
+
+      <div
+        className={`col-span-12 min-h-[520px] ${
+          sectionsPanel ? "xl:col-span-4" : "xl:col-span-8"
+        }`}
+      >
         <KpDocumentFrame
-          title="Холст A4 — режим Figma"
-          subtitle="Перетаскивайте и меняйте размер блоков. Сетка и привязка — в настройках оформления."
+          title="Холст A4"
+          subtitle="Перетаскивайте блоки. Сетка — в «Оформление»."
+          canvasAlign="start"
           toolbarExtra={
             <div className="flex flex-wrap items-center gap-1">
               {pageIndices.map((pi) => (
@@ -292,6 +300,15 @@ export function KpCanvasEditor({
             })}
           </div>
         </KpDocumentFrame>
+      </div>
+
+      <div className="col-span-12 xl:col-span-3 max-h-[min(78vh,820px)] overflow-y-auto crm-scrollbar">
+        <KpBlockInspector
+          block={selected}
+          template={template}
+          onPatch={patchBlock}
+          pageCount={countTemplatePages(template)}
+        />
       </div>
     </div>
   );

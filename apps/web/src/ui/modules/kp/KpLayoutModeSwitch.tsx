@@ -7,9 +7,11 @@ import type { KpDocumentLayoutMode, KpTemplateConfig } from "./types";
 export function KpLayoutModeSwitch({
   draft,
   onChange,
+  dense = false,
 }: {
   draft: KpTemplateConfig;
   onChange: (next: KpTemplateConfig) => void;
+  dense?: boolean;
 }) {
   const mode: KpDocumentLayoutMode = isCanvasLayoutMode(draft) ? "canvas" : "flow";
 
@@ -28,12 +30,14 @@ export function KpLayoutModeSwitch({
   }
 
   return (
-    <div className="rounded-card border border-border bg-rowHover p-3">
-      <div className="text-sm font-semibold mb-1">Режим конструктора</div>
-      <p className="text-[11px] text-text2 mb-3 leading-relaxed">
-        <strong className="text-white/85">Список</strong> — классический порядок разделов.{" "}
-        <strong className="text-white/85">Холст Figma</strong> — перетаскивание блоков по листу (react-rnd).
-      </p>
+    <div className={dense ? "" : "rounded-card border border-border bg-rowHover p-3"}>
+      {!dense ? <div className="text-sm font-semibold mb-1">Режим конструктора</div> : null}
+      {!dense ? (
+        <p className="text-[11px] text-text2 mb-3 leading-relaxed">
+          <strong className="text-white/85">Список</strong> — классический порядок.{" "}
+          <strong className="text-white/85">Холст Figma</strong> — блоки на листе.
+        </p>
+      ) : null}
       <div className="flex flex-wrap gap-2">
         <button
           type="button"

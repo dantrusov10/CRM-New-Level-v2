@@ -5,6 +5,7 @@ import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
 import { KpPagedDocumentPreview } from "./KpPagedDocumentPreview";
 import { KpCanvasEditor } from "./KpCanvasEditor";
+import { KpCanvasSettingsModal } from "./KpCanvasSettingsModal";
 import { KpLayoutModeSwitch } from "./KpLayoutModeSwitch";
 import { isCanvasLayoutMode } from "./kpCanvasLayout";
 import { KpTemplateImportExport } from "./KpTemplateImportExport";
@@ -156,15 +157,7 @@ export function KpTemplateEditor({
   const docType: KpDocumentType = draft?.documentType === "tkp" ? "tkp" : "kp";
   const demoInput = docType === "tkp" ? DEMO_INPUT_TKP : DEMO_INPUT_KP;
   const canvasMode = isCanvasLayoutMode(draft);
-  const canvasPanelRef = React.useRef<HTMLDivElement | null>(null);
-
-  React.useEffect(() => {
-    if (!canvasMode) return;
-    const t = window.setTimeout(() => {
-      canvasPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 120);
-    return () => window.clearTimeout(t);
-  }, [canvasMode]);
+  const [canvasSettingsOpen, setCanvasSettingsOpen] = React.useState(false);
 
   function setDocumentType(type: KpDocumentType) {
     setDraft((p) => {
@@ -179,13 +172,60 @@ export function KpTemplateEditor({
     });
   }
 
+  if (canvasMode) {
+    return (
+      <div className="w-full grid gap-3 min-h-[640px]">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-rowHover px-3 py-2">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <Button onClick={() => void save()} disabled={saving}>
+              <Save size={16} className="mr-1" />
+              {saving ? "Сохранение…" : "Сохранить"}
+            </Button>
+            <Button variant="secondary" onClick={() => setCanvasSettingsOpen(true)}>
+              Оформление и импорт
+            </Button>
+            <span className="text-xs text-text2 hidden sm:inline">{draft?.name || "Шаблон"}</span>
+          </div>
+          <div className="min-w-[240px] flex-1 max-w-md">
+            <KpLayoutModeSwitch draft={draft} onChange={setDraft} dense />
+          </div>
+        </div>
+
+        <KpCanvasEditor
+          template={draft}
+          onTemplateChange={setDraft}
+          input={demoInput}
+          items={DEMO_ITEMS}
+          dealId={dealIdForPreview}
+          sectionsPanel={
+            <KpDocumentSectionsEditor
+              variant="compact"
+              blocks={ensurePdfBlocks(draft)}
+              onChange={(pdfBlocks) => setDraft((p) => ({ ...p, pdfBlocks }))}
+              documentType={docType}
+              template={draft}
+            />
+          }
+        />
+
+        <KpCanvasSettingsModal
+          open={canvasSettingsOpen}
+          onClose={() => setCanvasSettingsOpen(false)}
+          draft={draft}
+          onChange={setDraft}
+          onSave={() => {
+            void save();
+            setCanvasSettingsOpen(false);
+          }}
+          saving={saving}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 min-h-[640px]">
-      <div
-        className={`${canvasMode ? "xl:col-span-4" : "xl:col-span-5"} grid gap-4 content-start ${
-          canvasMode ? "max-h-[min(85vh,900px)] overflow-y-auto pr-1 crm-scrollbar" : ""
-        }`}
-      >
+      <div className="xl:col-span-5 grid gap-4 content-start">
         <Card>
           <CardHeader>
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -386,32 +426,13 @@ export function KpTemplateEditor({
         </Card>
       </div>
 
-      <div
-        ref={canvasPanelRef}
-        className={`${canvasMode ? "xl:col-span-8" : "xl:col-span-7"} xl:sticky xl:top-4 self-start min-h-[560px] scroll-mt-4`}
-      >
-        {canvasMode ? (
-          <div className="rounded-card border border-primary/40 bg-[rgba(0,78,235,0.06)] p-2 mb-2 text-[11px] text-text2">
-            Режим <strong className="text-white/90">Холст Figma</strong> — перетаскивайте блоки на листе справа. Слои и
-            инспектор — в панели холста.
-          </div>
-        ) : null}
-        {canvasMode ? (
-          <KpCanvasEditor
-            template={draft}
-            onTemplateChange={setDraft}
-            input={demoInput}
-            items={DEMO_ITEMS}
-            dealId={dealIdForPreview}
-          />
-        ) : (
-          <KpPagedDocumentPreview
-            template={draft}
-            input={demoInput}
-            items={DEMO_ITEMS}
-            dealId={dealIdForPreview}
-          />
-        )}
+      <div className="xl:col-span-7 xl:sticky xl:top-4 self-start min-h-[560px]">
+        <KpPagedDocumentPreview
+          template={draft}
+          input={demoInput}
+          items={DEMO_ITEMS}
+          dealId={dealIdForPreview}
+        />
       </div>
     </div>
   );

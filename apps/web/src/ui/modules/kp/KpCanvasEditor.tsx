@@ -34,9 +34,33 @@ import { blockInlineStyleCss } from "./kpBlockStyle";
 import { countTemplatePages } from "./kpCanvasPages";
 import { normalizePdfDesign } from "./kpDesign";
 import { pageBackgroundLayerStyle } from "./kpPageBackground";
-import { KP_PDF_BLOCK_META, createCustomBlock, ensurePdfBlocks } from "./kpPdfBlocks";
+import {
+  KP_PDF_BLOCK_META,
+  createCustomBlock,
+  createImageBlock,
+  duplicateBlock,
+  ensurePdfBlocks,
+} from "./kpPdfBlocks";
+import { KpCanvasToolbar } from "./KpCanvasToolbar";
+import {
+  createHistory,
+  pushHistory,
+  redoHistory,
+  undoHistory,
+  type KpHistoryState,
+} from "./kpCanvasHistory";
+import {
+  alignBlocksCenterX,
+  alignBlocksLeft,
+  equalizeBlockWidths,
+  maxWidthOf,
+} from "./kpCanvasAlign";
+import { canvasInnerWidth, canvasMarginPx, CANVAS_PAGE_WIDTH } from "./kpCanvasLayout";
+import { insertLibraryBlock, saveBlockToLibrary, ensureBlockLibrary } from "./kpBlockLibrary";
 import type { KpInput, KpPdfBlock, KpTemplateConfig, SpecItem } from "./types";
 import "./kpCanvasEditor.css";
+
+let kpBlockClipboard: KpPdfBlock | null = null;
 
 function SortableLayer({
   block,
@@ -93,13 +117,21 @@ export function KpCanvasEditor({
   const grid = design.canvasGridPx;
   const snap = design.canvasSnap;
 
-  const blocks = React.useMemo(() => {
-    const raw = ensurePdfBlocks(template);
-    return isCanvasLayoutMode(template) ? ensureBlockRects(raw, template) : raw;
-  }, [template]);
-
+  const [history, setHistory] = React.useState<KpHistoryState | null>(null);
   const [pageIndex, setPageIndex] = React.useState(0);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
+  const [guide, setGuide] = React.useState<{ x?: number; y?: number } | null>(null);
+
+  React.useEffect(() => {
+    const raw = ensurePdfBlocks(template);
+    const b = ensureBlockRects(raw, template);
+    setHistory(createHistory(b));
+  }, [template.name, template.pdfDesign?.layoutMode]);
+
+  const blocks = React.useMemo(() => {
+    const base = history?.present ?? ensureBlockRects(ensurePdfBlocks(template), template);
+    return ensureBlockRects(base, template);
+  }, [history, template]);
 
   const pageBlocks = React.useMemo(() => blocksOnCanvasPage(blocks, pageIndex), [blocks, pageIndex]);
   const pageIndices = React.useMemo(() => canvasPageIndices(blocks), [blocks]);
@@ -110,18 +142,69 @@ export function KpCanvasEditor({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  function setBlocks(next: KpPdfBlock[]) {
-    onTemplateChange({ ...template, pdfBlocks: next });
+  function commitBlocks(next: KpPdfBlock[]) {
+    const normalized = ensureBlockRects(next, template);
+    setHistory((h) => (h ? pushHistory(h, normalized) : createHistory(normalized)));
+    onTemplateChange({ ...template, pdfBlocks: normalized });
   }
 
   function patchBlock(id: string, patch: Partial<KpPdfBlock>) {
-    setBlocks(blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+    commitBlocks(blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)));
   }
 
   function updateRect(id: string, rect: Partial<NonNullable<KpPdfBlock["rect"]>>) {
     const b = blocks.find((x) => x.id === id);
     if (!b) return;
     patchBlock(id, { rect: { ...(b.rect || { x: 0, y: 0, w: 100, pageIndex }), ...rect } });
+  }
+
+  function moveGroup(blockId: string, dx: number, dy: number) {
+    const src = blocks.find((b) => b.id === blockId);
+    if (!src?.groupId) {
+      updateRect(blockId, {
+        x: (src?.rect?.x || 0) + dx,
+        y: (src?.rect?.y || 0) + dy,
+      });
+      return;
+    }
+    const gid = src.groupId;
+    commitBlocks(
+      blocks.map((b) =>
+        b.groupId === gid && b.rect
+          ? { ...b, rect: { ...b.rect, x: b.rect.x + dx, y: b.rect.y + dy } }
+          : b,
+      ),
+    );
+  }
+
+  function snapGuides(x: number, y: number, w: number, h: number) {
+    const threshold = 6;
+    const others = pageBlocks.filter((b) => b.id !== selectedId && b.rect);
+    let nx = x;
+    let ny = y;
+    let gx: number | undefined;
+    let gy: number | undefined;
+    for (const o of others) {
+      if (!o.rect) continue;
+      const edges = [o.rect.x, o.rect.x + o.rect.w / 2, o.rect.x + o.rect.w];
+      const myEdges = [nx, nx + w / 2, nx + w];
+      for (let i = 0; i < edges.length; i++) {
+        if (Math.abs(myEdges[i] - edges[i]) < threshold) {
+          nx += edges[i] - myEdges[i];
+          gx = edges[i];
+        }
+      }
+      const ye = [o.rect.y, o.rect.y + (o.rect.h || 0) / 2, o.rect.y + (o.rect.h || 0)];
+      const my = [ny, ny + h / 2, ny + h];
+      for (let i = 0; i < ye.length; i++) {
+        if (Math.abs(my[i] - ye[i]) < threshold) {
+          ny += ye[i] - my[i];
+          gy = ye[i];
+        }
+      }
+    }
+    setGuide({ x: gx, y: gy });
+    return { x: nx, y: ny };
   }
 
   function onLayerDragEnd(event: DragEndEvent) {
@@ -135,7 +218,7 @@ export function KpCanvasEditor({
     const [moved] = reordered.splice(oldIndex, 1);
     reordered.splice(newIndex, 0, moved);
     const zMap = new Map(reordered.map((b, i) => [b.id, i + 1]));
-    setBlocks(
+    commitBlocks(
       blocks.map((b) => {
         const z = zMap.get(b.id);
         if (z == null || (b.rect?.pageIndex ?? 0) !== pageIndex) return b;
@@ -148,18 +231,107 @@ export function KpCanvasEditor({
     const nextIndex = Math.max(...pageIndices, 0) + 1;
     const custom = createCustomBlock("Новая страница");
     const rect = defaultRectForBlock("custom", 0, template, nextIndex);
-    setBlocks([...blocks, { ...custom, rect }]);
+    commitBlocks([...blocks, { ...custom, rect }]);
     setPageIndex(nextIndex);
   }
 
   function addCustomOnPage() {
     const custom = createCustomBlock();
     const rect = defaultRectForBlock("custom", pageBlocks.length, template, pageIndex);
-    setBlocks([...blocks, { ...custom, rect }]);
+    commitBlocks([...blocks, { ...custom, rect }]);
     setSelectedId(custom.id);
   }
 
+  const selectedIds = selectedId ? [selectedId] : [];
+  const margin = canvasMarginPx(template);
+
   return (
+    <div className="grid gap-2 w-full">
+      <KpCanvasToolbar
+        canUndo={!!history?.past.length}
+        canRedo={!!history?.future.length}
+        canPaste={!!kpBlockClipboard}
+        onUndo={() => {
+          if (!history) return;
+          const h = undoHistory(history);
+          if (h) {
+            setHistory(h);
+            onTemplateChange({ ...template, pdfBlocks: h.present });
+          }
+        }}
+        onRedo={() => {
+          if (!history) return;
+          const h = redoHistory(history);
+          if (h) {
+            setHistory(h);
+            onTemplateChange({ ...template, pdfBlocks: h.present });
+          }
+        }}
+        onCopy={() => {
+          if (selected) kpBlockClipboard = duplicateBlock(selected);
+        }}
+        onPaste={() => {
+          if (!kpBlockClipboard) return;
+          const pasted = duplicateBlock(kpBlockClipboard);
+          pasted.rect = defaultRectForBlock(pasted.type, pageBlocks.length, template, pageIndex);
+          commitBlocks([...blocks, pasted]);
+          setSelectedId(pasted.id);
+        }}
+        onDuplicate={() => {
+          if (!selected) return;
+          const d = duplicateBlock(selected);
+          d.rect = {
+            ...(selected.rect || defaultRectForBlock(selected.type, 0, template, pageIndex)),
+            x: (selected.rect?.x || 0) + 20,
+            y: (selected.rect?.y || 0) + 20,
+          };
+          commitBlocks([...blocks, d]);
+          setSelectedId(d.id);
+        }}
+        onAlignLeft={() => {
+          if (!selectedIds.length) return;
+          commitBlocks(alignBlocksLeft(blocks, selectedIds, margin));
+        }}
+        onAlignCenter={() => {
+          if (!selectedIds.length) return;
+          commitBlocks(alignBlocksCenterX(blocks, selectedIds, CANVAS_PAGE_WIDTH));
+        }}
+        onEqualWidth={() => {
+          if (!selectedIds.length) return;
+          const w = maxWidthOf(blocks, selectedIds) || canvasInnerWidth(template);
+          commitBlocks(equalizeBlockWidths(blocks, selectedIds, w));
+        }}
+        onGroup={() => {
+          if (!selected) return;
+          const gid = `grp_${Date.now().toString(36)}`;
+          patchBlock(selected.id, { groupId: gid });
+        }}
+        onUngroup={() => {
+          if (!selected?.groupId) return;
+          const gid = selected.groupId;
+          commitBlocks(blocks.map((b) => (b.groupId === gid ? { ...b, groupId: undefined } : b)));
+        }}
+        onAddImage={() => {
+          const input = document.createElement("input");
+          input.type = "file";
+          input.accept = "image/png,image/jpeg,image/webp";
+          input.onchange = () => {
+            const f = input.files?.[0];
+            if (!f) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+              const url = String(reader.result || "");
+              const img = createImageBlock(url, f.name);
+              img.rect = defaultRectForBlock("image", pageBlocks.length, template, pageIndex);
+              commitBlocks([...blocks, img]);
+              setSelectedId(img.id);
+            };
+            reader.readAsDataURL(f);
+          };
+          input.click();
+        }}
+      />
+
     <div className="grid grid-cols-12 gap-2 w-full items-start min-h-[560px]">
       <div className="col-span-12 xl:col-span-2 grid gap-2 content-start max-h-[min(78vh,820px)] overflow-y-auto crm-scrollbar">
         <div className="rounded-card border border-border bg-[#2a2f38] p-2">
@@ -188,6 +360,34 @@ export function KpCanvasEditor({
             </Button>
           </div>
         </div>
+        {ensureBlockLibrary(template).length ? (
+          <div className="rounded-card border border-border bg-[#2a2f38] p-2">
+            <div className="text-[10px] font-semibold text-white mb-1">Библиотека</div>
+            {ensureBlockLibrary(template).map((e) => (
+              <button
+                key={e.id}
+                type="button"
+                className="block w-full text-left text-[10px] text-[#9ca3af] hover:text-white py-1 truncate"
+                onClick={() => commitBlocks(insertLibraryBlock(template, e.id, blocks))}
+              >
+                + {e.name}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {selected ? (
+          <Button
+            small
+            variant="secondary"
+            onClick={() => {
+              const name = window.prompt("Имя в библиотеке", selected.title || "Раздел");
+              if (!name) return;
+              onTemplateChange(saveBlockToLibrary(template, selected, name));
+            }}
+          >
+            В библиотеку
+          </Button>
+        ) : null}
       </div>
 
       {sectionsPanel ? (
@@ -236,9 +436,24 @@ export function KpCanvasEditor({
               height: CANVAS_PAGE_HEIGHT,
               ["--kp-canvas-grid" as string]: `${grid}px`,
             }}
-            onClick={() => setSelectedId(null)}
+            onClick={() => {
+              setSelectedId(null);
+              setGuide(null);
+            }}
           >
             <div aria-hidden style={pageBackgroundLayerStyle(template)} />
+            {guide?.x != null ? (
+              <div
+                className="pointer-events-none absolute top-0 bottom-0 w-px bg-primary z-[99]"
+                style={{ left: guide.x }}
+              />
+            ) : null}
+            {guide?.y != null ? (
+              <div
+                className="pointer-events-none absolute left-0 right-0 h-px bg-primary z-[99]"
+                style={{ top: guide.y }}
+              />
+            ) : null}
             {pageBlocks.map((block) => {
               const r = block.rect || defaultRectForBlock(block.type, 0, template, pageIndex);
               const h = r.h || 80;
@@ -258,10 +473,20 @@ export function KpCanvasEditor({
                   dragGrid={snap ? [grid, grid] : undefined}
                   resizeGrid={snap ? [grid, grid] : undefined}
                   onDragStop={(_e, d) => {
-                    updateRect(block.id, {
-                      x: snapCanvasValue(d.x, grid, snap),
-                      y: snapCanvasValue(d.y, grid, snap),
-                    });
+                    setGuide(null);
+                    const h = r.h || 80;
+                    let x = snapCanvasValue(d.x, grid, snap);
+                    let y = snapCanvasValue(d.y, grid, snap);
+                    const snapped = snapGuides(x, y, r.w, h);
+                    x = snapCanvasValue(snapped.x, grid, snap);
+                    y = snapCanvasValue(snapped.y, grid, snap);
+                    if (block.groupId) {
+                      const dx = x - (r.x || 0);
+                      const dy = y - (r.y || 0);
+                      moveGroup(block.id, dx, dy);
+                    } else {
+                      updateRect(block.id, { x, y });
+                    }
                     setSelectedId(block.id);
                   }}
                   onResizeStop={(_e, _dir, ref, _delta, pos) => {
@@ -310,6 +535,7 @@ export function KpCanvasEditor({
           pageCount={countTemplatePages(template)}
         />
       </div>
+    </div>
     </div>
   );
 }

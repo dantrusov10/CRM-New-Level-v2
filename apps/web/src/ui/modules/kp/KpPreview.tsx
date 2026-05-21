@@ -149,6 +149,17 @@ export function KpPreview({
         );
       }
 
+      case "image": {
+        const src = blk.imageUrl || "";
+        if (!src) return null;
+        return (
+          <section key={blk.id} className="kp-doc-image">
+            {blk.title ? <div className="kp-doc-section-title">{blk.title}</div> : null}
+            <img src={src} alt="" className="max-w-full h-auto object-contain" style={{ maxHeight: "100%" }} />
+          </section>
+        );
+      }
+
       case "client_cards":
         return (
           <div key={blk.id} className="kp-doc-info-grid">

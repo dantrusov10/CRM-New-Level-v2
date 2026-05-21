@@ -10,6 +10,7 @@ const DEFAULT_H: Partial<Record<KpPdfBlockType, number>> = {
   client_cards: 72,
   technical: 140,
   custom: 120,
+  image: 160,
   specification_table: 220,
   totals: 100,
   conditions: 110,

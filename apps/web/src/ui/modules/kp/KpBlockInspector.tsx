@@ -69,6 +69,35 @@ export function KpBlockInspector({
         </>
       ) : null}
 
+      {b.type === "image" ? (
+        <>
+          <Input
+            value={b.title || ""}
+            onChange={(e) => onPatch(b.id, { title: e.target.value })}
+            placeholder="Подпись (необязательно)"
+          />
+          {b.imageUrl ? (
+            <img src={b.imageUrl} alt="" className="max-h-24 w-full object-contain rounded border border-border" />
+          ) : null}
+          <label className="text-xs text-[#374151]">
+            <span className="block mb-1">Файл (PNG, JPEG, WebP)</span>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="text-[11px] w-full"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (!f) return;
+                const reader = new FileReader();
+                reader.onload = () => onPatch(b.id, { imageUrl: String(reader.result || "") });
+                reader.readAsDataURL(f);
+              }}
+            />
+          </label>
+        </>
+      ) : null}
+
       <div className="text-[10px] font-semibold text-[#6b7280] uppercase tracking-wide">Позиция на листе</div>
       <div className="grid grid-cols-2 gap-2">
         <div>

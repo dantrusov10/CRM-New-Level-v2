@@ -1,5 +1,9 @@
+import React, { Suspense } from "react";
 import { AdminPageShell } from "../../layout/AdminPageShell";
-import { KpAdminPanel } from "../../modules/kp/KpAdminPanel";
+
+const KpAdminPanel = React.lazy(() =>
+  import("../../modules/kp/KpAdminPanel").then((m) => ({ default: m.KpAdminPanel })),
+);
 
 export function AdminKpPage() {
   return (
@@ -7,7 +11,9 @@ export function AdminKpPage() {
       title="Коммерческие предложения"
       subtitle="КП и ТКП: прайс → шаблоны (оформление + тип) → проверка. В сделке — выбор документа и 4 шага."
     >
-      <KpAdminPanel />
+      <Suspense fallback={<div className="py-8 text-sm text-text2">Загрузка редактора шаблонов…</div>}>
+        <KpAdminPanel />
+      </Suspense>
     </AdminPageShell>
   );
 }

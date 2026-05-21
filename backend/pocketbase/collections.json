@@ -5331,6 +5331,7 @@
             "maxSelect": 1,
             "values": [
               "draft",
+              "sent",
               "final"
             ]
           }

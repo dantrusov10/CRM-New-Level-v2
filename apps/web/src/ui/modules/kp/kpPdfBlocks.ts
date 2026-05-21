@@ -7,6 +7,7 @@ export const KP_PDF_BLOCK_META: Record<KpPdfBlockType, { label: string; hint: st
   client_cards: { label: "Реквизиты клиента", hint: "Email и ИНН — блок под шапкой" },
   technical: { label: "Техническое описание", hint: "Текст решения — обычно для ТКП, перед таблицей" },
   custom: { label: "Свой раздел", hint: "Произвольный текст: о компании, этапы, SLA" },
+  image: { label: "Картинка", hint: "Логотип, схема, баннер — PNG/JPG" },
   specification_table: { label: "Таблица товаров", hint: "Позиции из прайса — основа КП" },
   totals: { label: "Итоговая сумма", hint: "Подтаблица: без НДС, НДС, к оплате" },
   conditions: { label: "Условия сделки", hint: "Оплата, сроки, комментарий менеджера" },
@@ -68,7 +69,30 @@ function normalizeBlock(item: KpPdfBlock, index: number): KpPdfBlock | null {
     pageBreakBefore: !!item.pageBreakBefore,
     rect,
     style,
+    imageUrl: item.imageUrl != null ? String(item.imageUrl) : undefined,
+    groupId: item.groupId != null ? String(item.groupId) : undefined,
   };
+}
+
+export function createImageBlock(imageUrl: string, title = "Изображение"): KpPdfBlock {
+  const id = `img_${Math.random().toString(36).slice(2, 8)}_${Date.now().toString(36)}`;
+  return {
+    id,
+    type: "image",
+    enabled: true,
+    title,
+    imageUrl,
+    pageBreakBefore: false,
+  };
+}
+
+export function duplicateBlock(block: KpPdfBlock): KpPdfBlock {
+  const copy = JSON.parse(JSON.stringify(block)) as KpPdfBlock;
+  copy.id = `${block.type}_${Math.random().toString(36).slice(2, 8)}`;
+  if (copy.rect) {
+    copy.rect = { ...copy.rect, x: copy.rect.x + 16, y: copy.rect.y + 16, zIndex: (copy.rect.zIndex || 0) + 1 };
+  }
+  return copy;
 }
 
 export function ensurePdfBlocks(template: KpTemplateConfig): KpPdfBlock[] {

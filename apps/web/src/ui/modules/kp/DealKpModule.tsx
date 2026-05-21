@@ -10,7 +10,11 @@ import { KpPagedDocumentPreview } from "./KpPagedDocumentPreview";
 import { KP_A4_WIDTH_PX } from "./KpDocumentFrame";
 import { ensurePdfBlocks } from "./kpPdfBlocks";
 import { downloadPdfFromPageElements } from "./kpPdfExport";
+import { exportDealToDocx } from "./kpDocxExport";
 import { getDocumentPages } from "./kpCanvasPages";
+import { isCanvasLayoutMode } from "./kpCanvasLayout";
+import { KP_INSTANCE_STATUS_META, normalizeInstanceStatus } from "./kpInstanceStatus";
+import type { KpInstanceStatus } from "./types";
 import { computeSpecification } from "./calc";
 import { DEFAULT_KP_TEMPLATE_V1 } from "./defaultTemplate";
 import { documentFilePrefix, documentTypeLabel, getDocumentType } from "./kpDocumentMeta";
@@ -112,6 +116,7 @@ export function DealKpModule({
   const [items, setItems] = React.useState<SpecItem[]>([]);
   const [priceSearch, setPriceSearch] = React.useState("");
   const [priceItems, setPriceItems] = React.useState<PriceListItem[]>([]);
+  const [tagFilter, setTagFilter] = React.useState("");
   const pagePrintRefs = React.useRef<(HTMLDivElement | null)[]>([]);
 
   const pdfPageBlocks = React.useMemo(
@@ -125,7 +130,8 @@ export function DealKpModule({
 
   function applyTemplateRecord(rec: KpTemplateRecord | null, inst: KpInstanceRecord | null) {
     setTemplateRec(rec);
-    const json = rec?.template_json && typeof rec.template_json === "object" ? rec.template_json : DEFAULT_KP_TEMPLATE_V1;
+    const raw = rec?.template_json && typeof rec.template_json === "object" ? rec.template_json : DEFAULT_KP_TEMPLATE_V1;
+    const json: KpTemplateConfig = { ...raw, pdfBlocks: ensurePdfBlocks(raw) };
     setTemplate(json);
     if (inst) {
       setInstance(inst);
@@ -235,21 +241,36 @@ export function DealKpModule({
     return s;
   }, [stepValid]);
 
-  async function saveDraft() {
+  async function saveInstance(status: KpInstanceStatus = "draft") {
     if (!dealId || !templateRec?.id) return;
     const payload = {
       deal_id: dealId,
       template_id: templateRec.id,
-      status: "draft" as const,
-      version: (instance?.version || 0) + (instance ? 0 : 1),
+      status,
+      version: instance?.version || 1,
       input_json: { ...input },
       computed_json: { items, totals: computed.totals },
     };
     const saved = instance?.id
       ? await pb.collection("kp_instances").update(instance.id, payload)
-      : await pb.collection("kp_instances").create(payload);
+      : await pb.collection("kp_instances").create({ ...payload, version: 1 });
     setInstance(saved as unknown as KpInstanceRecord);
-    if (onTimeline) await onTimeline("kp_draft_saved", "Сохранён черновик КП", { kp_instance_id: saved.id });
+    return saved;
+  }
+
+  async function saveDraft() {
+    const saved = await saveInstance("draft");
+    if (saved && onTimeline) await onTimeline("kp_draft_saved", "Сохранён черновик", { kp_instance_id: saved.id });
+  }
+
+  async function markSent() {
+    const saved = await saveInstance("sent");
+    if (saved && onTimeline) await onTimeline("kp_sent", "КП отмечено как отправленное", { kp_instance_id: saved.id });
+  }
+
+  async function markFinal() {
+    const saved = await saveInstance("final");
+    if (saved && onTimeline) await onTimeline("kp_final", "КП финализировано", { kp_instance_id: saved.id });
   }
 
   async function addFromPrice(pi: PriceListItem) {
@@ -312,7 +333,36 @@ export function DealKpModule({
         totals: computed.totals,
         kp_instance_id: instance?.id || null,
       });
+    if (instanceStatus === "draft") await markSent();
   }
+
+  async function downloadDocx() {
+    await saveDraft();
+    const clientName = String(input?.clientName || company?.name || "Клиент");
+    const prefix = documentFilePrefix(getDocumentType(template));
+    await exportDealToDocx(template, input, items, safeFileName(`${prefix}_${clientName}_${dealId}`));
+  }
+
+  const allTags = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const t of templates) {
+      const tags = (t.template_json as KpTemplateConfig | undefined)?.tags;
+      if (Array.isArray(tags)) tags.forEach((tag) => set.add(String(tag)));
+    }
+    return [...set].sort();
+  }, [templates]);
+
+  const filteredTemplates = React.useMemo(() => {
+    if (!tagFilter.trim()) return templates;
+    return templates.filter((t) => {
+      const tags = (t.template_json as KpTemplateConfig | undefined)?.tags || [];
+      return tags.some((tag) => String(tag).toLowerCase().includes(tagFilter.toLowerCase()));
+    });
+  }, [templates, tagFilter]);
+
+  const instanceStatus = normalizeInstanceStatus(instance?.status);
+  const statusMeta = KP_INSTANCE_STATUS_META[instanceStatus];
+  const canvasLayout = isCanvasLayoutMode(template);
 
   const stepIndex = DEAL_KP_STEPS.findIndex((s) => s.id === step);
   const prevStep = DEAL_KP_STEPS[stepIndex - 1]?.id;
@@ -338,13 +388,27 @@ export function DealKpModule({
               </div>
             </div>
             <div className="flex flex-wrap gap-2 items-center">
-              {templates.length > 1 ? (
+              {allTags.length ? (
+                <select
+                  className="h-9 rounded-card border border-border bg-white px-2 text-sm max-w-[140px]"
+                  value={tagFilter}
+                  onChange={(e) => setTagFilter(e.target.value)}
+                >
+                  <option value="">Все теги</option>
+                  {allTags.map((tag) => (
+                    <option key={tag} value={tag}>
+                      {tag}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+              {filteredTemplates.length > 1 ? (
                 <select
                   className="h-9 rounded-card border border-border bg-white px-2 text-sm max-w-[220px]"
                   value={templateRec?.id || ""}
                   onChange={(e) => void switchTemplate(e.target.value)}
                 >
-                  {templates.map((t) => {
+                  {filteredTemplates.map((t) => {
                     const json = t.template_json;
                     const type =
                       json && typeof json === "object" ? getDocumentType(json as KpTemplateConfig) : "kp";
@@ -359,7 +423,22 @@ export function DealKpModule({
                 <Badge>{documentTypeLabel(docType)}</Badge>
               )}
               <Badge>НДС {vatPercent}%</Badge>
-              {instance ? <Badge>Черновик v{instance.version || 1}</Badge> : <Badge>Новый документ</Badge>}
+              {canvasLayout ? <Badge>Макет: холст</Badge> : null}
+              {instance ? (
+                <Badge
+                  className={
+                    instanceStatus === "final"
+                      ? "border-emerald-500/50 text-emerald-700"
+                      : instanceStatus === "sent"
+                        ? "border-primary/50 text-primary"
+                        : ""
+                  }
+                >
+                  {statusMeta.label} · v{instance.version || 1}
+                </Badge>
+              ) : (
+                <Badge>Новый документ</Badge>
+              )}
               <Button small variant="secondary" onClick={resetFromScratch} title="Очистить и начать заново">
                 <RotateCcw size={14} className="mr-1" />
                 С нуля
@@ -527,7 +606,9 @@ export function DealKpModule({
         <Card>
           <CardHeader>
             <div className="text-sm font-semibold">Шаг 4 — Проверка и PDF</div>
-            <div className="text-xs text-text2 mt-1">Так увидит клиент. Сначала сохраните черновик, затем скачайте файл.</div>
+            <div className="text-xs text-text2 mt-1">
+              Превью совпадает с шаблоном{canvasLayout ? " (режим холста — позиции блоков)" : ""}. Сохраните черновик перед экспортом.
+            </div>
           </CardHeader>
           <CardContent className="grid gap-4">
             <div className="absolute -left-[99999px] top-0 pointer-events-none" aria-hidden>
@@ -558,12 +639,30 @@ export function DealKpModule({
               <Button variant="secondary" className="w-full sm:w-auto" onClick={() => void saveDraft()}>
                 Сохранить черновик
               </Button>
+              {instanceStatus !== "final" ? (
+                <Button variant="secondary" className="w-full sm:w-auto" onClick={() => void markSent()}>
+                  Отметить отправленным
+                </Button>
+              ) : null}
+              {instanceStatus !== "final" ? (
+                <Button variant="secondary" className="w-full sm:w-auto" onClick={() => void markFinal()}>
+                  Финал
+                </Button>
+              ) : null}
               <Button
                 className="w-full sm:w-auto"
                 onClick={() => void generatePdfAndDownload()}
                 disabled={!items.length || requiredMissing || !readiness?.ready}
               >
                 Скачать PDF
+              </Button>
+              <Button
+                variant="secondary"
+                className="w-full sm:w-auto"
+                onClick={() => void downloadDocx()}
+                disabled={!items.length || requiredMissing || !readiness?.ready}
+              >
+                Скачать Word
               </Button>
             </div>
           </CardContent>

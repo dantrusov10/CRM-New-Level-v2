@@ -246,6 +246,23 @@ export function KpTemplateEditor({
             </div>
 
             <div>
+              <div className="text-xs text-text2 mb-1">Теги (фильтр в сделке, через запятую)</div>
+              <Input
+                value={(draft?.tags || []).join(", ")}
+                onChange={(e) =>
+                  setDraft((p) => ({
+                    ...p,
+                    tags: e.target.value
+                      .split(/[,;]/)
+                      .map((s) => s.trim())
+                      .filter(Boolean),
+                  }))
+                }
+                placeholder="отдел, продукт, регион"
+              />
+            </div>
+
+            <div>
               <div className="text-xs text-text2 mb-2">Тип документа</div>
               <div className="flex flex-wrap gap-2">
                 {(["kp", "tkp"] as const).map((t) => (

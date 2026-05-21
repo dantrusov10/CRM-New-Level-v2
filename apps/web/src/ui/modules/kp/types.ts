@@ -15,7 +15,7 @@ export type KpInstance = {
   id?: string;
   deal_id: string;
   template_id: string;
-  status: "draft" | "final";
+  status: KpInstanceStatus;
   version: number;
   input_json: JsonObject;
   computed_json: JsonObject;
@@ -60,6 +60,15 @@ export type KpBranding = JsonObject & {
   signature?: { name?: string; title?: string; phone?: string; email?: string };
 };
 export type KpDocumentType = "kp" | "tkp";
+export type KpInstanceStatus = "draft" | "sent" | "final";
+
+/** Сохранённый фрагмент для библиотеки блоков */
+export type KpBlockLibraryItem = {
+  id: string;
+  name: string;
+  block: KpPdfBlock;
+  createdAt?: string;
+};
 export type KpDocumentLayoutMode = "flow" | "canvas";
 
 /** Позиция блока на листе A4 (режим «холст / Figma»), px от верхнего левого угла листа */
@@ -93,6 +102,7 @@ export type KpPdfBlockType =
   | "client_cards"
   | "technical"
   | "custom"
+  | "image"
   | "specification_table"
   | "totals"
   | "conditions"
@@ -175,6 +185,10 @@ export type KpPdfBlock = {
   rect?: KpBlockRect;
   /** Стили конкретного блока */
   style?: KpBlockStyle;
+  /** URL или data URL картинки (блок image) */
+  imageUrl?: string;
+  /** Группа для совместного перемещения */
+  groupId?: string;
 };
 
 export type KpTemplateConfig = JsonObject & {
@@ -196,6 +210,10 @@ export type KpTemplateConfig = JsonObject & {
   calcRules?: { applyPartnerDiscountFirst?: boolean; discounts?: JsonObject };
   pdfDesign?: KpPdfDesign;
   pdf?: JsonObject;
+  /** Теги для фильтра в сделке: отдел, продукт */
+  tags?: string[];
+  /** Библиотека переиспользуемых разделов */
+  blockLibrary?: KpBlockLibraryItem[];
 };
 export type KpInput = Record<string, JsonValue>;
 export type PriceListItem = {

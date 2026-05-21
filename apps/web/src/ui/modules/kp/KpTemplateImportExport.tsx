@@ -5,6 +5,7 @@ import { Button } from "../../components/Button";
 import type { KpTemplateConfig } from "./types";
 import { ensurePdfBlocks } from "./kpPdfBlocks";
 import { docxFileToHtml, htmlFileToHtml, mergeImportedHtmlIntoTemplate } from "./kpDocxImport";
+import { importDocxAsFullTemplate } from "./kpDocxTemplateImport";
 
 export function KpTemplateImportExport({
   draft,
@@ -15,6 +16,7 @@ export function KpTemplateImportExport({
 }) {
   const jsonRef = React.useRef<HTMLInputElement | null>(null);
   const docxRef = React.useRef<HTMLInputElement | null>(null);
+  const docxFullRef = React.useRef<HTMLInputElement | null>(null);
   const htmlRef = React.useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [alert, setAlert] = React.useState<{ title: string; message: string } | null>(null);
@@ -59,6 +61,23 @@ export function KpTemplateImportExport({
       e.target.value = "";
     };
     reader.readAsText(f, "utf-8");
+  }
+
+  async function onDocxFullFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    setBusy(true);
+    try {
+      onImport(await importDocxAsFullTemplate(draft, f));
+    } catch (err) {
+      setAlert({
+        title: "Бланк Word",
+        message: err instanceof Error ? err.message : "Не удалось импортировать .docx как шаблон",
+      });
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function onDocxFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -111,7 +130,7 @@ export function KpTemplateImportExport({
         <div>
           <div className="text-sm font-semibold">Импорт и экспорт шаблона</div>
           <p className="text-[11px] text-text2 mt-0.5 max-w-lg leading-relaxed">
-            JSON — полный шаблон. Word (.docx) и HTML — новый раздел (mammoth). PDF как шаблон не поддерживается.
+            JSON — полный шаблон. Word — раздел или целый бланк. HTML — новый раздел. PDF как шаблон не поддерживается.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -125,7 +144,11 @@ export function KpTemplateImportExport({
           </Button>
           <Button small variant="secondary" onClick={() => docxRef.current?.click()} disabled={busy}>
             <FileText size={14} className="mr-1" />
-            {busy ? "Word…" : "Загрузить .docx"}
+            {busy ? "Word…" : ".docx → раздел"}
+          </Button>
+          <Button small variant="secondary" onClick={() => docxFullRef.current?.click()} disabled={busy}>
+            <FileText size={14} className="mr-1" />
+            {busy ? "Word…" : ".docx → бланк"}
           </Button>
           <Button small variant="secondary" onClick={() => htmlRef.current?.click()} disabled={busy}>
             <FileText size={14} className="mr-1" />
@@ -139,6 +162,13 @@ export function KpTemplateImportExport({
           accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           className="hidden"
           onChange={(e) => void onDocxFile(e)}
+        />
+        <input
+          ref={docxFullRef}
+          type="file"
+          accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          className="hidden"
+          onChange={(e) => void onDocxFullFile(e)}
         />
         <input ref={htmlRef} type="file" accept=".html,.htm,text/html" className="hidden" onChange={onHtmlFile} />
       </div>

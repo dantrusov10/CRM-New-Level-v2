@@ -50,6 +50,7 @@ function normalizeBlock(item: KpPdfBlock, index: number): KpPdfBlock | null {
       w: Number(rectRaw.w) || 0,
       h: rectRaw.h != null ? Number(rectRaw.h) : undefined,
       zIndex: rectRaw.zIndex != null ? Number(rectRaw.zIndex) : undefined,
+      rotateDeg: rectRaw.rotateDeg != null ? Number(rectRaw.rotateDeg) : undefined,
     };
   }
   const styleRaw = item.style;

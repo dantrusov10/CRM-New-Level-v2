@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { fontStackById } from "./kpDocumentFonts";
+import { fontStackByCatalogId } from "./kpFontCatalog";
 import type { KpPdfBlock, KpTemplateConfig } from "./types";
 import { normalizePdfDesign } from "./kpDesign";
 
@@ -8,7 +8,7 @@ export function blockInlineStyleCss(block: KpPdfBlock, template: KpTemplateConfi
   const s = block.style || {};
   const fontId = s.fontFamily || doc.fontFamily;
   return {
-    fontFamily: fontStackById(fontId),
+    fontFamily: fontStackByCatalogId(fontId),
     fontSize: s.fontSizePt ? `${s.fontSizePt}pt` : undefined,
     color: s.textColor || undefined,
     background: s.bgColor || undefined,

@@ -5,6 +5,7 @@ import { designCssVars, normalizePdfDesign } from "./kpDesign";
 import { ensurePdfBlocks, type KpPdfBlock } from "./kpPdfBlocks";
 import type { SpecItem, KpInput, KpTemplateConfig } from "./types";
 import { CANVAS_PAGE_HEIGHT, defaultRectForBlock, isCanvasLayoutMode } from "./kpCanvasLayout";
+import { pageBackgroundLayerStyle } from "./kpPageBackground";
 import { blockInlineStyleCss } from "./kpBlockStyle";
 import { renderRichOrPlain, sanitizeKpHtml } from "./kpHtmlSanitize";
 import "./kpDocument.css";
@@ -295,8 +296,7 @@ export function KpPreview({
 
   if (isDocument) {
     const canvasMode = isCanvasLayoutMode(template) && !embedded;
-    const useCanvasLayout =
-      canvasMode && blocks.length > 0 && blocks.every((blk) => blk.rect && blk.rect.w > 0);
+    const useCanvasLayout = canvasMode && blocks.length > 0;
 
     if (useCanvasLayout) {
       return (
@@ -311,9 +311,11 @@ export function KpPreview({
             height: CANVAS_PAGE_HEIGHT,
           }}
         >
-          {blocks.map((blk) => {
-            const r = blk.rect || defaultRectForBlock(blk.type, 0, template, 0);
+          <div aria-hidden style={pageBackgroundLayerStyle(template)} />
+          {blocks.map((blk, idx) => {
+            const r = blk.rect || defaultRectForBlock(blk.type, idx, template, 0);
             const h = r.h || 80;
+            const rot = r.rotateDeg ? `rotate(${r.rotateDeg}deg)` : undefined;
             return (
               <div
                 key={blk.id}
@@ -325,6 +327,8 @@ export function KpPreview({
                   minHeight: h,
                   height: h,
                   zIndex: r.zIndex ?? 1,
+                  transform: rot,
+                  transformOrigin: "center center",
                   ...blockInlineStyleCss(blk, template),
                 }}
               >

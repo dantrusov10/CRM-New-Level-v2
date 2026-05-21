@@ -1,5 +1,6 @@
 import React from "react";
 import { Download, FileText, Upload } from "lucide-react";
+import { AlertDialog, PromptDialog } from "../../components/ConfirmDialog";
 import { Button } from "../../components/Button";
 import type { KpTemplateConfig } from "./types";
 import { ensurePdfBlocks } from "./kpPdfBlocks";
@@ -16,6 +17,13 @@ export function KpTemplateImportExport({
   const docxRef = React.useRef<HTMLInputElement | null>(null);
   const htmlRef = React.useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = React.useState(false);
+  const [alert, setAlert] = React.useState<{ title: string; message: string } | null>(null);
+  const [prompt, setPrompt] = React.useState<{
+    title: string;
+    label: string;
+    defaultValue: string;
+    onOk: (title: string) => void;
+  } | null>(null);
 
   function exportJson() {
     const payload = {
@@ -43,7 +51,10 @@ export function KpTemplateImportExport({
         if (!parsed || typeof parsed !== "object") throw new Error("Пустой файл");
         onImport(parsed);
       } catch {
-        window.alert("Не удалось прочитать шаблон. Нужен .json, экспортированный из этой CRM.");
+        setAlert({
+          title: "Ошибка импорта",
+          message: "Не удалось прочитать шаблон. Нужен .json, экспортированный из этой CRM.",
+        });
       }
       e.target.value = "";
     };
@@ -57,10 +68,17 @@ export function KpTemplateImportExport({
     setBusy(true);
     try {
       const html = await docxFileToHtml(f);
-      const title = window.prompt("Заголовок нового раздела", f.name.replace(/\.docx$/i, "")) || "Из Word";
-      onImport(mergeImportedHtmlIntoTemplate(draft, html, title));
+      setPrompt({
+        title: "Раздел из Word",
+        label: "Заголовок нового раздела",
+        defaultValue: f.name.replace(/\.docx$/i, ""),
+        onOk: (title) => onImport(mergeImportedHtmlIntoTemplate(draft, html, title || "Из Word")),
+      });
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : "Не удалось прочитать Word (.docx)");
+      setAlert({
+        title: "Word",
+        message: err instanceof Error ? err.message : "Не удалось прочитать .docx",
+      });
     } finally {
       setBusy(false);
     }
@@ -73,10 +91,14 @@ export function KpTemplateImportExport({
     reader.onload = () => {
       try {
         const html = htmlFileToHtml(String(reader.result || ""));
-        const title = window.prompt("Заголовок раздела", f.name.replace(/\.html?$/i, "")) || "Из HTML";
-        onImport(mergeImportedHtmlIntoTemplate(draft, html, title));
+        setPrompt({
+          title: "Раздел из HTML",
+          label: "Заголовок раздела",
+          defaultValue: f.name.replace(/\.html?$/i, ""),
+          onOk: (title) => onImport(mergeImportedHtmlIntoTemplate(draft, html, title || "Из HTML")),
+        });
       } catch {
-        window.alert("Не удалось прочитать HTML-файл");
+        setAlert({ title: "HTML", message: "Не удалось прочитать HTML-файл" });
       }
       e.target.value = "";
     };
@@ -84,41 +106,61 @@ export function KpTemplateImportExport({
   }
 
   return (
-    <div className="rounded-card border border-border bg-rowHover p-3 grid gap-3">
-      <div>
-        <div className="text-sm font-semibold">Импорт и экспорт шаблона</div>
-        <p className="text-[11px] text-text2 mt-0.5 max-w-lg leading-relaxed">
-          JSON — полный шаблон (оформление, разделы, листы). Word (.docx) и HTML — текст в новый раздел через{" "}
-          <strong className="text-white/80">mammoth</strong>. PDF как шаблон не поддерживается.
-        </p>
+    <>
+      <div className="rounded-card border border-border bg-rowHover p-3 grid gap-3">
+        <div>
+          <div className="text-sm font-semibold">Импорт и экспорт шаблона</div>
+          <p className="text-[11px] text-text2 mt-0.5 max-w-lg leading-relaxed">
+            JSON — полный шаблон. Word (.docx) и HTML — новый раздел (mammoth). PDF как шаблон не поддерживается.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button small variant="secondary" onClick={exportJson}>
+            <Download size={14} className="mr-1" />
+            Скачать .json
+          </Button>
+          <Button small variant="secondary" onClick={() => jsonRef.current?.click()} disabled={busy}>
+            <Upload size={14} className="mr-1" />
+            Загрузить .json
+          </Button>
+          <Button small variant="secondary" onClick={() => docxRef.current?.click()} disabled={busy}>
+            <FileText size={14} className="mr-1" />
+            {busy ? "Word…" : "Загрузить .docx"}
+          </Button>
+          <Button small variant="secondary" onClick={() => htmlRef.current?.click()} disabled={busy}>
+            <FileText size={14} className="mr-1" />
+            Загрузить .html
+          </Button>
+        </div>
+        <input ref={jsonRef} type="file" accept="application/json,.json" className="hidden" onChange={onJsonFile} />
+        <input
+          ref={docxRef}
+          type="file"
+          accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          className="hidden"
+          onChange={(e) => void onDocxFile(e)}
+        />
+        <input ref={htmlRef} type="file" accept=".html,.htm,text/html" className="hidden" onChange={onHtmlFile} />
       </div>
-      <div className="flex flex-wrap gap-2">
-        <Button small variant="secondary" onClick={exportJson}>
-          <Download size={14} className="mr-1" />
-          Скачать .json
-        </Button>
-        <Button small variant="secondary" onClick={() => jsonRef.current?.click()} disabled={busy}>
-          <Upload size={14} className="mr-1" />
-          Загрузить .json
-        </Button>
-        <Button small variant="secondary" onClick={() => docxRef.current?.click()} disabled={busy}>
-          <FileText size={14} className="mr-1" />
-          {busy ? "Word…" : "Загрузить .docx"}
-        </Button>
-        <Button small variant="secondary" onClick={() => htmlRef.current?.click()} disabled={busy}>
-          <FileText size={14} className="mr-1" />
-          Загрузить .html
-        </Button>
-      </div>
-      <input ref={jsonRef} type="file" accept="application/json,.json" className="hidden" onChange={onJsonFile} />
-      <input
-        ref={docxRef}
-        type="file"
-        accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        className="hidden"
-        onChange={(e) => void onDocxFile(e)}
+
+      <AlertDialog
+        open={!!alert}
+        title={alert?.title || ""}
+        message={alert?.message || ""}
+        onClose={() => setAlert(null)}
       />
-      <input ref={htmlRef} type="file" accept=".html,.htm,text/html" className="hidden" onChange={onHtmlFile} />
-    </div>
+
+      <PromptDialog
+        open={!!prompt}
+        title={prompt?.title || ""}
+        label={prompt?.label || ""}
+        defaultValue={prompt?.defaultValue || ""}
+        onConfirm={(v) => {
+          prompt?.onOk(v);
+          setPrompt(null);
+        }}
+        onCancel={() => setPrompt(null)}
+      />
+    </>
   );
 }

@@ -1,4 +1,5 @@
 import React from "react";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import { pb } from "../../../lib/pb";
 import { KpAdminWizard } from "./KpAdminWizard";
@@ -19,6 +20,12 @@ export function KpAdminPanel() {
   const [actionError, setActionError] = React.useState("");
   /** Увеличивается при «Редактировать» — мастер открывает шаг шаблона и прокручивает к редактору. */
   const [editFocusTick, setEditFocusTick] = React.useState(0);
+  const [confirmDelete, setConfirmDelete] = React.useState<{
+    id: string;
+    name: string;
+    mode: "deactivate" | "delete";
+    used?: number;
+  } | null>(null);
 
   async function load() {
     const list = await ensureKpAndTkpTemplates();
@@ -104,41 +111,33 @@ export function KpAdminPanel() {
 
     const used = await countKpInstancesForTemplate(id);
     if (used > 0) {
-      const deactivate = window.confirm(
-        `Шаблон «${rec.name}» использован в ${used} черновиках сделок.\n\n` +
-          `Удаление недоступно. Деактивировать шаблон? Он скроется из списка, черновики сохранятся.`,
-      );
-      if (!deactivate) return;
-      setBusy(true);
-      setActionError("");
-      try {
-        await pb.collection("settings_kp_templates").update(id, { is_active: false });
-        await load();
-        if (activeId === id) {
-          const next = templates.find((t) => t.id !== id);
-          setActiveId(next?.id || null);
-        }
-      } finally {
-        setBusy(false);
-      }
+      setConfirmDelete({ id, name: rec.name || "Шаблон", mode: "deactivate", used });
       return;
     }
+    setConfirmDelete({ id, name: rec.name || "Шаблон", mode: "delete" });
+  }
 
-    if (!window.confirm(`Удалить шаблон «${rec.name}» безвозвратно?`)) return;
-
+  async function runConfirmedDelete() {
+    if (!confirmDelete) return;
+    const { id, mode } = confirmDelete;
     setBusy(true);
     setActionError("");
     try {
-      await pb.collection("settings_kp_templates").delete(id);
+      if (mode === "deactivate") {
+        await pb.collection("settings_kp_templates").update(id, { is_active: false });
+      } else {
+        await pb.collection("settings_kp_templates").delete(id);
+      }
       await load();
       if (activeId === id) {
-        const next = templates.filter((t) => t.id !== id)[0];
+        const next = templates.find((t) => t.id !== id) || templates.filter((t) => t.id !== id)[0];
         setActiveId(next?.id || null);
       }
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Не удалось удалить шаблон");
+      setActionError(e instanceof Error ? e.message : "Не удалось выполнить действие");
     } finally {
       setBusy(false);
+      setConfirmDelete(null);
     }
   }
 
@@ -181,6 +180,25 @@ export function KpAdminPanel() {
           <CardContent className="py-6 text-sm text-text2">Выберите шаблон для редактирования.</CardContent>
         </Card>
       )}
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title={confirmDelete?.mode === "deactivate" ? "Деактивировать шаблон?" : "Удалить шаблон?"}
+        message={
+          confirmDelete?.mode === "deactivate" ? (
+            <>
+              Шаблон «{confirmDelete.name}» использован в {confirmDelete.used} черновиках. Удаление недоступно —
+              деактивировать? Шаблон скроется из списка, черновики сохранятся.
+            </>
+          ) : (
+              <>Удалить шаблон «{confirmDelete?.name}» безвозвратно?</>
+            )
+        }
+        confirmLabel={confirmDelete?.mode === "deactivate" ? "Деактивировать" : "Удалить"}
+        variant={confirmDelete?.mode === "delete" ? "danger" : "default"}
+        onConfirm={() => void runConfirmedDelete()}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   );
 }

@@ -1,7 +1,8 @@
 import React from "react";
 import { Input } from "../../components/Input";
-import { KP_FONT_FAMILIES } from "./kpDocumentFonts";
 import { KpColorPicker } from "./KpColorPicker";
+import { KpFontSelect } from "./KpFontSelect";
+import { isCanvasLayoutMode } from "./kpCanvasLayout";
 import {
   FONT_OPTIONS,
   LAYOUT_OPTIONS,
@@ -41,7 +42,7 @@ export function KpDesignSettings({
       <div>
         <div className="text-sm font-semibold">Оформление PDF</div>
         <p className="text-xs text-text2 mt-1">
-          {KP_FONT_FAMILIES.length} шрифтов (Fontsource), типографика, цвета, холст Figma — в превью сразу.
+          Выпадающий список: веб-шрифты + все базовые системные. Холст Figma — справа при переключении режима.
         </p>
       </div>
 
@@ -71,24 +72,57 @@ export function KpDesignSettings({
         </div>
       </div>
 
-      <div>
-        <div className="text-xs text-text2 mb-2">Шрифт документа</div>
-        <div className="flex flex-wrap gap-2">
-          {KP_FONT_FAMILIES.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              onClick={() => patchDesign({ fontFamily: f.id })}
-              className={`rounded-card border px-3 py-1.5 text-xs ${
-                design.fontFamily === f.id ? "border-primary bg-primary/10" : "border-border bg-white"
-              }`}
-              style={{ fontFamily: f.stack }}
-            >
-              {f.label}
-            </button>
-          ))}
+      <KpFontSelect
+        value={design.fontFamily}
+        onChange={(id) => patchDesign({ fontFamily: id as typeof design.fontFamily })}
+      />
+
+      {isCanvasLayoutMode(draft) ? (
+        <div>
+          <div className="text-xs text-text2 mb-2">Фон листа (картинка)</div>
+          <label className="flex flex-col gap-2 cursor-pointer rounded-card border border-dashed border-border bg-white p-3 text-xs text-[#374151] hover:border-primary">
+            PNG/JPG/WebP до 3 МБ
+            <input
+              type="file"
+              className="sr-only"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                if (f.size > 3 * 1024 * 1024) {
+                  return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => patchDesign({ pageBackgroundUrl: String(reader.result || "") });
+                reader.readAsDataURL(f);
+                e.target.value = "";
+              }}
+            />
+          </label>
+          {design.pageBackgroundUrl ? (
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              <img src={design.pageBackgroundUrl} alt="" className="h-12 max-w-[160px] object-cover rounded border" />
+              <button
+                type="button"
+                className="text-[10px] text-danger underline"
+                onClick={() => patchDesign({ pageBackgroundUrl: "" })}
+              >
+                Убрать фон
+              </button>
+              <div className="flex items-center gap-2 text-xs text-text2">
+                Прозрачность
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={Math.round((design.pageBackgroundOpacity ?? 1) * 100)}
+                  onChange={(e) => patchDesign({ pageBackgroundOpacity: Number(e.target.value) / 100 })}
+                />
+              </div>
+            </div>
+          ) : null}
         </div>
-      </div>
+      ) : null}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div>

@@ -33,6 +33,7 @@ import {
 import { blockInlineStyleCss } from "./kpBlockStyle";
 import { countTemplatePages } from "./kpCanvasPages";
 import { normalizePdfDesign } from "./kpDesign";
+import { pageBackgroundLayerStyle } from "./kpPageBackground";
 import { KP_PDF_BLOCK_META, createCustomBlock, ensurePdfBlocks } from "./kpPdfBlocks";
 import type { KpInput, KpPdfBlock, KpTemplateConfig, SpecItem } from "./types";
 import "./kpCanvasEditor.css";
@@ -229,6 +230,7 @@ export function KpCanvasEditor({
             }}
             onClick={() => setSelectedId(null)}
           >
+            <div aria-hidden style={pageBackgroundLayerStyle(template)} />
             {pageBlocks.map((block) => {
               const r = block.rect || defaultRectForBlock(block.type, 0, template, pageIndex);
               const h = r.h || 80;
@@ -267,7 +269,11 @@ export function KpCanvasEditor({
                     e.stopPropagation();
                     setSelectedId(block.id);
                   }}
-                  style={{ zIndex: r.zIndex ?? 1 }}
+                  style={{
+                    zIndex: r.zIndex ?? 1,
+                    transform: r.rotateDeg ? `rotate(${r.rotateDeg}deg)` : undefined,
+                    transformOrigin: "center center",
+                  }}
                 >
                   {isSelected ? <span className="kp-canvas-rnd-label">{label}</span> : null}
                   <div style={blockInlineStyleCss(block, template)}>

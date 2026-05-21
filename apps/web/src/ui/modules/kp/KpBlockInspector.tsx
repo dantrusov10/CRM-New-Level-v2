@@ -2,7 +2,7 @@ import React from "react";
 import { Input } from "../../components/Input";
 import { KpColorPicker } from "./KpColorPicker";
 import { KpRichTextEditor } from "./KpRichTextEditor";
-import { KP_FONT_FAMILIES } from "./kpDocumentFonts";
+import { KpFontSelect } from "./KpFontSelect";
 import { KP_PDF_BLOCK_META } from "./kpPdfBlocks";
 import type { KpFontFamilyId, KpPdfBlock, KpTemplateConfig } from "./types";
 
@@ -105,26 +105,24 @@ export function KpBlockInspector({
           <div className="text-[10px] mb-0.5">Слой (z)</div>
           <Input type="number" value={String(rect.zIndex ?? 1)} onChange={(e) => patchRect({ zIndex: Number(e.target.value) })} />
         </div>
+        <div>
+          <div className="text-[10px] mb-0.5">Поворот, °</div>
+          <Input
+            type="number"
+            value={String(rect.rotateDeg ?? 0)}
+            onChange={(e) => patchRect({ rotateDeg: Number(e.target.value) })}
+          />
+        </div>
       </div>
 
       <div className="text-[10px] font-semibold text-[#6b7280] uppercase tracking-wide">Стили блока</div>
-      <div>
-        <div className="text-[10px] mb-1">Шрифт блока</div>
-        <select
-          className="w-full rounded-card border border-[#9CA3AF] bg-white px-2 py-1.5 text-xs"
-          value={style.fontFamily || ""}
-          onChange={(e) =>
-            patchStyle({ fontFamily: (e.target.value || undefined) as KpFontFamilyId | undefined })
-          }
-        >
-          <option value="">Как в документе</option>
-          {KP_FONT_FAMILIES.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <KpFontSelect
+        label="Шрифт блока"
+        allowEmpty
+        emptyLabel="Как в документе"
+        value={style.fontFamily || ""}
+        onChange={(id) => patchStyle({ fontFamily: (id || undefined) as KpFontFamilyId | undefined })}
+      />
       <div className="grid grid-cols-2 gap-2">
         <div>
           <div className="text-[10px] mb-0.5">Размер, pt</div>

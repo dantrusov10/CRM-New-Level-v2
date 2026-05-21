@@ -156,6 +156,15 @@ export function KpTemplateEditor({
   const docType: KpDocumentType = draft?.documentType === "tkp" ? "tkp" : "kp";
   const demoInput = docType === "tkp" ? DEMO_INPUT_TKP : DEMO_INPUT_KP;
   const canvasMode = isCanvasLayoutMode(draft);
+  const canvasPanelRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    if (!canvasMode) return;
+    const t = window.setTimeout(() => {
+      canvasPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 120);
+    return () => window.clearTimeout(t);
+  }, [canvasMode]);
 
   function setDocumentType(type: KpDocumentType) {
     setDraft((p) => {
@@ -171,8 +180,12 @@ export function KpTemplateEditor({
   }
 
   return (
-    <div className={`grid grid-cols-1 gap-4 min-h-[640px] ${canvasMode ? "" : "xl:grid-cols-12"}`}>
-      <div className={`${canvasMode ? "" : "xl:col-span-5"} grid gap-4 content-start`}>
+    <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 min-h-[640px]">
+      <div
+        className={`${canvasMode ? "xl:col-span-4" : "xl:col-span-5"} grid gap-4 content-start ${
+          canvasMode ? "max-h-[min(85vh,900px)] overflow-y-auto pr-1 crm-scrollbar" : ""
+        }`}
+      >
         <Card>
           <CardHeader>
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -373,7 +386,16 @@ export function KpTemplateEditor({
         </Card>
       </div>
 
-      <div className={`${canvasMode ? "xl:col-span-12" : "xl:col-span-7"} xl:sticky xl:top-4 self-start min-h-[560px]`}>
+      <div
+        ref={canvasPanelRef}
+        className={`${canvasMode ? "xl:col-span-8" : "xl:col-span-7"} xl:sticky xl:top-4 self-start min-h-[560px] scroll-mt-4`}
+      >
+        {canvasMode ? (
+          <div className="rounded-card border border-primary/40 bg-[rgba(0,78,235,0.06)] p-2 mb-2 text-[11px] text-text2">
+            Режим <strong className="text-white/90">Холст Figma</strong> — перетаскивайте блоки на листе справа. Слои и
+            инспектор — в панели холста.
+          </div>
+        ) : null}
         {canvasMode ? (
           <KpCanvasEditor
             template={draft}

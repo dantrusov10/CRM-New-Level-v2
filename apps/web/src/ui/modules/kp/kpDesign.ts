@@ -1,4 +1,4 @@
-import { fontStackById } from "./kpDocumentFonts";
+import { fontStackByCatalogId } from "./kpFontCatalog";
 import type { KpFontFamilyId, KpPdfDesign, KpTemplateConfig } from "./types";
 
 export type LayoutStyle = "classic" | "modern" | "compact";
@@ -49,7 +49,7 @@ export function normalizePdfDesign(template: KpTemplateConfig) {
     layoutStyle: (d.layoutStyle as LayoutStyle) || "classic",
     fontScale: scale,
     fontFamily,
-    fontStack: fontStackById(fontFamily),
+    fontStack: fontStackByCatalogId(fontFamily),
     bodyFontSizePt: Number(d.bodyFontSizePt) > 0 ? Number(d.bodyFontSizePt) : scalePt.body,
     headingFontSizePt: Number(d.headingFontSizePt) > 0 ? Number(d.headingFontSizePt) : scalePt.heading,
     lineHeight: Number(d.lineHeight) > 0 ? Number(d.lineHeight) : 1.45,
@@ -58,6 +58,9 @@ export function normalizePdfDesign(template: KpTemplateConfig) {
     canvasGridPx: Number(d.canvasGridPx) > 0 ? Number(d.canvasGridPx) : 8,
     canvasSnap: d.canvasSnap !== false,
     canvasShowGrid: d.canvasShowGrid !== false,
+    pageBackgroundUrl: d.pageBackgroundUrl ? String(d.pageBackgroundUrl) : "",
+    pageBackgroundOpacity:
+      d.pageBackgroundOpacity != null ? Math.min(1, Math.max(0, Number(d.pageBackgroundOpacity))) : 1,
     secondaryColor: d.secondaryColor || "#6b7280",
     tableStyle: (d.tableStyle as TableStyle) || "bordered",
     paperTone: tone,

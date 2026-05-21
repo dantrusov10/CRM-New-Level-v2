@@ -70,6 +70,8 @@ export type KpBlockRect = {
   w: number;
   h?: number;
   zIndex?: number;
+  /** Поворот блока, градусы */
+  rotateDeg?: number;
 };
 
 /** Локальные стили блока (перекрывают общий дизайн документа) */
@@ -114,7 +116,20 @@ export type KpFontFamilyId =
   | "fira-sans"
   | "noto-sans"
   | "jetbrains-mono"
-  | "system";
+  | "system"
+  | "arial"
+  | "helvetica"
+  | "verdana"
+  | "tahoma"
+  | "trebuchet"
+  | "segoe-ui"
+  | "calibri"
+  | "times"
+  | "georgia"
+  | "palatino"
+  | "garamond"
+  | "courier"
+  | "consolas";
 
 export type KpPdfDesign = {
   /** flow — список разделов; canvas — свободное размещение на листе */
@@ -132,6 +147,9 @@ export type KpPdfDesign = {
   canvasGridPx?: number;
   canvasSnap?: boolean;
   canvasShowGrid?: boolean;
+  /** Фон листа A4 (URL или data URL) */
+  pageBackgroundUrl?: string;
+  pageBackgroundOpacity?: number;
   tableStyle?: "bordered" | "plain" | "striped";
   paperTone?: "white" | "warm";
   paperBg?: string;

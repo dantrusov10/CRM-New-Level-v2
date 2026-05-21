@@ -74,7 +74,16 @@ export type KpPdfBlockType =
 export type KpPdfDesign = {
   layoutStyle?: "classic" | "modern" | "compact";
   fontScale?: "sm" | "md" | "lg";
-  fontFamily?: "inter" | "roboto" | "open-sans" | "merriweather" | "system";
+  fontFamily?:
+    | "inter"
+    | "roboto"
+    | "open-sans"
+    | "merriweather"
+    | "lato"
+    | "montserrat"
+    | "nunito-sans"
+    | "source-sans-3"
+    | "system";
   bodyFontSizePt?: number;
   headingFontSizePt?: number;
   lineHeight?: number;

@@ -1,0 +1,82 @@
+.kp-rte {
+  border: 1px solid #9ca3af;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.kp-rte-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 6px 8px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.kp-rte-toolbar button {
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: #374151;
+  cursor: pointer;
+}
+
+.kp-rte-toolbar button:hover {
+  background: #e5e7eb;
+}
+
+.kp-rte-toolbar button.is-active {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.kp-rte-body {
+  min-height: 120px;
+  padding: 10px 12px;
+  color: #111827;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.kp-rte-body .ProseMirror {
+  outline: none;
+  min-height: 100px;
+}
+
+.kp-rte-body .ProseMirror p {
+  margin: 0 0 8px;
+}
+
+.kp-rte-body .ProseMirror ul,
+.kp-rte-body .ProseMirror ol {
+  margin: 0 0 8px;
+  padding-left: 1.25rem;
+}
+
+.kp-rte-body .ProseMirror table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.kp-rte-body .ProseMirror th,
+.kp-rte-body .ProseMirror td {
+  border: 1px solid #d1d5db;
+  padding: 6px 8px;
+}
+
+.kp-rte-body .ProseMirror th {
+  background: #f3f4f6;
+  font-weight: 600;
+}
+
+.kp-rte-hint {
+  font-size: 10px;
+  color: #6b7280;
+  padding: 4px 10px 8px;
+}

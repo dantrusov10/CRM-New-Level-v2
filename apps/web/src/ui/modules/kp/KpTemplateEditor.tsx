@@ -5,6 +5,8 @@ import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
 import { KpPagedDocumentPreview } from "./KpPagedDocumentPreview";
 import { KpTemplateImportExport } from "./KpTemplateImportExport";
+import { KpTemplatePresetGallery } from "./KpTemplatePresetGallery";
+import { KpRichTextEditor } from "./KpRichTextEditor";
 import { KpDocumentSectionsEditor } from "./KpDocumentSectionsEditor";
 import { KpDesignSettings } from "./KpDesignSettings";
 import "./kpDocumentFonts";
@@ -331,16 +333,18 @@ export function KpTemplateEditor({
               {docType === "tkp" ? (
                 <div>
                   <div className="text-xs text-text2 mb-1">Текст технического блока по умолчанию</div>
-                  <textarea
-                    className="w-full min-h-[88px] rounded-card border border-[#9CA3AF] bg-white p-3 text-sm"
+                  <KpRichTextEditor
                     value={draft?.branding?.technicalIntroDefault || ""}
-                    onChange={(e) => updateBrand("technicalIntroDefault", e.target.value)}
+                    onChange={(html) => updateBrand("technicalIntroDefault", html)}
                     placeholder="Описание решения, этапы, SLA…"
+                    minHeight={100}
                   />
                   <p className="text-[10px] text-text2 mt-1">Менеджер может переопределить в сделке на шаге «Условия».</p>
                 </div>
               ) : null}
             </div>
+
+            <KpTemplatePresetGallery draft={draft} onApply={setDraft} />
 
             <KpTemplateImportExport
               draft={draft}

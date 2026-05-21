@@ -4,6 +4,7 @@ import { documentTitle, getDocumentType } from "./kpDocumentMeta";
 import { designCssVars, normalizePdfDesign } from "./kpDesign";
 import { ensurePdfBlocks, type KpPdfBlock } from "./kpPdfBlocks";
 import type { SpecItem, KpInput, KpTemplateConfig } from "./types";
+import { renderRichOrPlain, sanitizeKpHtml } from "./kpHtmlSanitize";
 import "./kpDocument.css";
 
 function formatMoney(v: number, currency: string) {
@@ -19,14 +20,6 @@ const PAYMENT_LABELS: Record<string, string> = {
   split50_50: "50/50",
   postpay: "Постоплата",
 };
-
-function sanitizeHtml(html: string) {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
-    .replace(/\son\w+="[^"]*"/gi, "")
-    .replace(/\son\w+='[^']*'/gi, "");
-}
 
 export function KpPreview({
   template,
@@ -121,21 +114,26 @@ export function KpPreview({
         );
 
       case "technical": {
-        const text =
+        const raw =
           String(input?.technicalIntro || "").trim() ||
           String(b.technicalIntroDefault || "").trim() ||
           "";
-        if (!text) return null;
+        if (!raw) return null;
+        const rich = renderRichOrPlain(raw);
         return (
           <section key={blk.id} className="kp-doc-technical">
             <div className="kp-doc-section-title">{blk.title || "Техническое описание"}</div>
-            {text}
+            {rich.isHtml ? (
+              <div className="kp-doc-custom-body" dangerouslySetInnerHTML={{ __html: rich.html }} />
+            ) : (
+              <div className="whitespace-pre-wrap">{raw}</div>
+            )}
           </section>
         );
       }
 
       case "custom": {
-        const html = sanitizeHtml(blk.bodyHtml || "");
+        const html = sanitizeKpHtml(blk.bodyHtml || "");
         if (!html.trim()) return null;
         return (
           <section key={blk.id} className="kp-doc-custom">

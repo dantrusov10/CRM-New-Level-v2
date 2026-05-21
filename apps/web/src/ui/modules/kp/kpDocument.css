@@ -97,6 +97,32 @@
   color: var(--kp-text, #111827);
 }
 
+.kp-doc-custom-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 9pt;
+}
+
+.kp-doc-custom-body th,
+.kp-doc-custom-body td {
+  border: 1px solid #e5e7eb;
+  padding: 6px 8px;
+  vertical-align: top;
+}
+
+.kp-doc-custom-body th {
+  background: var(--kp-table-head-bg, #eef1f6);
+}
+
+.kp-doc-custom-body a {
+  color: var(--kp-accent, #004eeb);
+}
+
+.kp-doc-technical .kp-doc-custom-body {
+  white-space: normal;
+}
+
 .kp-doc-info-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

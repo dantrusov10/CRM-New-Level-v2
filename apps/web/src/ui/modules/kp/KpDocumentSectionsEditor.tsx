@@ -4,6 +4,7 @@ import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
 import type { KpDocumentType, KpPdfBlock } from "./types";
 import { countDocumentPages } from "./kpPageLayout";
+import { KpRichTextEditor } from "./KpRichTextEditor";
 import { KP_PDF_BLOCK_META, applyPdfBlockPresetForDoc, createCustomBlock } from "./kpPdfBlocks";
 
 const PRESETS: { id: "standard" | "minimal" | "full"; label: string; desc: string }[] = [
@@ -68,7 +69,7 @@ export function KpDocumentSectionsEditor({
         <div>
           <div className="text-sm font-semibold">Разделы в документе</div>
           <p className="text-xs text-text2 mt-1 leading-relaxed max-w-lg">
-            Порядок = порядок в PDF. «Новый лист» — разрыв страницы (многостраничное КП/ТКП). Свои разделы — произвольный текст.
+            Порядок = порядок в PDF. «Новый лист» — разрыв страницы. Свои разделы — редактор как в Word (TipTap).
           </p>
         </div>
         <Button small variant="secondary" onClick={addCustom}>
@@ -168,11 +169,10 @@ export function KpDocumentSectionsEditor({
                         onChange={(e) => patchBlock(b.id, { title: e.target.value })}
                         placeholder="Заголовок раздела"
                       />
-                      <textarea
-                        className="w-full min-h-[88px] rounded-card border border-[#9CA3AF] bg-white p-2 text-sm font-mono text-[#111]"
+                      <KpRichTextEditor
                         value={b.bodyHtml || ""}
-                        onChange={(e) => patchBlock(b.id, { bodyHtml: e.target.value })}
-                        placeholder="<p>Текст...</p> — можно HTML: p, strong, ul, li, br"
+                        onChange={(html) => patchBlock(b.id, { bodyHtml: html })}
+                        placeholder="Текст раздела: списки, таблицы, форматирование…"
                       />
                     </div>
                   ) : null}

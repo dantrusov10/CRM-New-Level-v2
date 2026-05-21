@@ -39,7 +39,9 @@ export function KpDesignSettings({
     <div className="rounded-card border border-border bg-rowHover p-4 grid gap-4">
       <div>
         <div className="text-sm font-semibold">Оформление PDF</div>
-        <p className="text-xs text-text2 mt-1">Шрифты (коллекция Fontsource), цвета, отступы листа — сразу в превью.</p>
+        <p className="text-xs text-text2 mt-1">
+          9 шрифтов (Fontsource), цвета, отступы листа — сразу в превью. Готовые стили — в галерее выше.
+        </p>
       </div>
 
       <div>

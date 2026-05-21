@@ -1,5 +1,6 @@
 import React from "react";
 import { Input } from "../../components/Input";
+import { KP_FONT_FAMILIES } from "./kpDocumentFonts";
 import {
   FONT_OPTIONS,
   LAYOUT_OPTIONS,
@@ -38,7 +39,7 @@ export function KpDesignSettings({
     <div className="rounded-card border border-border bg-rowHover p-4 grid gap-4">
       <div>
         <div className="text-sm font-semibold">Оформление PDF</div>
-        <p className="text-xs text-text2 mt-1">Влияет только на вид документа — не на поля менеджера.</p>
+        <p className="text-xs text-text2 mt-1">Шрифты (коллекция Fontsource), цвета, отступы листа — сразу в превью.</p>
       </div>
 
       <div>
@@ -68,8 +69,101 @@ export function KpDesignSettings({
       </div>
 
       <div>
+        <div className="text-xs text-text2 mb-2">Шрифт документа</div>
+        <div className="flex flex-wrap gap-2">
+          {KP_FONT_FAMILIES.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => patchDesign({ fontFamily: f.id })}
+              className={`rounded-card border px-3 py-1.5 text-xs ${
+                design.fontFamily === f.id ? "border-primary bg-primary/10" : "border-border bg-white"
+              }`}
+              style={{ fontFamily: f.stack }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div>
+          <div className="text-xs text-text2 mb-1">Базовый размер, pt</div>
+          <Input
+            type="number"
+            value={String(design.bodyFontSizePt)}
+            onChange={(e) => patchDesign({ bodyFontSizePt: Number(e.target.value || 11) })}
+          />
+        </div>
+        <div>
+          <div className="text-xs text-text2 mb-1">Заголовок, pt</div>
+          <Input
+            type="number"
+            value={String(design.headingFontSizePt)}
+            onChange={(e) => patchDesign({ headingFontSizePt: Number(e.target.value || 16) })}
+          />
+        </div>
+        <div>
+          <div className="text-xs text-text2 mb-1">Межстрочный</div>
+          <Input
+            type="number"
+            step="0.05"
+            value={String(design.lineHeight)}
+            onChange={(e) => patchDesign({ lineHeight: Number(e.target.value || 1.45) })}
+          />
+        </div>
+        <div>
+          <div className="text-xs text-text2 mb-1">Поля листа, мм</div>
+          <Input
+            type="number"
+            value={String(design.pageMarginMm)}
+            onChange={(e) => patchDesign({ pageMarginMm: Number(e.target.value || 12) })}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div>
+          <div className="text-xs text-text2 mb-1">Цвет текста</div>
+          <label className="flex items-center gap-2">
+            <input
+              type="color"
+              value={design.textColor || "#111827"}
+              onChange={(e) => patchDesign({ textColor: e.target.value })}
+              className="h-8 w-10 border-0"
+            />
+            <span className="text-[10px] text-text2">{design.textColor}</span>
+          </label>
+        </div>
+        <div>
+          <div className="text-xs text-text2 mb-1">Вторичный цвет</div>
+          <label className="flex items-center gap-2">
+            <input
+              type="color"
+              value={design.secondaryColor || "#6b7280"}
+              onChange={(e) => patchDesign({ secondaryColor: e.target.value })}
+              className="h-8 w-10 border-0"
+            />
+          </label>
+        </div>
+        <div>
+          <div className="text-xs text-text2 mb-1">Фон таблицы</div>
+          <label className="flex items-center gap-2">
+            <input
+              type="color"
+              value={design.tableHeaderBg || "#EEF1F6"}
+              disabled={design.tableHeaderUseAccent}
+              onChange={(e) => patchDesign({ tableHeaderBg: e.target.value })}
+              className="h-8 w-10 border-0"
+            />
+          </label>
+        </div>
+      </div>
+
+      <div>
         <div className="text-xs text-text2 mb-2">Макет страницы</div>
-        <div className="grid gap-2">
+        <div className="grid gap-2 sm:grid-cols-3">
           {LAYOUT_OPTIONS.map((o) => (
             <label
               key={o.id}
@@ -95,7 +189,7 @@ export function KpDesignSettings({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <div className="text-xs text-text2 mb-2">Размер текста</div>
+          <div className="text-xs text-text2 mb-2">Масштаб (пресет)</div>
           <div className="flex flex-wrap gap-1">
             {FONT_OPTIONS.map((o) => (
               <button
@@ -159,7 +253,7 @@ export function KpDesignSettings({
               !design.tableHeaderUseAccent ? "border-primary bg-primary/10" : "border-border bg-white"
             }`}
           >
-            Нейтральная серая
+            Серая
           </button>
           <button
             type="button"
@@ -221,7 +315,7 @@ export function KpDesignSettings({
       </label>
 
       <div className="text-[10px] text-text2 rounded-card bg-[rgba(0,78,235,0.08)] px-2 py-1.5">
-        Акцент документа: <span style={{ color: accent }}>{accent}</span> — меняется в блоке «Фирменный стиль».
+        Акцент: <span style={{ color: accent }}>{accent}</span> — в блоке «Фирменный стиль».
       </div>
     </div>
   );

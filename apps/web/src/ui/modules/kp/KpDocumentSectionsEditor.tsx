@@ -1,15 +1,21 @@
 import React from "react";
-import { ArrowDown, ArrowUp, Check, Circle } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Circle, FilePlus, Trash2 } from "lucide-react";
 import { Button } from "../../components/Button";
-import type { KpDocumentType } from "./types";
-import type { KpPdfBlock } from "./kpPdfBlocks";
-import { KP_PDF_BLOCK_META, applyPdfBlockPresetForDoc } from "./kpPdfBlocks";
+import { Input } from "../../components/Input";
+import type { KpDocumentType, KpPdfBlock } from "./types";
+import { countDocumentPages } from "./kpPageLayout";
+import { KP_PDF_BLOCK_META, applyPdfBlockPresetForDoc, createCustomBlock } from "./kpPdfBlocks";
 
 const PRESETS: { id: "standard" | "minimal" | "full"; label: string; desc: string }[] = [
   { id: "standard", label: "Стандарт", desc: "Шапка, клиент, таблица, итоги, подпись" },
   { id: "minimal", label: "Краткое", desc: "Только суть: шапка, таблица, итоги" },
   { id: "full", label: "Полное", desc: "Все разделы, включая условия оплаты" },
 ];
+
+function blockLabel(b: KpPdfBlock) {
+  if (b.type === "custom") return b.title || "Свой раздел";
+  return KP_PDF_BLOCK_META[b.type].label;
+}
 
 export function KpDocumentSectionsEditor({
   blocks,
@@ -20,8 +26,12 @@ export function KpDocumentSectionsEditor({
   onChange: (next: KpPdfBlock[]) => void;
   documentType?: KpDocumentType;
 }) {
+  function patchBlock(id: string, patch: Partial<KpPdfBlock>) {
+    onChange(blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+  }
+
   function toggleBlock(id: string, enabled: boolean) {
-    onChange(blocks.map((b) => (b.id === id ? { ...b, enabled } : b)));
+    patchBlock(id, { enabled });
   }
 
   function moveBlock(id: string, dir: -1 | 1) {
@@ -35,19 +45,37 @@ export function KpDocumentSectionsEditor({
     onChange(copy);
   }
 
+  function removeBlock(id: string) {
+    const b = blocks.find((x) => x.id === id);
+    if (!b || b.type !== "custom") return;
+    onChange(blocks.filter((x) => x.id !== id));
+  }
+
+  function addCustom() {
+    onChange([...blocks, createCustomBlock()]);
+  }
+
   function applyPreset(preset: "standard" | "minimal" | "full") {
     onChange(applyPdfBlockPresetForDoc(preset, documentType));
   }
 
   const enabledBlocks = blocks.filter((b) => b.enabled);
+  const pageCount = countDocumentPages(blocks);
 
   return (
     <div className="rounded-card border border-border bg-rowHover p-4">
-      <div className="text-sm font-semibold">Разделы в документе</div>
-      <p className="text-xs text-text2 mt-1 leading-relaxed">
-        Отметьте, что попадёт в PDF, и расположите разделы сверху вниз — так же они пойдут в файл для клиента.
-        Изменения сразу видны в предпросмотре справа.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <div className="text-sm font-semibold">Разделы в документе</div>
+          <p className="text-xs text-text2 mt-1 leading-relaxed max-w-lg">
+            Порядок = порядок в PDF. «Новый лист» — разрыв страницы (многостраничное КП/ТКП). Свои разделы — произвольный текст.
+          </p>
+        </div>
+        <Button small variant="secondary" onClick={addCustom}>
+          <FilePlus size={14} className="mr-1" />
+          Свой раздел
+        </Button>
+      </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
         {PRESETS.map((p) => (
@@ -67,70 +95,105 @@ export function KpDocumentSectionsEditor({
         {blocks.map((b, index) => {
           const meta = KP_PDF_BLOCK_META[b.type];
           const isRequired = b.type === "specification_table";
+          const isCustom = b.type === "custom";
           const tkpHint = b.type === "technical" && documentType === "tkp";
+
           return (
             <div
               key={b.id}
-              className={`flex gap-2 rounded-card border p-3 transition-colors ${
+              className={`rounded-card border p-3 transition-colors ${
                 b.enabled ? "border-primary/40 bg-white" : "border-border bg-[rgba(255,255,255,0.03)] opacity-75"
               }`}
             >
-              <div className="flex flex-col items-center gap-0.5 shrink-0 pt-0.5">
-                <span className="text-[10px] font-bold text-text2 w-5 text-center">{index + 1}</span>
-                <Button
-                  small
-                  variant="secondary"
-                  onClick={() => moveBlock(b.id, -1)}
-                  disabled={index === 0}
-                  title="Выше в документе"
-                >
-                  <ArrowUp size={12} />
-                </Button>
-                <Button
-                  small
-                  variant="secondary"
-                  onClick={() => moveBlock(b.id, 1)}
-                  disabled={index === blocks.length - 1}
-                  title="Ниже в документе"
-                >
-                  <ArrowDown size={12} />
-                </Button>
-              </div>
+              <div className="flex gap-2">
+                <div className="flex flex-col items-center gap-0.5 shrink-0 pt-0.5">
+                  <span className="text-[10px] font-bold text-text2 w-5 text-center">{index + 1}</span>
+                  <Button small variant="secondary" onClick={() => moveBlock(b.id, -1)} disabled={index === 0}>
+                    <ArrowUp size={12} />
+                  </Button>
+                  <Button
+                    small
+                    variant="secondary"
+                    onClick={() => moveBlock(b.id, 1)}
+                    disabled={index === blocks.length - 1}
+                  >
+                    <ArrowDown size={12} />
+                  </Button>
+                </div>
 
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold">{meta.label}</div>
-                <div className="text-[11px] text-text2 mt-0.5">{meta.hint}</div>
-                {isRequired ? <div className="text-[10px] text-primary mt-1">Обязательный раздел</div> : null}
-                {tkpHint ? <div className="text-[10px] text-primary mt-1">Рекомендуется для ТКП</div> : null}
-              </div>
+                <div className="flex-1 min-w-0 grid gap-2">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-semibold">{isCustom ? b.title || meta.label : meta.label}</div>
+                      <div className="text-[11px] text-text2">{meta.hint}</div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <label className="flex items-center gap-1.5 text-[10px] text-text2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!b.pageBreakBefore}
+                          disabled={index === 0}
+                          onChange={(e) => patchBlock(b.id, { pageBreakBefore: e.target.checked })}
+                        />
+                        Новый лист
+                      </label>
+                      {isCustom ? (
+                        <Button small variant="secondary" onClick={() => removeBlock(b.id)} title="Удалить раздел">
+                          <Trash2 size={14} className="text-danger" />
+                        </Button>
+                      ) : null}
+                      <label className="flex flex-col items-center gap-1 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="sr-only"
+                          checked={b.enabled}
+                          disabled={isRequired}
+                          onChange={(e) => toggleBlock(b.id, e.target.checked)}
+                        />
+                        <span
+                          className={`flex h-8 w-8 items-center justify-center rounded-full border ${
+                            b.enabled ? "bg-primary border-primary text-white" : "border-border text-text2"
+                          }`}
+                        >
+                          {b.enabled ? <Check size={16} /> : <Circle size={14} />}
+                        </span>
+                      </label>
+                    </div>
+                  </div>
 
-              <label className="flex flex-col items-center gap-1 shrink-0 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="sr-only"
-                  checked={b.enabled}
-                  disabled={isRequired}
-                  onChange={(e) => toggleBlock(b.id, e.target.checked)}
-                />
-                <span
-                  className={`flex h-8 w-8 items-center justify-center rounded-full border ${
-                    b.enabled ? "bg-primary border-primary text-white" : "border-border text-text2"
-                  }`}
-                >
-                  {b.enabled ? <Check size={16} /> : <Circle size={14} />}
-                </span>
-                <span className="text-[10px] text-text2">{b.enabled ? "В PDF" : "Скрыт"}</span>
-              </label>
+                  {isCustom && b.enabled ? (
+                    <div className="grid gap-2 pl-0 border-t border-border pt-2">
+                      <Input
+                        value={b.title || ""}
+                        onChange={(e) => patchBlock(b.id, { title: e.target.value })}
+                        placeholder="Заголовок раздела"
+                      />
+                      <textarea
+                        className="w-full min-h-[88px] rounded-card border border-[#9CA3AF] bg-white p-2 text-sm font-mono text-[#111]"
+                        value={b.bodyHtml || ""}
+                        onChange={(e) => patchBlock(b.id, { bodyHtml: e.target.value })}
+                        placeholder="<p>Текст...</p> — можно HTML: p, strong, ul, li, br"
+                      />
+                    </div>
+                  ) : null}
+
+                  {isRequired ? <div className="text-[10px] text-primary">Обязательный раздел</div> : null}
+                  {tkpHint ? <div className="text-[10px] text-primary">Рекомендуется для ТКП</div> : null}
+                </div>
+              </div>
             </div>
           );
         })}
       </div>
 
-      <div className="mt-3 rounded-card bg-[rgba(0,78,235,0.08)] border border-primary/20 px-3 py-2 text-[11px] text-text2">
-        <strong className="text-white/90">Порядок в файле:</strong>{" "}
-        {enabledBlocks.length
-          ? enabledBlocks.map((b) => KP_PDF_BLOCK_META[b.type].label).join(" → ")
-          : "включите хотя бы таблицу спецификации"}
+      <div className="mt-3 rounded-card bg-[rgba(0,78,235,0.08)] border border-primary/20 px-3 py-2 text-[11px] text-text2 space-y-1">
+        <div>
+          <strong className="text-white/90">Порядок:</strong>{" "}
+          {enabledBlocks.length ? enabledBlocks.map((b) => blockLabel(b)).join(" → ") : "—"}
+        </div>
+        <div>
+          <strong className="text-white/90">Листов в PDF:</strong> {Math.max(1, pageCount)}
+        </div>
       </div>
     </div>
   );

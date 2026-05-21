@@ -1,6 +1,4 @@
 import React from "react";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
 import { ArrowLeft, ArrowRight, RotateCcw } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
@@ -8,7 +6,11 @@ import { Input } from "../../components/Input";
 import { Badge } from "../../components/Badge";
 import { pb } from "../../../lib/pb";
 import { KpPreview } from "./KpPreview";
-import { KpDocumentFrame } from "./KpDocumentFrame";
+import { KpPagedDocumentPreview } from "./KpPagedDocumentPreview";
+import { KP_A4_WIDTH_PX } from "./KpDocumentFrame";
+import { ensurePdfBlocks } from "./kpPdfBlocks";
+import { downloadPdfFromPageElements } from "./kpPdfExport";
+import { splitBlocksIntoPages } from "./kpPageLayout";
 import { computeSpecification } from "./calc";
 import { DEFAULT_KP_TEMPLATE_V1 } from "./defaultTemplate";
 import { documentFilePrefix, documentTypeLabel, getDocumentType } from "./kpDocumentMeta";
@@ -110,7 +112,12 @@ export function DealKpModule({
   const [items, setItems] = React.useState<SpecItem[]>([]);
   const [priceSearch, setPriceSearch] = React.useState("");
   const [priceItems, setPriceItems] = React.useState<PriceListItem[]>([]);
-  const printRef = React.useRef<HTMLDivElement | null>(null);
+  const pagePrintRefs = React.useRef<(HTMLDivElement | null)[]>([]);
+
+  const pdfPageBlocks = React.useMemo(
+    () => splitBlocksIntoPages(ensurePdfBlocks(template).filter((b) => b.enabled)),
+    [template],
+  );
 
   async function refreshReadiness() {
     setReadiness(await fetchKpReadiness());
@@ -292,29 +299,14 @@ export function DealKpModule({
   }
 
   async function generatePdfAndDownload() {
-    if (!printRef.current) return;
     await saveDraft();
-    const el = printRef.current;
-    const canvas = await html2canvas(el, { scale: 2, backgroundColor: "#ffffff" });
-    const imgData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF("p", "mm", "a4");
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgProps = pdf.getImageProperties(imgData);
-    const imgWidth = pageWidth;
-    const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
-    let position = 0;
-    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-    let heightLeft = imgHeight - pageHeight;
-    while (heightLeft > 0) {
-      position -= pageHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-    }
+    const els = pdfPageBlocks
+      .map((_, i) => pagePrintRefs.current[i])
+      .filter((el): el is HTMLDivElement => !!el);
+    if (!els.length) return;
     const clientName = String(input?.clientName || company?.name || "Клиент");
     const prefix = documentFilePrefix(getDocumentType(template));
-    pdf.save(safeFileName(`${prefix}_${clientName}_${dealId}.pdf`));
+    await downloadPdfFromPageElements(els, safeFileName(`${prefix}_${clientName}_${dealId}.pdf`));
     if (onTimeline)
       await onTimeline("kp_pdf_generated", `Сформировано ${documentTypeLabel(docType)} (PDF)`, {
         totals: computed.totals,
@@ -538,14 +530,27 @@ export function DealKpModule({
             <div className="text-xs text-text2 mt-1">Так увидит клиент. Сначала сохраните черновик, затем скачайте файл.</div>
           </CardHeader>
           <CardContent className="grid gap-4">
-            <div ref={printRef} className="absolute -left-[99999px] top-0 w-[794px] bg-white">
-              <KpPreview template={template} input={input} items={items} dealId={dealId || ""} mode="document" />
+            <div className="absolute -left-[99999px] top-0 pointer-events-none" aria-hidden>
+              {pdfPageBlocks.map((pageBlocks, i) => (
+                <div
+                  key={`print-${i}`}
+                  ref={(el) => {
+                    pagePrintRefs.current[i] = el;
+                  }}
+                  style={{ width: KP_A4_WIDTH_PX, background: "#fff" }}
+                >
+                  <KpPreview
+                    template={template}
+                    input={input}
+                    items={items}
+                    dealId={dealId || ""}
+                    mode="document"
+                    blocksOverride={pageBlocks}
+                  />
+                </div>
+              ))}
             </div>
-            <div className="min-h-[480px]">
-              <KpDocumentFrame title="Готовый документ" subtitle="Проверьте перед отправкой клиенту">
-                <KpPreview template={template} input={input} items={items} dealId={dealId || ""} mode="document" />
-              </KpDocumentFrame>
-            </div>
+            <KpPagedDocumentPreview template={template} input={input} items={items} dealId={dealId || ""} />
             {requiredMissing ? (
               <div className="text-sm text-danger">Заполните обязательные поля на шагах 1 и 3.</div>
             ) : null}

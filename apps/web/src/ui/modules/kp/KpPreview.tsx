@@ -20,18 +20,29 @@ const PAYMENT_LABELS: Record<string, string> = {
   postpay: "Постоплата",
 };
 
+function sanitizeHtml(html: string) {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
+    .replace(/\son\w+="[^"]*"/gi, "")
+    .replace(/\son\w+='[^']*'/gi, "");
+}
+
 export function KpPreview({
   template,
   input,
   items,
   dealId,
   mode = "document",
+  blocksOverride,
 }: {
   template: KpTemplateConfig;
   input: KpInput;
   items: SpecItem[];
   dealId: string;
   mode?: "manager" | "pdf" | "document";
+  /** Только эти блоки (для постраничного превью) */
+  blocksOverride?: KpPdfBlock[];
 }) {
   const isDocument = mode === "pdf" || mode === "document";
   const currency = template?.defaults?.currency || "RUB";
@@ -58,7 +69,10 @@ export function KpPreview({
 
   const b = template?.branding || {};
   const specTitle = template?.specification?.title || "Спецификация";
-  const blocks = React.useMemo(() => ensurePdfBlocks(template).filter((blk) => blk.enabled), [template]);
+  const blocks = React.useMemo(() => {
+    const list = blocksOverride || ensurePdfBlocks(template).filter((blk) => blk.enabled);
+    return list.filter((blk) => blk.enabled);
+  }, [template, blocksOverride]);
   const cols = (template?.specification?.columns || []).filter((c) => c.optional !== true);
   const showQty = cols.some((c) => c.key === "qty") || !cols.length;
   const showPrice = cols.some((c) => c.key === "unitPrice") || !cols.length;
@@ -116,6 +130,17 @@ export function KpPreview({
           <section key={blk.id} className="kp-doc-technical">
             <div className="kp-doc-section-title">{blk.title || "Техническое описание"}</div>
             {text}
+          </section>
+        );
+      }
+
+      case "custom": {
+        const html = sanitizeHtml(blk.bodyHtml || "");
+        if (!html.trim()) return null;
+        return (
+          <section key={blk.id} className="kp-doc-custom">
+            {blk.title ? <div className="kp-doc-section-title">{blk.title}</div> : null}
+            <div className="kp-doc-custom-body" dangerouslySetInnerHTML={{ __html: html }} />
           </section>
         );
       }
@@ -267,7 +292,13 @@ export function KpPreview({
 
   if (isDocument) {
     return (
-      <div className={`${rootClass} p-8 sm:p-10`} style={designCssVars(template)}>
+      <div
+        className={rootClass}
+        style={{
+          ...designCssVars(template),
+          padding: "var(--kp-page-margin, 32px)",
+        }}
+      >
         {inner}
       </div>
     );

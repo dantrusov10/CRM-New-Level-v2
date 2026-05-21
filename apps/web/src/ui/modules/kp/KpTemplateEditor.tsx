@@ -3,10 +3,11 @@ import { ImagePlus, Save } from "lucide-react";
 import { Card, CardContent, CardHeader } from "../../components/Card";
 import { Button } from "../../components/Button";
 import { Input } from "../../components/Input";
-import { KpPreview } from "./KpPreview";
-import { KpDocumentFrame } from "./KpDocumentFrame";
+import { KpPagedDocumentPreview } from "./KpPagedDocumentPreview";
+import { KpTemplateImportExport } from "./KpTemplateImportExport";
 import { KpDocumentSectionsEditor } from "./KpDocumentSectionsEditor";
 import { KpDesignSettings } from "./KpDesignSettings";
+import "./kpDocumentFonts";
 import { DEFAULT_KP_TEMPLATE_V1, DEFAULT_TKP_TEMPLATE_V1 } from "./defaultTemplate";
 import { documentTypeLabel } from "./kpDocumentMeta";
 import { applyPdfBlockPresetForDoc } from "./kpPdfBlocks";
@@ -341,6 +342,15 @@ export function KpTemplateEditor({
               ) : null}
             </div>
 
+            <KpTemplateImportExport
+              draft={draft}
+              onImport={(json) => {
+                const next = deepClone(json);
+                next.pdfBlocks = ensurePdfBlocks(next);
+                setDraft(next);
+              }}
+            />
+
             <KpDesignSettings draft={draft} onChange={setDraft} />
 
             <KpDocumentSectionsEditor
@@ -353,18 +363,12 @@ export function KpTemplateEditor({
       </div>
 
       <div className="xl:col-span-7 xl:sticky xl:top-4 self-start min-h-[560px]">
-        <KpDocumentFrame
-          title="Лист A4 — как увидит клиент"
-          subtitle="Обновляется при каждом изменении слева"
-        >
-          <KpPreview
-            template={draft}
-            input={demoInput}
-            items={DEMO_ITEMS}
-            dealId={dealIdForPreview}
-            mode="document"
-          />
-        </KpDocumentFrame>
+        <KpPagedDocumentPreview
+          template={draft}
+          input={demoInput}
+          items={DEMO_ITEMS}
+          dealId={dealIdForPreview}
+        />
       </div>
     </div>
   );

@@ -1,30 +1,27 @@
-import type { KpTemplateConfig } from "./types";
+import type { KpPdfBlock, KpPdfBlockType, KpTemplateConfig } from "./types";
 
-export type KpPdfBlockType =
-  | "header"
-  | "client_cards"
-  | "technical"
-  | "specification_table"
-  | "totals"
-  | "conditions"
-  | "signature";
-
-export type KpPdfBlock = {
-  id: string;
-  type: KpPdfBlockType;
-  enabled: boolean;
-  title?: string;
-};
+export type { KpPdfBlock, KpPdfBlockType };
 
 export const KP_PDF_BLOCK_META: Record<KpPdfBlockType, { label: string; hint: string }> = {
   header: { label: "Шапка", hint: "Логотип, ваша компания, название клиента" },
   client_cards: { label: "Реквизиты клиента", hint: "Email и ИНН — блок под шапкой" },
   technical: { label: "Техническое описание", hint: "Текст решения — обычно для ТКП, перед таблицей" },
+  custom: { label: "Свой раздел", hint: "Произвольный текст: о компании, этапы, SLA" },
   specification_table: { label: "Таблица товаров", hint: "Позиции из прайса — основа КП" },
   totals: { label: "Итоговая сумма", hint: "Подтаблица: без НДС, НДС, к оплате" },
   conditions: { label: "Условия сделки", hint: "Оплата, сроки, комментарий менеджера" },
   signature: { label: "Подпись и оговорка", hint: "Текст внизу страницы и контакты менеджера" },
 };
+
+const SYSTEM_BLOCK_TYPES = new Set<KpPdfBlockType>([
+  "header",
+  "client_cards",
+  "technical",
+  "specification_table",
+  "totals",
+  "conditions",
+  "signature",
+]);
 
 export const DEFAULT_KP_PDF_BLOCKS: KpPdfBlock[] = [
   { id: "blk_header", type: "header", enabled: true },
@@ -40,6 +37,19 @@ function blockIdForType(type: KpPdfBlockType, index: number) {
   return `blk_${type}_${index}`;
 }
 
+function normalizeBlock(item: KpPdfBlock, index: number): KpPdfBlock | null {
+  const type = String(item.type || "") as KpPdfBlockType;
+  if (!KP_PDF_BLOCK_META[type]) return null;
+  return {
+    id: String(item.id || blockIdForType(type, index)),
+    type,
+    enabled: item.enabled !== false,
+    title: item.title ? String(item.title) : undefined,
+    bodyHtml: item.bodyHtml != null ? String(item.bodyHtml) : undefined,
+    pageBreakBefore: !!item.pageBreakBefore,
+  };
+}
+
 export function ensurePdfBlocks(template: KpTemplateConfig): KpPdfBlock[] {
   const raw = template.pdfBlocks;
   if (!Array.isArray(raw) || !raw.length) return deepCloneBlocks(DEFAULT_KP_PDF_BLOCKS);
@@ -48,26 +58,32 @@ export function ensurePdfBlocks(template: KpTemplateConfig): KpPdfBlock[] {
   for (let i = 0; i < raw.length; i++) {
     const item = raw[i];
     if (!item || typeof item !== "object") continue;
-    const type = String((item as KpPdfBlock).type || "") as KpPdfBlockType;
-    if (!KP_PDF_BLOCK_META[type]) continue;
-    normalized.push({
-      id: String((item as KpPdfBlock).id || blockIdForType(type, i)),
-      type,
-      enabled: (item as KpPdfBlock).enabled !== false,
-      title: String((item as KpPdfBlock).title || "") || undefined,
-    });
+    const block = normalizeBlock(item as KpPdfBlock, i);
+    if (block) normalized.push(block);
   }
   if (!normalized.length) return deepCloneBlocks(DEFAULT_KP_PDF_BLOCKS);
 
-  const present = new Set(normalized.map((b) => b.type));
+  const presentSystem = new Set(normalized.filter((b) => SYSTEM_BLOCK_TYPES.has(b.type)).map((b) => b.type));
   for (const def of DEFAULT_KP_PDF_BLOCKS) {
-    if (!present.has(def.type)) normalized.push({ ...def, id: blockIdForType(def.type, normalized.length) });
+    if (!presentSystem.has(def.type)) normalized.push({ ...def, id: blockIdForType(def.type, normalized.length) });
   }
   return normalized;
 }
 
 export function deepCloneBlocks(blocks: KpPdfBlock[]): KpPdfBlock[] {
   return JSON.parse(JSON.stringify(blocks)) as KpPdfBlock[];
+}
+
+export function createCustomBlock(title = "Новый раздел"): KpPdfBlock {
+  const id = `custom_${Math.random().toString(36).slice(2, 8)}_${Date.now().toString(36)}`;
+  return {
+    id,
+    type: "custom",
+    enabled: true,
+    title,
+    bodyHtml: "<p>Текст раздела. Можно использовать несколько абзацев.</p>",
+    pageBreakBefore: false,
+  };
 }
 
 export function applyPdfBlockPresetForDoc(

@@ -1,9 +1,17 @@
+import { fontStackById } from "./kpDocumentFonts";
+import type { KpFontFamilyId } from "./kpDocumentFonts";
 import type { KpPdfDesign, KpTemplateConfig } from "./types";
 
 export type LayoutStyle = "classic" | "modern" | "compact";
 export type FontScale = "sm" | "md" | "lg";
 export type TableStyle = "bordered" | "plain" | "striped";
 export type PaperTone = "white" | "warm";
+
+const FONT_SCALE_PT: Record<FontScale, { body: number; heading: number }> = {
+  sm: { body: 9.5, heading: 14 },
+  md: { body: 11, heading: 16 },
+  lg: { body: 12.5, heading: 18 },
+};
 
 export const LAYOUT_OPTIONS: { id: LayoutStyle; label: string; desc: string }[] = [
   { id: "classic", label: "Классический", desc: "Линия под шапкой, строгая таблица" },
@@ -28,17 +36,25 @@ export const PAPER_OPTIONS: { id: PaperTone; label: string; bg: string }[] = [
   { id: "warm", label: "Тёплый", bg: "#faf8f5" },
 ];
 
-export function normalizePdfDesign(template: KpTemplateConfig): Required<
-  Pick<KpPdfDesign, "layoutStyle" | "fontScale" | "tableStyle" | "paperTone">
-> & KpPdfDesign {
+export function normalizePdfDesign(template: KpTemplateConfig) {
   const d = template.pdfDesign || {};
   const accent = template.branding?.primaryColor || "#004EEB";
   const tone = (d.paperTone as PaperTone) || "white";
   const paperBg = d.paperBg || (tone === "warm" ? "#faf8f5" : "#ffffff");
+  const scale = (d.fontScale as FontScale) || "md";
+  const scalePt = FONT_SCALE_PT[scale];
+  const fontFamily = (d.fontFamily as KpFontFamilyId) || "inter";
 
   return {
     layoutStyle: (d.layoutStyle as LayoutStyle) || "classic",
-    fontScale: (d.fontScale as FontScale) || "md",
+    fontScale: scale,
+    fontFamily,
+    fontStack: fontStackById(fontFamily),
+    bodyFontSizePt: Number(d.bodyFontSizePt) > 0 ? Number(d.bodyFontSizePt) : scalePt.body,
+    headingFontSizePt: Number(d.headingFontSizePt) > 0 ? Number(d.headingFontSizePt) : scalePt.heading,
+    lineHeight: Number(d.lineHeight) > 0 ? Number(d.lineHeight) : 1.45,
+    pageMarginMm: Number(d.pageMarginMm) >= 0 ? Number(d.pageMarginMm) : 12,
+    secondaryColor: d.secondaryColor || "#6b7280",
     tableStyle: (d.tableStyle as TableStyle) || "bordered",
     paperTone: tone,
     paperBg,
@@ -57,6 +73,7 @@ export function applyDesignPreset(preset: "classic" | "modern" | "minimal"): Par
     return {
       layoutStyle: "modern",
       fontScale: "md",
+      fontFamily: "inter",
       tableStyle: "striped",
       paperTone: "white",
       tableHeaderUseAccent: true,
@@ -67,19 +84,23 @@ export function applyDesignPreset(preset: "classic" | "modern" | "minimal"): Par
     return {
       layoutStyle: "compact",
       fontScale: "sm",
+      fontFamily: "system",
       tableStyle: "plain",
       paperTone: "white",
       tableHeaderUseAccent: false,
       paperBg: "#ffffff",
+      pageMarginMm: 10,
     };
   }
   return {
     layoutStyle: "classic",
     fontScale: "md",
+    fontFamily: "inter",
     tableStyle: "bordered",
     paperTone: "white",
     tableHeaderUseAccent: false,
     paperBg: "#ffffff",
+    pageMarginMm: 12,
   };
 }
 
@@ -87,14 +108,21 @@ export function designCssVars(template: KpTemplateConfig): Record<string, string
   const d = normalizePdfDesign(template);
   const headBg = d.tableHeaderUseAccent ? d.accentColor : d.tableHeaderBg || "#EEF1F6";
   const headText = d.tableHeaderUseAccent ? "#ffffff" : d.tableHeaderText || "#374151";
+  const marginPx = Math.round((d.pageMarginMm * 794) / 210);
+
   return {
     "--kp-accent": d.accentColor || "#004EEB",
+    "--kp-secondary": d.secondaryColor,
     "--kp-paper-bg": d.paperBg || "#ffffff",
     "--kp-text": d.textColor || "#111827",
+    "--kp-font-stack": d.fontStack,
+    "--kp-body-pt": String(d.bodyFontSizePt),
+    "--kp-heading-pt": String(d.headingFontSizePt),
+    "--kp-line-height": String(d.lineHeight),
+    "--kp-page-margin": `${marginPx}px`,
     "--kp-table-head-bg": headBg || "#EEF1F6",
     "--kp-table-head-text": headText || "#374151",
   };
 }
 
 export type ResolvedPdfDesign = ReturnType<typeof normalizePdfDesign>;
-

@@ -65,6 +65,7 @@ export type KpPdfBlockType =
   | "header"
   | "client_cards"
   | "technical"
+  | "custom"
   | "specification_table"
   | "totals"
   | "conditions"
@@ -73,6 +74,12 @@ export type KpPdfBlockType =
 export type KpPdfDesign = {
   layoutStyle?: "classic" | "modern" | "compact";
   fontScale?: "sm" | "md" | "lg";
+  fontFamily?: "inter" | "roboto" | "open-sans" | "merriweather" | "system";
+  bodyFontSizePt?: number;
+  headingFontSizePt?: number;
+  lineHeight?: number;
+  pageMarginMm?: number;
+  secondaryColor?: string;
   tableStyle?: "bordered" | "plain" | "striped";
   paperTone?: "white" | "warm";
   paperBg?: string;
@@ -90,6 +97,10 @@ export type KpPdfBlock = {
   type: KpPdfBlockType;
   enabled: boolean;
   title?: string;
+  /** Текст произвольного раздела (HTML: p, strong, ul, li, br) */
+  bodyHtml?: string;
+  /** Начать с нового листа A4 */
+  pageBreakBefore?: boolean;
 };
 
 export type KpTemplateConfig = JsonObject & {

@@ -107,6 +107,7 @@ export type Deal = {
 
   /** ID записей `products`, выбранные для сделки (мультивыбор). */
   product_ids?: string[];
+  pilot_checklist?: unknown;
 
   created?: string;
   updated?: string;

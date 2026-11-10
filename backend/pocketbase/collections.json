@@ -1658,6 +1658,18 @@
           "options": {
             "maxSize": 2000000
           }
+        },
+        {
+          "id": "pilotchklist001",
+          "name": "pilot_checklist",
+          "type": "json",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "maxSize": 2000000
+          }
         }
       ],
       "indexes": [],
@@ -5472,6 +5484,87 @@
       "createRule": "@request.auth.id != \"\"",
       "updateRule": "@request.auth.id != \"\"",
       "deleteRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\")"
+    },
+    {
+      "id": "savedreports0001",
+      "name": "saved_reports",
+      "type": "base",
+      "system": false,
+      "schema": [
+        {
+          "id": "sruserrel00001",
+          "name": "user_id",
+          "type": "relation",
+          "system": false,
+          "required": true,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "collectionId": "5vlipuy7emnnuly",
+            "cascadeDelete": true,
+            "minSelect": 1,
+            "maxSelect": 1,
+            "displayFields": null
+          }
+        },
+        {
+          "id": "srnamefld00001",
+          "name": "name",
+          "type": "text",
+          "system": false,
+          "required": true,
+          "presentable": false,
+          "unique": false,
+          "options": { "min": null, "max": null, "pattern": "" }
+        },
+        {
+          "id": "srsourcefld001",
+          "name": "source",
+          "type": "select",
+          "system": false,
+          "required": true,
+          "presentable": false,
+          "unique": false,
+          "options": { "maxSelect": 1, "values": ["deals", "companies"] }
+        },
+        {
+          "id": "srreportjson01",
+          "name": "report_json",
+          "type": "json",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": { "maxSize": 2000000 }
+        },
+        {
+          "id": "srlayoutjson01",
+          "name": "layout_json",
+          "type": "json",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": { "maxSize": 2000000 }
+        },
+        {
+          "id": "srcreatedat001",
+          "name": "created_at",
+          "type": "date",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": { "min": null, "max": null }
+        }
+      ],
+      "indexes": [],
+      "options": {},
+      "listRule": "@request.auth.id != \"\" && user_id = @request.auth.id",
+      "viewRule": "@request.auth.id != \"\" && user_id = @request.auth.id",
+      "createRule": "@request.auth.id != \"\" && (@request.auth.role = \"admin\" || @request.auth.role = \"manager\" || @request.auth.role = \"viewer\")",
+      "updateRule": "@request.auth.id != \"\" && user_id = @request.auth.id",
+      "deleteRule": "@request.auth.id != \"\" && user_id = @request.auth.id"
     }
   ]
 }

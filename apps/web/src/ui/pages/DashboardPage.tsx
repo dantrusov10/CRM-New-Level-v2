@@ -15,6 +15,19 @@ import { lazyImportWithReload } from "../../lib/chunkReload";
 import { downloadXlsx, type TabularRow } from "../../lib/importExport";
 import { DealsFilterForm } from "./deals/DealsFilterForm";
 import type { DealFilterParams } from "./deals/dealsFilters";
+import {
+  REPORT_GROUP_BY_OPTIONS,
+  aggregateReportRows,
+  buildDealsDrillUrl,
+  normalizePilotChecklist,
+  pilotCoverage,
+  summarizeReportSlice,
+  type CustomReport,
+  type ReportCountMode,
+  type ReportGroupBy,
+} from "../../lib/reportBuilder";
+import { deleteSavedReport, loadSavedReports, saveLocalReports, upsertSavedReport } from "../../lib/savedReports";
+import { fetchDealIdsEnteredStages } from "../../lib/stageEntry";
 
 const ChartFallback = () => <div className="h-32 flex items-center justify-center text-xs text-text2">Загрузка графика…</div>;
 
@@ -150,16 +163,6 @@ export function DashboardPage() {
     widgetOrder: WidgetId[];
   };
 
-  type CustomReport = {
-    id: string;
-    name: string;
-    source: "deals" | "companies";
-    columns: string[];
-    filters?: Record<string, string>;
-    dateBasis?: "created" | "updated";
-    rangeDays?: number;
-  };
-
   const DEFAULT_WIDGET_FILTERS: WidgetFilters = {
     rangeDays: 30,
     dateBasis: "updated",
@@ -258,6 +261,10 @@ export function DashboardPage() {
   const [customFilters, setCustomFilters] = React.useState<DealFilterParams>({});
   const [customDateBasis, setCustomDateBasis] = React.useState<"created" | "updated">("updated");
   const [customRangeDays, setCustomRangeDays] = React.useState(30);
+  const [customCountMode, setCustomCountMode] = React.useState<ReportCountMode>("current");
+  const [customGroupBy, setCustomGroupBy] = React.useState<ReportGroupBy>("");
+  const [enteredDealIds, setEnteredDealIds] = React.useState<Set<string> | null>(null);
+  const [enteredLoading, setEnteredLoading] = React.useState(false);
   const [customSearch, setCustomSearch] = React.useState("");
   const [customBuilderOpen, setCustomBuilderOpen] = React.useState(false);
   const [controlsCollapsed, setControlsCollapsed] = React.useState(false);
@@ -301,14 +308,14 @@ export function DashboardPage() {
   }, []);
 
   React.useEffect(() => {
-    try {
-      const raw = localStorage.getItem("nwlvl_dashboard_custom_reports");
-      const parsed = raw ? JSON.parse(raw) : [];
-      setCustomReports(Array.isArray(parsed) ? parsed : []);
-    } catch {
-      setCustomReports([]);
-    }
-  }, []);
+    let cancelled = false;
+    void loadSavedReports(user?.id ? String(user.id) : undefined).then((reports) => {
+      if (!cancelled) setCustomReports(reports);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   React.useEffect(() => {
     try {
@@ -432,6 +439,43 @@ export function DashboardPage() {
   const deals = dealsQ.data ?? [];
 
   const now = new Date();
+
+  React.useEffect(() => {
+    const enteredReports = customReports.filter((report) => report.source === "deals" && report.countMode === "entered");
+    if (!enteredReports.length && !(customBuilderOpen && customSource === "deals" && customCountMode === "entered")) {
+      setEnteredDealIds(null);
+      setEnteredLoading(false);
+      return;
+    }
+    const maxRangeDays = Math.max(
+      customBuilderOpen && customSource === "deals" && customCountMode === "entered" ? customRangeDays : 0,
+      ...enteredReports.map((report) => Number(report.rangeDays) || 30),
+    );
+    let cancelled = false;
+    setEnteredLoading(true);
+    void fetchDealIdsEnteredStages({
+      from: new Date(Date.now() - maxRangeDays * 24 * 60 * 60 * 1000),
+      stages,
+      stageFilterId: customFilters.stage || undefined,
+    })
+      .then((ids) => {
+        if (!cancelled) setEnteredDealIds(ids);
+      })
+      .finally(() => {
+        if (!cancelled) setEnteredLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    customReports,
+    customBuilderOpen,
+    customSource,
+    customCountMode,
+    customRangeDays,
+    customFilters.stage,
+    stages,
+  ]);
 
   function applyWidgetFilters(input: Deal[], f: WidgetFilters) {
     let arr = input ?? [];
@@ -885,6 +929,7 @@ export function DashboardPage() {
       product_name: "Продукт",
       product_ids: "ID продуктов",
       presale: "Presale / пилот",
+      pilot_coverage_pct: "Покрытие пилота, %",
       created: "Создана",
       updated: "Обновлена",
     };
@@ -906,7 +951,7 @@ export function DashboardPage() {
 
   const customFieldOptions = React.useMemo(() => {
     const base = customSource === "deals"
-      ? ["id", "title", "budget", "turnover", "current_score", "sales_channel", "stage_name", "responsible", "company", "product_name", "presale", "loss_reason", "created", "updated"]
+      ? ["id", "title", "budget", "turnover", "current_score", "sales_channel", "stage_name", "responsible", "company", "product_name", "presale", "pilot_coverage_pct", "loss_reason", "created", "updated"]
       : ["id", "name", "inn", "city", "website", "email", "phone", "legal_entity", "created", "updated"];
     const dynamic = new Set<string>(base);
     const sampleRows = customSource === "deals" ? dealsAll.slice(0, 200) : companiesAll.slice(0, 200);
@@ -984,6 +1029,7 @@ export function DashboardPage() {
           const ids = dealProductIds(d);
           if (!ids.includes(String(filters.product))) return false;
         }
+        if (report.countMode === "entered" && (!enteredDealIds || !enteredDealIds.has(String(d.id)))) return false;
         return true;
       })
       .map((d) => {
@@ -998,7 +1044,9 @@ export function DashboardPage() {
           company: String(d.expand?.company_id?.name || ""),
           product_name: productNames.join(", "),
           product_ids: ids.join(", "),
+          product_filter_id: ids[0] || "",
           presale: String(d.presale || ""),
+          pilot_coverage_pct: pilotCoverage(normalizePilotChecklist(d.pilot_checklist)).pct,
           loss_reason: String(d.loss_reason || ""),
         };
       });
@@ -1019,30 +1067,44 @@ export function DashboardPage() {
     downloadXlsx(exportRows, "Отчёт", `${report.name.replace(/[\\/:*?"<>|]+/g, "-")}.xlsx`);
   }
 
-  function addPresetReport(kind: "finance" | "pipeline" | "team" | "refusals" | "products") {
-    const preset =
+  async function addPresetReport(kind: "finance" | "pipeline" | "team" | "refusals" | "products" | "pilot") {
+    const preset: CustomReport =
       kind === "finance"
-        ? { id: `${Date.now()}-finance`, name: "Финансы по сделкам", source: "deals" as const, columns: ["title", "budget", "turnover", "current_score", "responsible"] }
+        ? { id: `${Date.now()}-finance`, name: "Финансы по сделкам", source: "deals", columns: ["title", "budget", "turnover", "current_score", "responsible"], countMode: "current", groupBy: "" }
         : kind === "pipeline"
-        ? { id: `${Date.now()}-pipeline`, name: "Состояние воронки", source: "deals" as const, columns: ["title", "stage_name", "current_score", "updated"] }
+        ? { id: `${Date.now()}-pipeline`, name: "Состояние воронки", source: "deals", columns: ["title", "stage_name", "current_score", "updated"], countMode: "current", groupBy: "stage_name" }
         : kind === "team"
-        ? { id: `${Date.now()}-team`, name: "Нагрузка по менеджерам", source: "deals" as const, columns: ["responsible", "title", "budget", "updated"] }
+        ? { id: `${Date.now()}-team`, name: "Нагрузка по менеджерам", source: "deals", columns: ["responsible", "title", "budget", "updated"], countMode: "current", groupBy: "responsible" }
         : kind === "products"
         ? {
             id: `${Date.now()}-products`,
             name: "Продукты и пилот",
-            source: "deals" as const,
-            columns: ["title", "company", "product_name", "presale", "stage_name", "responsible", "updated"],
-            dateBasis: "updated" as const,
+            source: "deals",
+            columns: ["title", "company", "product_name", "pilot_coverage_pct", "presale", "stage_name", "responsible", "updated"],
+            dateBasis: "updated",
             rangeDays: 90,
+            countMode: "current",
+            groupBy: "product_name",
           }
-        : { id: `${Date.now()}-refusals`, name: "Отказы", source: "deals" as const, columns: ["title", "stage_name", "loss_reason", "updated", "responsible"] };
-    const next = [preset, ...customReports].slice(0, 30);
+        : kind === "pilot"
+        ? {
+            id: `${Date.now()}-pilot`,
+            name: "Покрытие пилота",
+            source: "deals",
+            columns: ["title", "company", "product_name", "pilot_coverage_pct", "presale", "stage_name"],
+            dateBasis: "updated",
+            rangeDays: 90,
+            countMode: "current",
+            groupBy: "",
+          }
+        : { id: `${Date.now()}-refusals`, name: "Отказы", source: "deals", columns: ["title", "stage_name", "loss_reason", "updated", "responsible"], countMode: "entered", groupBy: "loss_reason", dateBasis: "updated", rangeDays: 30 };
+    const saved = await upsertSavedReport(user?.id ? String(user.id) : undefined, preset);
+    const next = [saved, ...customReports].slice(0, 30);
     setCustomReports(next);
-    localStorage.setItem("nwlvl_dashboard_custom_reports", JSON.stringify(next));
+    saveLocalReports(next);
   }
 
-  function addCustomReport() {
+  async function addCustomReport() {
     if (!customName.trim() || !customColumns.length) return;
     const nextReport: CustomReport = {
       id: `${Date.now()}-custom`,
@@ -1052,8 +1114,11 @@ export function DashboardPage() {
       filters: customSource === "deals" ? { ...customFilters } : undefined,
       dateBasis: customDateBasis,
       rangeDays: customRangeDays,
+      countMode: customCountMode,
+      groupBy: customGroupBy,
     };
-    const next = [nextReport, ...customReports].slice(0, 30);
+    const savedReport = await upsertSavedReport(user?.id ? String(user.id) : undefined, nextReport);
+    const next = [savedReport, ...customReports].slice(0, 30);
     const lastWidgetBottom = Math.max(
       1,
       ...cfg.widgetOrder.map((id) => Number(cfg.widgets[id]?.rowStart || 1) + Number(cfg.widgets[id]?.rowSpan || 8))
@@ -1067,11 +1132,11 @@ export function DashboardPage() {
     );
     const startRow = Math.max(lastWidgetBottom, lastCustomBottom) + 1;
     setCustomReports(next);
-    localStorage.setItem("nwlvl_dashboard_custom_reports", JSON.stringify(next));
+    saveLocalReports(next);
     setCustomReportLayouts((prev) => {
       const nextLayouts = {
         ...prev,
-        [nextReport.id]: prev[nextReport.id] ?? { colStart: 1, rowStart: startRow, span: 12, rowSpan: 10 },
+        [savedReport.id]: prev[savedReport.id] ?? { colStart: 1, rowStart: startRow, span: 12, rowSpan: 10 },
       };
       localStorage.setItem("nwlvl_dashboard_custom_report_layouts", JSON.stringify(nextLayouts));
       return nextLayouts;
@@ -1526,6 +1591,7 @@ export function DashboardPage() {
                   const rid = `custom:${report.id}`;
                   const layout = customReportLayouts[report.id] ?? { colStart: 1, rowStart: 2, span: 12, rowSpan: 10 };
                   const rows = customReportRows(report);
+                  const aggregates = report.groupBy ? aggregateReportRows(rows, report.groupBy) : [];
                   return (
                     <SortableReportItem
                       key={rid}
@@ -1572,24 +1638,30 @@ export function DashboardPage() {
                           <div className="flex items-center justify-between gap-2">
                             <div>
                               <div className="text-sm font-extrabold">{report.name}</div>
-                              <div className="text-xs text-text2 mt-1">{report.source === "deals" ? "Сделки" : "Компании"} · {rows.length} строк · полей: {report.columns.length}</div>
+                              <div className="text-xs text-text2 mt-1">{report.source === "deals" ? "Сделки" : "Компании"} · {summarizeReportSlice(report, rows.length)}</div>
+                              {report.countMode === "entered" && enteredLoading ? <div className="text-[11px] text-text2 mt-1">Загрузка переходов по этапам…</div> : null}
                             </div>
                             <div className="flex items-center gap-2">
                               <button className="h-8 rounded-md border border-border px-2 text-xs" onClick={() => exportCustomReport(report, rows)}>
                                 Excel
                               </button>
+                              <button className="h-8 rounded-md border border-border px-2 text-xs" onClick={() => nav(buildDealsDrillUrl(report))}>
+                                В сделки
+                              </button>
                               <button
                                 className="h-8 rounded-md border border-[rgba(239,68,68,0.45)] bg-[rgba(239,68,68,0.12)] px-2 text-xs"
                                 onClick={() => {
-                                const next = customReports.filter((x) => x.id !== report.id);
-                                setCustomReports(next);
-                                localStorage.setItem("nwlvl_dashboard_custom_reports", JSON.stringify(next));
-                                setCustomReportLayouts((prev) => {
-                                  const cp = { ...prev };
-                                  delete cp[report.id];
-                                  localStorage.setItem("nwlvl_dashboard_custom_report_layouts", JSON.stringify(cp));
-                                  return cp;
-                                });
+                                  void deleteSavedReport(user?.id ? String(user.id) : undefined, report).then(() => {
+                                    const next = customReports.filter((x) => x.id !== report.id);
+                                    setCustomReports(next);
+                                    saveLocalReports(next);
+                                    setCustomReportLayouts((prev) => {
+                                      const cp = { ...prev };
+                                      delete cp[report.id];
+                                      localStorage.setItem("nwlvl_dashboard_custom_report_layouts", JSON.stringify(cp));
+                                      return cp;
+                                    });
+                                  });
                                 }}
                               >
                                 Удалить
@@ -1597,10 +1669,39 @@ export function DashboardPage() {
                             </div>
                           </div>
                           <div className="overflow-auto mt-3">
-                            <table className="min-w-[520px] w-full text-xs">
-                              <thead><tr className="text-left text-text2">{report.columns.map((c) => <th key={c} className="py-1 pr-3">{normalizedFieldName(report.source, c)}</th>)}</tr></thead>
-                              <tbody>{rows.slice(0, 7).map((row, idx) => <tr key={`${report.id}-${idx}`} className="border-t border-[rgba(255,255,255,0.08)]">{report.columns.map((c) => <td key={c} className="py-1 pr-3">{String((row as Record<string, unknown>)[c] ?? "")}</td>)}</tr>)}</tbody>
-                            </table>
+                            {report.groupBy ? (
+                              <table className="min-w-[420px] w-full text-xs">
+                                <thead><tr className="text-left text-text2"><th className="py-1 pr-3">Группа</th><th className="py-1 pr-3 text-right">Сделок</th><th className="py-1 pr-3 text-right">Бюджет</th></tr></thead>
+                                <tbody>
+                                  {aggregates.slice(0, 20).map((aggregate) => {
+                                    const matchingRow = rows.find((row) => String(row[report.groupBy!] ?? "").trim() === aggregate.label);
+                                    const syntheticRow: Record<string, unknown> = {
+                                      ...(matchingRow || {}),
+                                      [report.groupBy!]: aggregate.label,
+                                    };
+                                    if (report.groupBy === "stage_name" && !syntheticRow.stage_id) {
+                                      syntheticRow.stage_id = stages.find((stage) => String(stage.stage_name || "") === aggregate.label)?.id || "";
+                                    }
+                                    return (
+                                      <tr
+                                        key={aggregate.key}
+                                        className="border-t border-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.06)] cursor-pointer"
+                                        onClick={() => nav(buildDealsDrillUrl(report, syntheticRow))}
+                                      >
+                                        <td className="py-1 pr-3">{aggregate.label}</td>
+                                        <td className="py-1 pr-3 text-right">{aggregate.count}</td>
+                                        <td className="py-1 pr-3 text-right">{money(aggregate.budgetSum)} ₽</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            ) : (
+                              <table className="min-w-[520px] w-full text-xs">
+                                <thead><tr className="text-left text-text2">{report.columns.map((c) => <th key={c} className="py-1 pr-3">{normalizedFieldName(report.source, c)}</th>)}</tr></thead>
+                                <tbody>{rows.slice(0, 7).map((row, idx) => <tr key={`${report.id}-${idx}`} className={`border-t border-[rgba(255,255,255,0.08)] ${report.source === "deals" ? "hover:bg-[rgba(255,255,255,0.06)] cursor-pointer" : ""}`} onClick={() => report.source === "deals" && nav(buildDealsDrillUrl(report, row))}>{report.columns.map((c) => <td key={c} className="py-1 pr-3">{String(row[c] ?? "")}</td>)}</tr>)}</tbody>
+                              </table>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1661,10 +1762,25 @@ export function DashboardPage() {
           </section>
 
           {customSource === "deals" ? (
-            <section className="grid gap-2">
-              <div className="text-sm font-semibold">Фильтры</div>
-              <DealsFilterForm values={customFilters} onChange={setCustomFilters} />
-            </section>
+            <>
+              <section className="grid gap-2">
+                <div className="text-sm font-semibold">Семантика счёта</div>
+                <select className="ui-input" value={customCountMode} onChange={(e) => setCustomCountMode(e.target.value as ReportCountMode)}>
+                  <option value="current">Текущее состояние — сделки сейчас на этапе</option>
+                  <option value="entered">Переход за период — сделки, попавшие на этап</option>
+                </select>
+              </section>
+              <section className="grid gap-2">
+                <div className="text-sm font-semibold">Группировка</div>
+                <select className="ui-input" value={customGroupBy} onChange={(e) => setCustomGroupBy(e.target.value as ReportGroupBy)}>
+                  {REPORT_GROUP_BY_OPTIONS.map((option) => <option key={option.id || "none"} value={option.id}>{option.label}</option>)}
+                </select>
+              </section>
+              <section className="grid gap-2">
+                <div className="text-sm font-semibold">Фильтры</div>
+                <DealsFilterForm values={customFilters} onChange={setCustomFilters} />
+              </section>
+            </>
           ) : null}
 
           <section className="grid gap-2">
@@ -1689,7 +1805,8 @@ export function DashboardPage() {
             <Button small variant="secondary" onClick={() => addPresetReport("team")}>Пресет: Команда</Button>
             <Button small variant="secondary" onClick={() => addPresetReport("refusals")}>Пресет: Отказы</Button>
             <Button small variant="secondary" onClick={() => addPresetReport("products")}>Пресет: Продукты / пилот</Button>
-            <Button small onClick={() => { addCustomReport(); setCustomBuilderOpen(false); }} disabled={!customName.trim() || !customColumns.length}>Добавить отчет в блок отчетов</Button>
+            <Button small variant="secondary" onClick={() => addPresetReport("pilot")}>Пресет: Покрытие пилота</Button>
+            <Button small onClick={() => { void addCustomReport(); setCustomBuilderOpen(false); }} disabled={!customName.trim() || !customColumns.length}>Добавить отчет в блок отчетов</Button>
           </div>
         </div>
       </Modal>

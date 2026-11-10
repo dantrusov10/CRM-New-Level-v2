@@ -39,6 +39,7 @@ import {
 } from "./dealAiDisplay";
 import { DealNextActionsList, DealRisksPanel, DealScoringExplainPanel } from "./DealAiPanels";
 import { CreateTaskFromActionModal, RespondToActionModal } from "./DealNextActionModals";
+import { DealPilotChecklist } from "./DealPilotChecklist";
 import { OUTCOME_LABELS, type ActionOutcome, type AiActionTimelinePayload } from "./dealActionOutcome";
 import {
   formatTaskDueLabel,
@@ -2110,6 +2111,7 @@ export function DealDetailPage() {
 
   async function changeStage(stageId: string) {
     if (!id) return;
+    const prevId = String(deal?.stage_id || deal?.expand?.stage_id?.id || "");
     const prevName = deal?.expand?.stage_id?.stage_name ?? "";
     const nextStage = stages.find((s) => s.id === stageId);
     const nextName = nextStage?.stage_name ?? "";
@@ -2124,7 +2126,12 @@ export function DealDetailPage() {
       stage_id: stageId,
       ...(isLost ? { loss_reason: lossReason } : {}),
     }).catch(() => {});
-    await createTimelineEvent("stage_change", `Этап изменён: ${prevName} → ${nextName}`, { from: prevName, to: nextName });
+    await createTimelineEvent("stage_change", `Этап изменён: ${prevName} → ${nextName}`, {
+      from: prevId,
+      to: stageId,
+      from_name: prevName,
+      to_name: nextName,
+    });
     await dealQ.refetch();
     tlQ.refetch();
   }
@@ -2135,7 +2142,9 @@ export function DealDetailPage() {
     setSelectedProductIds(clean);
     localStorage.setItem(`deal:${id}:product_ids`, clean.join(","));
     const primary = clean[0] || "";
-    await pb.collection("deals").update(id, { product_id: primary || null }).catch(() => null);
+    const payload: Record<string, unknown> = { product_ids: clean };
+    if (deal && Object.prototype.hasOwnProperty.call(deal, "product_id")) payload.product_id = primary || null;
+    await pb.collection("deals").update(id, payload).catch(() => null);
     const productNames = productProfiles.filter((p) => clean.includes(p.id)).map((p) => p.name).join(", ") || "Не выбраны";
     await createTimelineEvent("products_selected", `Продукты сделки: ${productNames}`, { product_ids: clean });
     await dealQ.refetch();
@@ -2999,6 +3008,13 @@ export function DealDetailPage() {
                     tlQ.refetch();
                   }}
                 />
+                {id ? (
+                  <DealPilotChecklist
+                    dealId={id}
+                    value={deal?.pilot_checklist}
+                    onSaved={() => void dealQ.refetch()}
+                  />
+                ) : null}
                 <section
                   ref={checkoSectionRef}
                   id="deal-checko-sources"

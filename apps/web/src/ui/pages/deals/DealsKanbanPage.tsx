@@ -386,6 +386,8 @@ export function DealsKanbanPage() {
 
     const deal = deals.find((x) => x.id === dealId);
     if (!deal || deal.stage_id === newStageId) return;
+    const fromName = String(deal.expand?.stage_id?.stage_name ?? "").trim();
+    const toName = stages.find((s) => s.id === newStageId)?.stage_name ?? "";
 
     await pb.collection("deals").update(dealId, { stage_id: newStageId });
 
@@ -396,8 +398,13 @@ export function DealsKanbanPage() {
         deal_id: dealId,
         user_id: pb.authStore.model?.id ?? null,
         action: "stage_change",
-        comment: `Смена этапа: ${String(deal.expand?.stage_id?.stage_name ?? "").trim()} → ${stages.find((s) => s.id === newStageId)?.stage_name ?? ""}`,
-        payload: { from: deal.stage_id ?? null, to: newStageId },
+        comment: `Смена этапа: ${fromName} → ${toName}`,
+        payload: {
+          from: deal.stage_id ?? null,
+          to: newStageId,
+          from_name: fromName,
+          to_name: toName,
+        },
         timestamp: new Date().toISOString(),
       })
       .catch(() => {});

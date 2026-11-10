@@ -197,6 +197,7 @@ export function AdminFunnelPage() {
                   <th className="text-left px-3">Порядок</th>
                   <th className="text-left px-3">Название</th>
                   <th className="text-left px-3">Цвет</th>
+                  <th className="text-left px-3">Активен</th>
                   <th className="text-left px-3">Финальный</th>
                   <th className="text-left px-3">Тип</th>
                   <th className="text-left px-3">Вероятность (по умолч.)</th>
@@ -210,6 +211,13 @@ export function AdminFunnelPage() {
                       <Input
                         value={String(s.position ?? 0)}
                         onChange={(e) => updateStage(s.id, { position: Number(e.target.value || 0) })}
+                      />
+                    </td>
+                    <td className="px-3">
+                      <input
+                        type="checkbox"
+                        checked={s.active !== false}
+                        onChange={(e) => updateStage(s.id, { active: e.target.checked })}
                       />
                     </td>
                     <td className="px-3">

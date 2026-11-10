@@ -1307,6 +1307,20 @@
           }
         },
         {
+          "id": "lossreasonfld01",
+          "name": "loss_reason",
+          "type": "text",
+          "system": false,
+          "required": false,
+          "presentable": false,
+          "unique": false,
+          "options": {
+            "min": null,
+            "max": null,
+            "pattern": ""
+          }
+        },
+        {
           "id": "3zddnam4da7o0r8",
           "name": "budget",
           "type": "number",

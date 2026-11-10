@@ -69,6 +69,7 @@ export type Deal = {
   company_id?: Id;
   responsible_id?: Id;
   stage_id?: Id;
+  loss_reason?: string;
 
   // money / finance
   budget?: number;

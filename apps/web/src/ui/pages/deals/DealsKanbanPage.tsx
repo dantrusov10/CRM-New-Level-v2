@@ -23,6 +23,8 @@ import { KanbanColumn } from "./components/KanbanColumn";
 import { KanbanCard } from "./components/KanbanCard";
 import { DealsMobileList } from "./DealsMobileList";
 import { pb } from "../../../lib/pb";
+import { buildDealsFilter, filterDealsClient } from "./dealsFilters";
+import { DealsActiveFiltersBar } from "./DealsActiveFiltersBar";
 
 function money(n: number) {
   return n.toLocaleString("ru-RU");
@@ -168,11 +170,8 @@ export function DealsKanbanPage() {
   }, []);
   const [sp, setSp] = useSearchParams();
   const stageOnly = sp.get("stage") ?? "";
-  const owner = sp.get("owner") ?? "";
-  const channel = sp.get("channel") ?? "";
   const view = sp.get("view") ?? "";
-  const scoreMax = sp.get("scoreMax") ?? "";
-  const fromIso = sp.get("from") ?? "";
+  const openOnly = sp.get("openOnly") === "1";
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -191,20 +190,24 @@ export function DealsKanbanPage() {
   }, []);
 
   const stagesQ = useFunnelStages();
+  const allStages = stagesQ.data ?? [];
+  const closedStageIds = allStages
+    .filter((stage) => stage.final_type === "won" || stage.final_type === "lost")
+    .map((stage) => String(stage.id));
   const filter = [
-    owner ? `responsible_id="${owner}"` : "",
-    channel ? `sales_channel="${channel.replace(/"/g, "\\\"")}"` : "",
-    stageOnly ? `stage_id="${stageOnly}"` : "",
-    scoreMax ? `current_score <= ${Number(scoreMax)}` : "",
-    fromIso ? `created >= "${new Date(fromIso).toISOString().slice(0, 19).replace("T", " ")}"` : "",
+    buildDealsFilter(sp),
+    ...(openOnly ? closedStageIds.map((id) => `stage_id!="${id}"`) : []),
   ]
     .filter(Boolean)
     .join(" && ");
 
   const dealsQ = useDeals({ filter });
 
-  const stages = stageOnly ? (stagesQ.data ?? []).filter((s) => s.id === stageOnly) : stagesQ.data ?? [];
-  const deals = dealsQ.data ?? [];
+  const visibleStages = openOnly
+    ? allStages.filter((s) => s.final_type !== "won" && s.final_type !== "lost")
+    : allStages;
+  const stages = stageOnly ? visibleStages.filter((s) => s.id === stageOnly) : visibleStages;
+  const deals = filterDealsClient(dealsQ.data ?? [], sp);
 
   const dealsByStage = React.useMemo(() => {
     const m: Record<string, Deal[]> = {};
@@ -411,6 +414,18 @@ export function DealsKanbanPage() {
             <div className="text-xs text-text2 mt-1">Быстрый обзор этапов, сумм и приоритетов.</div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <button
+              className={`ui-btn ${openOnly ? "ui-btn-primary" : "ui-btn-secondary"} h-9 text-sm`}
+              onClick={() => {
+                const next = new URLSearchParams(sp);
+                if (openOnly) next.delete("openOnly");
+                else next.set("openOnly", "1");
+                next.set("page", "1");
+                setSp(next, { replace: true });
+              }}
+            >
+              {openOnly ? "Только открытые" : "Все стадии"}
+            </button>
             <div className="flex md:hidden rounded-card border border-border overflow-hidden">
               <button
                 type="button"
@@ -469,6 +484,11 @@ export function DealsKanbanPage() {
       </CardHeader>
 
       <CardContent className="min-w-0">
+        <DealsActiveFiltersBar
+          sp={sp}
+          setSp={setSp}
+          stages={Object.fromEntries(allStages.map((s) => [s.id, s.stage_name]))}
+        />
         {stagesQ.isLoading || dealsQ.isLoading ? (
           <div className="text-sm text-text2">Загрузка...</div>
         ) : (

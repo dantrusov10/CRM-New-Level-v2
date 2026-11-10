@@ -102,6 +102,12 @@ export function DealsFilterForm({
         </Field>
       </Section>
 
+      <Section title="Отказы">
+        <Field label="Причина отказа">
+          <Input value={values.loss_reason ?? ""} onChange={(e) => set("loss_reason", e.target.value)} placeholder="Содержит…" />
+        </Field>
+      </Section>
+
       <Section title="Коммерция">
         <Field label="Канал продаж"><Input value={values.channel ?? ""} onChange={(e) => set("channel", e.target.value)} /></Field>
         <Field label="Партнёр"><Input value={values.partner ?? ""} onChange={(e) => set("partner", e.target.value)} /></Field>

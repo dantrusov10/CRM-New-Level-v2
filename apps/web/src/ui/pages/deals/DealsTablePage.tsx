@@ -16,6 +16,7 @@ import { DealsBulkActionsModal } from "./DealsBulkActionsModal";
 import { toast } from "../../../lib/toast";
 import { buildDealsFilter, countActiveDealFilters } from "./dealsFilters";
 import { nextSortParam } from "./dealsTableSort";
+import { DealsActiveFiltersBar } from "./DealsActiveFiltersBar";
 
 function esc(s: string) {
   return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
@@ -27,14 +28,21 @@ export function DealsTablePage() {
   const search = sp.get("search") ?? undefined;
   const page = Math.max(1, Number(sp.get("page") ?? 1) || 1);
   const sortParam = sp.get("sort") ?? "-updated";
-  const filter = buildDealsFilter(sp);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState | null>(null);
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const [bulkOpen, setBulkOpen] = React.useState(false);
 
-  const dealsQ = useDealsList({ search, filter, searchParams: sp, sortParam, page, perPage: 25 });
   const stagesQ = useFunnelStages();
   const usersQ = useUsers();
+  const openOnly = sp.get("openOnly") === "1";
+  const closedStageIds = ((stagesQ.data ?? []) as FunnelStage[])
+    .filter((stage) => stage.final_type === "won" || stage.final_type === "lost")
+    .map((stage) => String(stage.id));
+  const filter = [
+    buildDealsFilter(sp),
+    ...(openOnly ? closedStageIds.map((id) => `stage_id!="${id}"`) : []),
+  ].filter(Boolean).join(" && ");
+  const dealsQ = useDealsList({ search, filter, searchParams: sp, sortParam, page, perPage: 25 });
 
   const items = (dealsQ.data?.items ?? []) as unknown as Deal[];
 
@@ -125,11 +133,30 @@ export function DealsTablePage() {
           <div className="flex items-center gap-2 flex-wrap">
             {search ? <Badge>поиск</Badge> : null}
             {activeFilterCount ? <Badge>фильтров: {activeFilterCount}</Badge> : null}
+            <Button
+              small
+              variant={openOnly ? "primary" : "secondary"}
+              onClick={() => {
+                const next = new URLSearchParams(sp);
+                if (openOnly) next.delete("openOnly");
+                else next.set("openOnly", "1");
+                next.set("page", "1");
+                setSp(next, { replace: true });
+              }}
+            >
+              {openOnly ? "Только открытые" : "Все стадии"}
+            </Button>
             <Button small variant="secondary" onClick={() => setFiltersOpen(true)}>Фильтры</Button>
           </div>
         </div>
       </CardHeader>
       <CardContent>
+        <DealsActiveFiltersBar
+          sp={sp}
+          setSp={setSp}
+          stages={Object.fromEntries(((stagesQ.data ?? []) as FunnelStage[]).map((s) => [s.id, s.stage_name]))}
+          users={Object.fromEntries(((usersQ.data ?? []) as UserSummary[]).map((u) => [u.id, u.full_name || u.email]))}
+        />
         {dealsQ.isLoading ? (
           <div className="text-sm text-text2">Загрузка...</div>
         ) : dealsQ.error ? (

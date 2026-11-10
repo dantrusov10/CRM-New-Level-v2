@@ -8,6 +8,7 @@ export const DEAL_FILTER_PARAM_KEYS = [
   "company",
   "title",
   "channel",
+  "loss_reason",
   "partner",
   "distributor",
   "purchase_format",
@@ -40,6 +41,44 @@ export const DEAL_FILTER_PARAM_KEYS = [
 ] as const;
 
 export type DealFilterParams = Partial<Record<(typeof DEAL_FILTER_PARAM_KEYS)[number], string>>;
+
+export const DEAL_FILTER_LABELS: Record<(typeof DEAL_FILTER_PARAM_KEYS)[number], string> = {
+  stage: "Этап",
+  owner: "Ответственный",
+  company: "Компания",
+  title: "Название",
+  channel: "Канал продаж",
+  loss_reason: "Причина отказа",
+  partner: "Партнёр",
+  distributor: "Дистрибьютор",
+  purchase_format: "Формат закупки",
+  activity: "Тип активности",
+  presale: "Presale",
+  attraction_channel: "Канал привлечения",
+  infrastructure_size: "Инфраструктура",
+  budgetMin: "Бюджет от",
+  budgetMax: "Бюджет до",
+  turnoverMin: "Оборот от",
+  turnoverMax: "Оборот до",
+  marginMin: "Маржа от",
+  marginMax: "Маржа до",
+  discountMin: "Скидка от",
+  discountMax: "Скидка до",
+  scoreMin: "AI скор от",
+  scoreMax: "AI скор до",
+  endpointsMin: "Эндпоинты от",
+  endpointsMax: "Эндпоинты до",
+  from: "Создано с",
+  to: "Создано по",
+  updatedFrom: "Обновлено с",
+  updatedTo: "Обновлено по",
+  deliveryFrom: "Поставка с",
+  deliveryTo: "Поставка по",
+  expectedPaymentFrom: "Ожид. оплата с",
+  expectedPaymentTo: "Ожид. оплата по",
+  testStartFrom: "Тест с",
+  testEndTo: "Тест по",
+};
 
 function esc(s: string) {
   return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
@@ -164,6 +203,7 @@ export function buildDealsFilter(sp: URLSearchParams): string {
     p("company") ? `company_id="${p("company")}"` : "",
     contains("title", p("title")),
     contains("sales_channel", p("channel")),
+    contains("loss_reason", p("loss_reason")),
     contains("partner", p("partner")),
     contains("distributor", p("distributor")),
     contains("purchase_format", p("purchase_format")),

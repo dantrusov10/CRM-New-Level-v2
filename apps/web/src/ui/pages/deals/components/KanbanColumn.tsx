@@ -41,6 +41,7 @@ export function KanbanColumn({
               }}
             />
             <div className="text-sm font-semibold text-text truncate">{name}</div>
+            {stage.active === false ? <span className="rounded bg-[rgba(255,255,255,0.1)] px-1.5 py-0.5 text-[10px] text-text2">выкл</span> : null}
           </div>
           <div className="text-xs text-text2 mt-0.5">
             {(stats?.count ?? deals.length)} сделок • {money(stats?.sum ?? 0)} ₽

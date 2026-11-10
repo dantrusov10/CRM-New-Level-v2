@@ -7,6 +7,7 @@ import { loadAutoExportJobs } from "../../lib/autoExport";
 import { downloadExportResult, runExport, type TimelineExportFields } from "../../lib/exportRunner";
 import { DEAL_EXPORT_COLUMNS, DEAL_EXPORT_DEFAULT_FIELDS } from "../../lib/dealImportExportFields";
 import { AutoExportModal } from "./AutoExportModal";
+import { DEAL_FILTER_LABELS, DEAL_FILTER_PARAM_KEYS } from "../pages/deals/dealsFilters";
 type EntityType = "deal" | "company";
 type Format = "xlsx" | "csv";
 
@@ -169,13 +170,10 @@ export function ExportModal({
   const filterSummary = React.useMemo(() => {
     if (!useCurrentFilters) return "Фильтры не учитываются";
     if (entity === "deal") {
-      const stage = sp.get("stage");
-      const owner = sp.get("owner");
-      const channel = sp.get("channel");
-      const parts: string[] = [];
-      if (stage) parts.push("этап");
-      if (owner) parts.push("ответственный");
-      if (channel) parts.push("канал");
+      const parts = DEAL_FILTER_PARAM_KEYS
+        .filter((key) => Boolean(sp.get(key)?.trim()))
+        .map((key) => DEAL_FILTER_LABELS[key].toLowerCase());
+      if (sp.get("search")?.trim()) parts.unshift("поиск");
       return parts.length ? `Учитываются фильтры: ${parts.join(", ")}` : "Фильтры не заданы";
     }
     const city = sp.get("city");

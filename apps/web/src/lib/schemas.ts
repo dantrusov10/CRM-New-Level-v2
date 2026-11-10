@@ -48,6 +48,7 @@ export const dealSchema = z.object({
   company_id: optionalString,
   responsible_id: optionalString,
   stage_id: optionalString,
+  loss_reason: optionalString,
   budget: optionalNumber,
   turnover: optionalNumber,
   margin_percent: optionalNumber,

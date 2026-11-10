@@ -10,6 +10,7 @@ export type DealCanonicalField =
   | "margin_percent"
   | "discount_percent"
   | "sales_channel"
+  | "loss_reason"
   | "partner"
   | "distributor"
   | "purchase_format"
@@ -39,6 +40,7 @@ export const DEAL_FIELD_ENTITIES: DealFieldEntity[] = [
   { field: "margin_percent", label: "Маржа %", aliases: ["margin_percent", "margin", "маржа"] },
   { field: "discount_percent", label: "Скидка %", aliases: ["discount_percent", "discount", "скидка"] },
   { field: "sales_channel", label: "Канал продаж", aliases: ["sales_channel", "channel", "канал", "канал_продаж"] },
+  { field: "loss_reason", label: "Причина отказа", aliases: ["loss_reason", "причина отказа", "причина_отказа"] },
   { field: "partner", label: "Партнёр", aliases: ["partner", "партнер", "партнёр"] },
   { field: "distributor", label: "Дистрибьютор", aliases: ["distributor", "дистрибьютор"] },
   { field: "purchase_format", label: "Формат закупки", aliases: ["purchase_format", "формат_закупки"] },
@@ -85,6 +87,7 @@ export const DEAL_SYSTEM_PB_FIELDS: DealCanonicalField[] = [
   "margin_percent",
   "discount_percent",
   "sales_channel",
+  "loss_reason",
   "partner",
   "distributor",
   "purchase_format",

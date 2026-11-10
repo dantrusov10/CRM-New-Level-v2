@@ -2111,8 +2111,19 @@ export function DealDetailPage() {
   async function changeStage(stageId: string) {
     if (!id) return;
     const prevName = deal?.expand?.stage_id?.stage_name ?? "";
-    const nextName = stages.find((s) => s.id === stageId)?.stage_name ?? "";
-    await pb.collection("deals").update(id, { stage_id: stageId }).catch(() => {});
+    const nextStage = stages.find((s) => s.id === stageId);
+    const nextName = nextStage?.stage_name ?? "";
+    const isLost = nextStage?.final_type === "lost" || /отказ|проиг|потер/i.test(nextName);
+    let lossReason = deal?.loss_reason ?? "";
+    if (isLost) {
+      const prompted = window.prompt("Укажите причину отказа", lossReason);
+      if (prompted === null) return;
+      lossReason = prompted.trim();
+    }
+    await pb.collection("deals").update(id, {
+      stage_id: stageId,
+      ...(isLost ? { loss_reason: lossReason } : {}),
+    }).catch(() => {});
     await createTimelineEvent("stage_change", `Этап изменён: ${prevName} → ${nextName}`, { from: prevName, to: nextName });
     await dealQ.refetch();
     tlQ.refetch();

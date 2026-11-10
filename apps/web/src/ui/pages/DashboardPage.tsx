@@ -12,6 +12,9 @@ import { StatCard } from "../components/dashboard/StatCard";
 import { DashboardTodayPanel } from "../components/dashboard/DashboardTodayPanel";
 import { DashboardAiQuickActions } from "../components/dashboard/DashboardAiQuickActions";
 import { lazyImportWithReload } from "../../lib/chunkReload";
+import { downloadXlsx, type TabularRow } from "../../lib/importExport";
+import { DealsFilterForm } from "./deals/DealsFilterForm";
+import type { DealFilterParams } from "./deals/dealsFilters";
 
 const ChartFallback = () => <div className="h-32 flex items-center justify-center text-xs text-text2">Загрузка графика…</div>;
 
@@ -117,6 +120,7 @@ export function DashboardPage() {
 
   type WidgetFilters = {
     rangeDays: number;
+    dateBasis?: "created" | "updated";
     stageId?: string;
     ownerId?: string;
     channel?: string;
@@ -145,8 +149,19 @@ export function DashboardPage() {
     widgetOrder: WidgetId[];
   };
 
+  type CustomReport = {
+    id: string;
+    name: string;
+    source: "deals" | "companies";
+    columns: string[];
+    filters?: Record<string, string>;
+    dateBasis?: "created" | "updated";
+    rangeDays?: number;
+  };
+
   const DEFAULT_WIDGET_FILTERS: WidgetFilters = {
     rangeDays: 30,
+    dateBasis: "updated",
     stageId: "",
     ownerId: "",
     channel: "",
@@ -223,6 +238,7 @@ export function DashboardPage() {
   const [aiSummaryText, setAiSummaryText] = React.useState("");
   const [globalFilters, setGlobalFilters] = React.useState<WidgetFilters>({
     rangeDays: 30,
+    dateBasis: "updated",
     stageId: "",
     ownerId: "",
     channel: "",
@@ -233,11 +249,14 @@ export function DashboardPage() {
   });
   const [savedViews, setSavedViews] = React.useState<Array<{ id: string; name: string; globalFilters: WidgetFilters; cfg: DashCfg }>>([]);
   const [activeViewId, setActiveViewId] = React.useState("");
-  const [customReports, setCustomReports] = React.useState<Array<{ id: string; name: string; source: "deals" | "companies"; columns: string[] }>>([]);
+  const [customReports, setCustomReports] = React.useState<CustomReport[]>([]);
   const [customReportLayouts, setCustomReportLayouts] = React.useState<Record<string, { colStart: number; rowStart: number; span: number; rowSpan: number }>>({});
   const [customSource, setCustomSource] = React.useState<"deals" | "companies">("deals");
   const [customName, setCustomName] = React.useState("Мой отчет");
   const [customColumns, setCustomColumns] = React.useState<string[]>(["title", "budget", "responsible"]);
+  const [customFilters, setCustomFilters] = React.useState<DealFilterParams>({});
+  const [customDateBasis, setCustomDateBasis] = React.useState<"created" | "updated">("updated");
+  const [customRangeDays, setCustomRangeDays] = React.useState(30);
   const [customSearch, setCustomSearch] = React.useState("");
   const [customBuilderOpen, setCustomBuilderOpen] = React.useState(false);
   const [controlsCollapsed, setControlsCollapsed] = React.useState(false);
@@ -310,6 +329,7 @@ export function DashboardPage() {
           filters: {
             ...prev.widgets[wid].filters,
             rangeDays: globalFilters.rangeDays,
+            dateBasis: globalFilters.dateBasis,
             stageId: globalFilters.stageId,
             ownerId: globalFilters.ownerId,
             channel: globalFilters.channel,
@@ -318,7 +338,7 @@ export function DashboardPage() {
       }
       return next;
     });
-  }, [globalFilters.rangeDays, globalFilters.stageId, globalFilters.ownerId, globalFilters.channel]);
+  }, [globalFilters.rangeDays, globalFilters.dateBasis, globalFilters.stageId, globalFilters.ownerId, globalFilters.channel]);
 
   React.useEffect(() => {
     let ignore = false;
@@ -415,12 +435,13 @@ export function DashboardPage() {
   function applyWidgetFilters(input: Deal[], f: WidgetFilters) {
     let arr = input ?? [];
     const from = new Date(now.getTime() - (Number(f.rangeDays) || 30) * 24 * 60 * 60 * 1000);
+    const dateBasis = f.dateBasis ?? "updated";
 
-    // time range by created
     if (f.rangeDays && f.rangeDays > 0) {
       arr = arr.filter((d) => {
-        const c = d?.created ? new Date(d.created) : null;
-        return c && c >= from;
+        const value = d?.[dateBasis];
+        const date = value ? new Date(value) : null;
+        return date && date >= from;
       });
     }
     if (f.stageId) arr = arr.filter((d) => (d.stage_id ?? d.expand?.stage_id?.id) === f.stageId);
@@ -430,7 +451,7 @@ export function DashboardPage() {
     if (typeof f.budgetMax === "number") arr = arr.filter((d) => Number(d?.budget ?? 0) <= f.budgetMax!);
     if (typeof f.scoreMin === "number") arr = arr.filter((d) => Number(d?.current_score ?? 0) >= f.scoreMin!);
     if (typeof f.scoreMax === "number") arr = arr.filter((d) => Number(d?.current_score ?? 0) <= f.scoreMax!);
-    return { arr, from };
+    return { arr, from, dateBasis };
   }
 
   function drillToDeals(filters: WidgetFilters & { stageId?: string }) {
@@ -446,7 +467,7 @@ export function DashboardPage() {
     if (typeof filters.scoreMax === "number") sp.set("scoreMax", String(filters.scoreMax));
     // time range as "from" (YYYY-MM-DD)
     const from = new Date(now.getTime() - (Number(filters.rangeDays) || 30) * 24 * 60 * 60 * 1000);
-    sp.set("from", from.toISOString());
+    sp.set(filters.dateBasis === "created" ? "from" : "updatedFrom", from.toISOString());
     nav(`/deals?${sp.toString()}`);
   }
 
@@ -488,15 +509,16 @@ export function DashboardPage() {
     };
   }
 
-  function computeDynamics(list: Deal[]) {
+  function computeDynamics(list: Deal[], dateBasis: "created" | "updated") {
     const all = list ?? [];
     const weeks = 8;
     const buckets = Array.from({ length: weeks }, () => 0);
     const start = new Date(now.getTime() - weeks * 7 * 24 * 60 * 60 * 1000);
     for (const d of all) {
-      const c = d?.created ? new Date(d.created) : null;
-      if (!c || c < start) continue;
-      const diffDays = Math.floor((c.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+      const value = d?.[dateBasis];
+      const date = value ? new Date(value) : null;
+      if (!date || date < start) continue;
+      const diffDays = Math.floor((date.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
       const idx = Math.min(weeks - 1, Math.max(0, Math.floor(diffDays / 7)));
       buckets[idx] += 1;
     }
@@ -504,7 +526,7 @@ export function DashboardPage() {
   }
 
   // WinRate — вариант 2: won / (won + lost) среди финальных сделок за период.
-  function computeWinRateVariant2(list: Deal[], from: Date) {
+  function computeWinRateVariant2(list: Deal[]) {
     const stageById = new Map<string, FunnelStage>();
     stages.forEach((stage) => stageById.set(String(stage.id), stage));
 
@@ -530,9 +552,6 @@ export function DashboardPage() {
       const t = classifyFinal(st);
       if (t === "none") continue;
 
-      // считаем по updated (в финал обычно переводят обновлением)
-      const u = d?.updated ? new Date(d.updated) : null;
-      if (!u || u < from) continue;
       if (t === "won") won += 1;
       if (t === "lost") lost += 1;
     }
@@ -632,29 +651,22 @@ export function DashboardPage() {
       .slice(0, 5);
   }
 
-  function exportDealsCsv(list: Deal[]) {
-    const headers = ["deal_id", "title", "stage", "owner", "score", "budget", "turnover", "updated"];
-    const lines = [headers.join(";")];
-    for (const d of list ?? []) {
-      const row = [
-        String(d.id || ""),
-        String(d.title || "").replace(/;/g, ","),
-        String(d.expand?.stage_id?.stage_name || ""),
-        String(d.expand?.responsible_id?.full_name || d.expand?.responsible_id?.name || d.expand?.responsible_id?.email || ""),
-        String(Number(d.current_score ?? 0) || ""),
-        String(Number(d.budget ?? 0) || ""),
-        String(Number(d.turnover ?? 0) || ""),
-        String(d.updated || ""),
-      ];
-      lines.push(row.join(";"));
-    }
-    const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `dashboard-snapshot-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  function exportDealsXlsx(list: Deal[]) {
+    downloadXlsx(
+      list.map((d) => ({
+        "ID сделки": String(d.id || ""),
+        "Название сделки": String(d.title || ""),
+        "Этап": String(d.expand?.stage_id?.stage_name || ""),
+        "Ответственный": String(d.expand?.responsible_id?.full_name || d.expand?.responsible_id?.name || d.expand?.responsible_id?.email || ""),
+        "Вероятность": Number(d.current_score ?? 0),
+        "Бюджет": Number(d.budget ?? 0),
+        "Оборот": Number(d.turnover ?? 0),
+        "Причина отказа": String(d.loss_reason || ""),
+        "Обновлена": String(d.updated || ""),
+      })),
+      "Срез",
+      `dashboard-snapshot-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    );
   }
 
   const loading = stagesQ.isLoading || dealsQ.isLoading || usersQ.isLoading || companiesQ.isLoading;
@@ -715,9 +727,10 @@ export function DashboardPage() {
   const dealsGlobal = globalApplied.arr;
   const compareFrom = new Date(globalApplied.from.getTime() - (Number(globalFilters.rangeDays) || 30) * 24 * 60 * 60 * 1000);
   const dealsPrevPeriod = dealsAll.filter((d) => {
-    const c = d?.created ? new Date(d.created) : null;
-    if (!c) return false;
-    if (c < compareFrom || c >= globalApplied.from) return false;
+    const value = d?.[globalApplied.dateBasis];
+    const date = value ? new Date(value) : null;
+    if (!date) return false;
+    if (date < compareFrom || date >= globalApplied.from) return false;
     if (globalFilters.stageId && (d.stage_id ?? d.expand?.stage_id?.id) !== globalFilters.stageId) return false;
     const scopedOwnerId = isAdmin ? globalFilters.ownerId : String(user?.id ?? "");
     if (scopedOwnerId && (d.responsible_id ?? d.expand?.responsible_id?.id) !== scopedOwnerId) return false;
@@ -734,10 +747,10 @@ export function DashboardPage() {
   const sStatPrev = computeStats(applyWidgetFilters(dealsPrevPeriod, cfg.widgets.statCards.filters).arr);
 
   const wDyn = applyWidgetFilters(dealsScoped, cfg.widgets.dynamics.syncWithGlobal ? globalFilters : cfg.widgets.dynamics.filters);
-  const dynBars = computeDynamics(wDyn.arr);
+  const dynBars = computeDynamics(wDyn.arr, wDyn.dateBasis);
 
   const wWR = applyWidgetFilters(dealsScoped, cfg.widgets.winRate.syncWithGlobal ? globalFilters : cfg.widgets.winRate.filters);
-  const wr2 = computeWinRateVariant2(wWR.arr, wWR.from);
+  const wr2 = computeWinRateVariant2(wWR.arr);
 
   const wFunnel = applyWidgetFilters(dealsScoped, cfg.widgets.funnel.syncWithGlobal ? globalFilters : cfg.widgets.funnel.filters);
   const funnelRows = stageTable(wFunnel.arr);
@@ -782,9 +795,20 @@ export function DashboardPage() {
     } catch {}
   }
 
+  function deleteCurrentView() {
+    if (!activeViewId) return;
+    const next = savedViews.filter((view) => view.id !== activeViewId);
+    setSavedViews(next);
+    setActiveViewId("");
+    localStorage.setItem("nwlvl_dashboard_views", JSON.stringify(next));
+  }
+
   function applyView(viewId: string) {
     const target = savedViews.find((v) => v.id === viewId);
-    if (!target) return;
+    if (!target) {
+      setActiveViewId("");
+      return;
+    }
     setActiveViewId(target.id);
     setGlobalFilters(target.globalFilters);
     setCfg(target.cfg);
@@ -853,6 +877,7 @@ export function DashboardPage() {
       turnover: "Оборот",
       current_score: "Вероятность",
       sales_channel: "Канал",
+      loss_reason: "Причина отказа",
       stage_name: "Этап",
       responsible: "Ответственный",
       company: "Компания",
@@ -898,12 +923,74 @@ export function DashboardPage() {
     });
   }, [customFieldOptions, customSearch, normalizedFieldName, customSource]);
 
-  function addPresetReport(kind: "finance" | "pipeline" | "team") {
+  function customReportRows(report: CustomReport): Array<Record<string, unknown>> {
+    if (report.source === "companies") {
+      const basis = report.dateBasis ?? "updated";
+      const from = new Date(now.getTime() - (Number(report.rangeDays) || 30) * 24 * 60 * 60 * 1000);
+      return companiesScoped
+        .filter((company) => !report.rangeDays || Boolean(company[basis] && new Date(company[basis]!).getTime() >= from.getTime()))
+        .map((c) => ({
+          ...c,
+          id: String(c.id || ""),
+          name: String(c.name || ""),
+        }));
+    }
+    const filters = report.filters ?? {};
+    const basis = report.dateBasis ?? "updated";
+    const from = new Date(now.getTime() - (Number(report.rangeDays) || 30) * 24 * 60 * 60 * 1000);
+    return dealsScoped
+      .filter((d) => {
+        const dateValue = d[basis] ? new Date(d[basis]!).getTime() : 0;
+        if (report.rangeDays && (!dateValue || dateValue < from.getTime())) return false;
+        const explicitFrom = basis === "created" ? filters.from : filters.updatedFrom;
+        const explicitTo = basis === "created" ? filters.to : filters.updatedTo;
+        if (explicitFrom && (!dateValue || dateValue < new Date(explicitFrom).getTime())) return false;
+        if (explicitTo) {
+          const to = new Date(explicitTo);
+          to.setHours(23, 59, 59, 999);
+          if (!dateValue || dateValue > to.getTime()) return false;
+        }
+        if (filters.stage && String(d.stage_id ?? d.expand?.stage_id?.id ?? "") !== filters.stage) return false;
+        if (filters.owner && String(d.responsible_id ?? d.expand?.responsible_id?.id ?? "") !== filters.owner) return false;
+        if (filters.company && String(d.company_id ?? d.expand?.company_id?.id ?? "") !== filters.company) return false;
+        if (filters.channel && !String(d.sales_channel ?? "").toLowerCase().includes(filters.channel.toLowerCase())) return false;
+        if (filters.loss_reason && !String(d.loss_reason ?? "").toLowerCase().includes(filters.loss_reason.toLowerCase())) return false;
+        if (filters.title && !String(d.title ?? "").toLowerCase().includes(filters.title.toLowerCase())) return false;
+        return true;
+      })
+      .map((d) => ({
+        ...d,
+        id: String(d.id || ""),
+        title: String(d.title || ""),
+        stage_name: String(d.expand?.stage_id?.stage_name || ""),
+        responsible: String(d.expand?.responsible_id?.full_name || d.expand?.responsible_id?.name || d.expand?.responsible_id?.email || ""),
+        company: String(d.expand?.company_id?.name || ""),
+      }));
+  }
+
+  function exportCustomReport(report: CustomReport, rows: Array<Record<string, unknown>>) {
+    const exportRows: TabularRow[] = rows.map((row) =>
+      Object.fromEntries(
+        report.columns.map((column) => {
+          const value = row[column];
+          const cell = typeof value === "string" || typeof value === "number" || typeof value === "boolean" || value == null
+            ? value
+            : JSON.stringify(value);
+          return [normalizedFieldName(report.source, column), cell];
+        }),
+      ),
+    );
+    downloadXlsx(exportRows, "Отчёт", `${report.name.replace(/[\\/:*?"<>|]+/g, "-")}.xlsx`);
+  }
+
+  function addPresetReport(kind: "finance" | "pipeline" | "team" | "refusals") {
     const preset = kind === "finance"
       ? { id: `${Date.now()}-finance`, name: "Финансы по сделкам", source: "deals" as const, columns: ["title", "budget", "turnover", "current_score", "responsible"] }
       : kind === "pipeline"
       ? { id: `${Date.now()}-pipeline`, name: "Состояние воронки", source: "deals" as const, columns: ["title", "stage_name", "current_score", "updated"] }
-      : { id: `${Date.now()}-team`, name: "Нагрузка по менеджерам", source: "deals" as const, columns: ["responsible", "title", "budget", "updated"] };
+      : kind === "team"
+      ? { id: `${Date.now()}-team`, name: "Нагрузка по менеджерам", source: "deals" as const, columns: ["responsible", "title", "budget", "updated"] }
+      : { id: `${Date.now()}-refusals`, name: "Отказы", source: "deals" as const, columns: ["title", "stage_name", "loss_reason", "updated", "responsible"] };
     const next = [preset, ...customReports].slice(0, 30);
     setCustomReports(next);
     localStorage.setItem("nwlvl_dashboard_custom_reports", JSON.stringify(next));
@@ -911,7 +998,15 @@ export function DashboardPage() {
 
   function addCustomReport() {
     if (!customName.trim() || !customColumns.length) return;
-    const nextReport = { id: `${Date.now()}-custom`, name: customName.trim(), source: customSource, columns: customColumns };
+    const nextReport: CustomReport = {
+      id: `${Date.now()}-custom`,
+      name: customName.trim(),
+      source: customSource,
+      columns: customColumns,
+      filters: customSource === "deals" ? { ...customFilters } : undefined,
+      dateBasis: customDateBasis,
+      rangeDays: customRangeDays,
+    };
     const next = [nextReport, ...customReports].slice(0, 30);
     const lastWidgetBottom = Math.max(
       1,
@@ -1099,7 +1194,7 @@ export function DashboardPage() {
     if (wid === "winRate") return <WidgetFrame title="Доля побед" subtitle={`Вариант 2: победы/(победы+потери) за ${cfg.widgets.winRate.filters.rangeDays || 30} дней`} widgetId="winRate"><ChartSuspense><WinRateDonutChart rate={wr2.rate} won={wr2.won} lost={wr2.lost} /></ChartSuspense></WidgetFrame>;
     if (wid === "funnel") {
       return (
-        <WidgetFrame title="Воронка" subtitle="Количество и сумма по этапам (клик по этапу → сделки)" widgetId="funnel">
+        <WidgetFrame title="Воронка" subtitle={`Количество и сумма по этапам · источник: ${wFunnel.arr.length} сделок среза`} widgetId="funnel">
           {cfg.widgets.funnel.visual === "classic" ? (
             <div className="overflow-auto">
               <table className="w-full text-sm">
@@ -1168,8 +1263,11 @@ export function DashboardPage() {
             <Button small variant="secondary" onClick={saveCurrentView} className="h-9">
               Сохранить вид
             </Button>
-            <Button small variant="secondary" onClick={() => exportDealsCsv(dealsGlobal)} className="h-9">
-              <span className="inline-flex items-center gap-2"><Download size={16} /> Экспорт среза</span>
+            <Button small variant="secondary" onClick={deleteCurrentView} disabled={!activeViewId} className="h-9">
+              Удалить вид
+            </Button>
+            <Button small variant="secondary" onClick={() => exportDealsXlsx(dealsGlobal)} className="h-9">
+              <span className="inline-flex items-center gap-2"><Download size={16} /> Excel</span>
             </Button>
             <Button small variant="secondary" onClick={openDashboardSettings} className="h-9">
               <span className="inline-flex items-center gap-2"><BarChart3 size={16} /> {layoutEditMode ? "Завершить настройку" : "Настроить дашборд"}</span>
@@ -1184,6 +1282,10 @@ export function DashboardPage() {
             <option value="90">Глобально: 90 дней</option>
             <option value="365">Глобально: 365 дней</option>
           </select>
+          <select className="ui-input md:col-span-1 xl:col-span-2" value={globalFilters.dateBasis ?? "updated"} onChange={(e) => setGlobalFilters((p) => ({ ...p, dateBasis: e.target.value as "created" | "updated" }))}>
+            <option value="updated">Период по обновлению</option>
+            <option value="created">Период по созданию</option>
+          </select>
           <select className="ui-input md:col-span-1 xl:col-span-2" value={globalFilters.stageId ?? ""} onChange={(e) => setGlobalFilters((p) => ({ ...p, stageId: e.target.value }))}>
             <option value="">Все этапы</option>
             {stages.map((s) => (
@@ -1197,6 +1299,9 @@ export function DashboardPage() {
             ))}
           </select>
           <input className="ui-input md:col-span-1 xl:col-span-2" value={globalFilters.channel ?? ""} onChange={(e) => setGlobalFilters((p) => ({ ...p, channel: e.target.value }))} placeholder="Канал (глобально)" />
+        </div>
+        <div className="mt-2 text-xs text-text2">
+          Срез: {dealsGlobal.length} сделок · период по {globalApplied.dateBasis === "created" ? "созданию" : "обновлению"} · последние {globalFilters.rangeDays || 30} дней
         </div>
 
         <div className="mt-4 ui-card p-4">
@@ -1374,32 +1479,7 @@ export function DashboardPage() {
                 {customReports.map((report) => {
                   const rid = `custom:${report.id}`;
                   const layout = customReportLayouts[report.id] ?? { colStart: 1, rowStart: 2, span: 12, rowSpan: 10 };
-                  const rows = report.source === "deals"
-                    ? dealsGlobal.slice(0, 30).map((d) => ({
-                        id: String(d.id || ""),
-                        title: String(d.title || ""),
-                        budget: Number(d.budget ?? 0),
-                        turnover: Number(d.turnover ?? 0),
-                        current_score: Number(d.current_score ?? 0),
-                        sales_channel: String(d.sales_channel || ""),
-                        stage_name: String(d.expand?.stage_id?.stage_name || ""),
-                        responsible: String(d.expand?.responsible_id?.full_name || d.expand?.responsible_id?.name || d.expand?.responsible_id?.email || ""),
-                        company: String(d.expand?.company_id?.name || ""),
-                        created: String(d.created || ""),
-                        updated: String(d.updated || ""),
-                      }))
-                    : companiesScoped.slice(0, 30).map((c) => ({
-                        id: String(c.id || ""),
-                        name: String(c.name || ""),
-                        inn: String(c.inn || ""),
-                        city: String(c.city || ""),
-                        website: String(c.website || ""),
-                        email: String(c.email || ""),
-                        phone: String(c.phone || ""),
-                        legal_entity: String(c.legal_entity || ""),
-                        created: String(c.created || ""),
-                        updated: String(c.updated || ""),
-                      }));
+                  const rows = customReportRows(report);
                   return (
                     <SortableReportItem
                       key={rid}
@@ -1446,11 +1526,15 @@ export function DashboardPage() {
                           <div className="flex items-center justify-between gap-2">
                             <div>
                               <div className="text-sm font-extrabold">{report.name}</div>
-                              <div className="text-xs text-text2 mt-1">{report.source === "deals" ? "Сделки" : "Компании"} · полей: {report.columns.length}</div>
+                              <div className="text-xs text-text2 mt-1">{report.source === "deals" ? "Сделки" : "Компании"} · {rows.length} строк · полей: {report.columns.length}</div>
                             </div>
-                            <button
-                              className="h-8 rounded-md border border-[rgba(239,68,68,0.45)] bg-[rgba(239,68,68,0.12)] px-2 text-xs"
-                              onClick={() => {
+                            <div className="flex items-center gap-2">
+                              <button className="h-8 rounded-md border border-border px-2 text-xs" onClick={() => exportCustomReport(report, rows)}>
+                                Excel
+                              </button>
+                              <button
+                                className="h-8 rounded-md border border-[rgba(239,68,68,0.45)] bg-[rgba(239,68,68,0.12)] px-2 text-xs"
+                                onClick={() => {
                                 const next = customReports.filter((x) => x.id !== report.id);
                                 setCustomReports(next);
                                 localStorage.setItem("nwlvl_dashboard_custom_reports", JSON.stringify(next));
@@ -1460,10 +1544,11 @@ export function DashboardPage() {
                                   localStorage.setItem("nwlvl_dashboard_custom_report_layouts", JSON.stringify(cp));
                                   return cp;
                                 });
-                              }}
-                            >
-                              Удалить
-                            </button>
+                                }}
+                              >
+                                Удалить
+                              </button>
+                            </div>
                           </div>
                           <div className="overflow-auto mt-3">
                             <table className="min-w-[520px] w-full text-xs">
@@ -1491,40 +1576,72 @@ export function DashboardPage() {
         onClose={() => setCustomBuilderOpen(false)}
         widthClass="max-w-3xl"
       >
-        <div className="grid gap-3">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+        <div className="grid max-h-[78vh] gap-4 overflow-y-auto pr-2">
+          <section className="grid gap-2">
+            <div className="text-sm font-semibold">Название</div>
             <input className="ui-input" value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder="Название отчета" />
-            <select className="ui-input" value={customSource} onChange={(e) => setCustomSource(e.target.value as "deals" | "companies")}>
-              <option value="deals">Источник: Сделки</option>
-              <option value="companies">Источник: Компании</option>
-            </select>
-            <input className="ui-input" value={customSearch} onChange={(e) => setCustomSearch(e.target.value)} placeholder="Поиск поля (рус/тех)" />
-          </div>
+          </section>
 
-          <div className="rounded-card border border-border bg-rowHover p-3">
-            <div className="text-xs text-text2 mb-2">Все поля из доступных данных PocketBase (нормализованы)</div>
-            <div className="max-h-[260px] overflow-auto grid grid-cols-1 md:grid-cols-2 gap-2">
-              {filteredCustomFieldOptions.map((field) => (
-                <label key={field} className="flex items-center gap-2 text-sm rounded-md border border-border bg-white px-2 py-1.5">
-                  <input
-                    type="checkbox"
-                    checked={customColumns.includes(field)}
-                    onChange={(e) => {
-                      if (e.target.checked) setCustomColumns((prev) => (prev.includes(field) ? prev : [...prev, field]));
-                      else setCustomColumns((prev) => prev.filter((x) => x !== field));
-                    }}
-                  />
-                  <span>{normalizedFieldName(customSource, field)}</span>
-                  <span className="text-[10px] text-text2">{field}</span>
-                </label>
-              ))}
+          <section className="grid gap-2">
+            <div className="text-sm font-semibold">Источник</div>
+            <select className="ui-input" value={customSource} onChange={(e) => setCustomSource(e.target.value as "deals" | "companies")}>
+              <option value="deals">Сделки</option>
+              <option value="companies">Компании</option>
+            </select>
+          </section>
+
+          <section className="grid gap-2">
+            <div className="text-sm font-semibold">Колонки</div>
+            <input className="ui-input" value={customSearch} onChange={(e) => setCustomSearch(e.target.value)} placeholder="Поиск поля (рус/тех)" />
+            <div className="rounded-card border border-border bg-rowHover p-3">
+              <div className="text-xs text-text2 mb-2">Все поля из доступных данных PocketBase (нормализованы)</div>
+              <div className="max-h-[260px] overflow-auto grid grid-cols-1 md:grid-cols-2 gap-2">
+                {filteredCustomFieldOptions.map((field) => (
+                  <label key={field} className="flex items-center gap-2 text-sm rounded-md border border-border bg-white px-2 py-1.5">
+                    <input
+                      type="checkbox"
+                      checked={customColumns.includes(field)}
+                      onChange={(e) => {
+                        if (e.target.checked) setCustomColumns((prev) => (prev.includes(field) ? prev : [...prev, field]));
+                        else setCustomColumns((prev) => prev.filter((x) => x !== field));
+                      }}
+                    />
+                    <span>{normalizedFieldName(customSource, field)}</span>
+                    <span className="text-[10px] text-text2">{field}</span>
+                  </label>
+                ))}
+              </div>
             </div>
-          </div>
+          </section>
+
+          {customSource === "deals" ? (
+            <section className="grid gap-2">
+              <div className="text-sm font-semibold">Фильтры</div>
+              <DealsFilterForm values={customFilters} onChange={setCustomFilters} />
+            </section>
+          ) : null}
+
+          <section className="grid gap-2">
+            <div className="text-sm font-semibold">Период</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <select className="ui-input" value={customRangeDays} onChange={(e) => setCustomRangeDays(Number(e.target.value) || 30)}>
+                <option value={7}>Последние 7 дней</option>
+                <option value={30}>Последние 30 дней</option>
+                <option value={90}>Последние 90 дней</option>
+                <option value={365}>Последние 365 дней</option>
+              </select>
+              <select className="ui-input" value={customDateBasis} onChange={(e) => setCustomDateBasis(e.target.value as "created" | "updated")}>
+                <option value="updated">По обновлению</option>
+                <option value="created">По созданию</option>
+              </select>
+            </div>
+          </section>
 
           <div className="flex items-center gap-2 flex-wrap">
             <Button small variant="secondary" onClick={() => addPresetReport("finance")}>Пресет: Финансы</Button>
             <Button small variant="secondary" onClick={() => addPresetReport("pipeline")}>Пресет: Воронка</Button>
             <Button small variant="secondary" onClick={() => addPresetReport("team")}>Пресет: Команда</Button>
+            <Button small variant="secondary" onClick={() => addPresetReport("refusals")}>Пресет: Отказы</Button>
             <Button small onClick={() => { addCustomReport(); setCustomBuilderOpen(false); }} disabled={!customName.trim() || !customColumns.length}>Добавить отчет в блок отчетов</Button>
           </div>
         </div>
@@ -1558,6 +1675,17 @@ export function DashboardPage() {
                       <option value="30">Последние 30 дней</option>
                       <option value="90">Последние 90 дней</option>
                       <option value="365">Последний год</option>
+                    </select>
+                  </div>
+                  <div>
+                    <div className="text-xs text-text2 mb-1">Основа периода</div>
+                    <select
+                      className="h-10 w-full rounded-card border border-[#9CA3AF] bg-white px-3 text-sm"
+                      value={f.dateBasis ?? "updated"}
+                      onChange={(e) => setFilters({ dateBasis: e.target.value as "created" | "updated" })}
+                    >
+                      <option value="updated">По обновлению</option>
+                      <option value="created">По созданию</option>
                     </select>
                   </div>
 

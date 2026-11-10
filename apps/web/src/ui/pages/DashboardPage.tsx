@@ -1,7 +1,7 @@
 import React from "react";
 import { TrendingUp, CircleDot, Percent, Clock, Settings2, BarChart3, Download } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useDeals, useFunnelStages, useUsers, useCompanies } from "../data/hooks";
+import { useDeals, useFunnelStages, useUsers, useCompanies, useProductProfiles } from "../data/hooks";
 import type { Deal, FunnelStage, UserSummary, Company } from "../../lib/types";
 import { Button } from "../components/Button";
 import { Modal } from "../components/Modal";
@@ -117,6 +117,7 @@ export function DashboardPage() {
   const dealsQ = useDeals(); // uses PB full list (batch) in hooks
   const usersQ = useUsers();
   const companiesQ = useCompanies();
+  const productProfilesQ = useProductProfiles();
 
   type WidgetFilters = {
     rangeDays: number;
@@ -881,6 +882,9 @@ export function DashboardPage() {
       stage_name: "Этап",
       responsible: "Ответственный",
       company: "Компания",
+      product_name: "Продукт",
+      product_ids: "ID продуктов",
+      presale: "Presale / пилот",
       created: "Создана",
       updated: "Обновлена",
     };
@@ -902,7 +906,7 @@ export function DashboardPage() {
 
   const customFieldOptions = React.useMemo(() => {
     const base = customSource === "deals"
-      ? ["id", "title", "budget", "turnover", "current_score", "sales_channel", "stage_name", "responsible", "company", "created", "updated"]
+      ? ["id", "title", "budget", "turnover", "current_score", "sales_channel", "stage_name", "responsible", "company", "product_name", "presale", "loss_reason", "created", "updated"]
       : ["id", "name", "inn", "city", "website", "email", "phone", "legal_entity", "created", "updated"];
     const dynamic = new Set<string>(base);
     const sampleRows = customSource === "deals" ? dealsAll.slice(0, 200) : companiesAll.slice(0, 200);
@@ -912,7 +916,7 @@ export function DashboardPage() {
       });
     }
     return Array.from(dynamic).sort((a, b) => a.localeCompare(b));
-  }, [customSource]);
+  }, [customSource, dealsAll, companiesAll]);
 
   const filteredCustomFieldOptions = React.useMemo(() => {
     const q = customSearch.trim().toLowerCase();
@@ -938,6 +942,25 @@ export function DashboardPage() {
     const filters = report.filters ?? {};
     const basis = report.dateBasis ?? "updated";
     const from = new Date(now.getTime() - (Number(report.rangeDays) || 30) * 24 * 60 * 60 * 1000);
+    const productNameById = new Map<string, string>();
+    for (const p of productProfilesQ.data ?? []) {
+      const name = String((p.variants as { name?: string } | null)?.name || "Продукт");
+      productNameById.set(String(p.id), name);
+    }
+    const dealProductIds = (d: Deal): string[] => {
+      const raw = d.product_ids;
+      if (Array.isArray(raw)) return raw.map(String).filter(Boolean);
+      if (typeof raw === "string") {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
+        } catch {
+          return raw ? [raw] : [];
+        }
+      }
+      const single = String((d as Record<string, unknown>).product_id || "");
+      return single ? [single] : [];
+    };
     return dealsScoped
       .filter((d) => {
         const dateValue = d[basis] ? new Date(d[basis]!).getTime() : 0;
@@ -956,16 +979,29 @@ export function DashboardPage() {
         if (filters.channel && !String(d.sales_channel ?? "").toLowerCase().includes(filters.channel.toLowerCase())) return false;
         if (filters.loss_reason && !String(d.loss_reason ?? "").toLowerCase().includes(filters.loss_reason.toLowerCase())) return false;
         if (filters.title && !String(d.title ?? "").toLowerCase().includes(filters.title.toLowerCase())) return false;
+        if (filters.presale && !String(d.presale ?? "").toLowerCase().includes(filters.presale.toLowerCase())) return false;
+        if (filters.product) {
+          const ids = dealProductIds(d);
+          if (!ids.includes(String(filters.product))) return false;
+        }
         return true;
       })
-      .map((d) => ({
-        ...d,
-        id: String(d.id || ""),
-        title: String(d.title || ""),
-        stage_name: String(d.expand?.stage_id?.stage_name || ""),
-        responsible: String(d.expand?.responsible_id?.full_name || d.expand?.responsible_id?.name || d.expand?.responsible_id?.email || ""),
-        company: String(d.expand?.company_id?.name || ""),
-      }));
+      .map((d) => {
+        const ids = dealProductIds(d);
+        const productNames = ids.map((id) => productNameById.get(id) || id).filter(Boolean);
+        return {
+          ...d,
+          id: String(d.id || ""),
+          title: String(d.title || ""),
+          stage_name: String(d.expand?.stage_id?.stage_name || ""),
+          responsible: String(d.expand?.responsible_id?.full_name || d.expand?.responsible_id?.name || d.expand?.responsible_id?.email || ""),
+          company: String(d.expand?.company_id?.name || ""),
+          product_name: productNames.join(", "),
+          product_ids: ids.join(", "),
+          presale: String(d.presale || ""),
+          loss_reason: String(d.loss_reason || ""),
+        };
+      });
   }
 
   function exportCustomReport(report: CustomReport, rows: Array<Record<string, unknown>>) {
@@ -983,14 +1019,24 @@ export function DashboardPage() {
     downloadXlsx(exportRows, "Отчёт", `${report.name.replace(/[\\/:*?"<>|]+/g, "-")}.xlsx`);
   }
 
-  function addPresetReport(kind: "finance" | "pipeline" | "team" | "refusals") {
-    const preset = kind === "finance"
-      ? { id: `${Date.now()}-finance`, name: "Финансы по сделкам", source: "deals" as const, columns: ["title", "budget", "turnover", "current_score", "responsible"] }
-      : kind === "pipeline"
-      ? { id: `${Date.now()}-pipeline`, name: "Состояние воронки", source: "deals" as const, columns: ["title", "stage_name", "current_score", "updated"] }
-      : kind === "team"
-      ? { id: `${Date.now()}-team`, name: "Нагрузка по менеджерам", source: "deals" as const, columns: ["responsible", "title", "budget", "updated"] }
-      : { id: `${Date.now()}-refusals`, name: "Отказы", source: "deals" as const, columns: ["title", "stage_name", "loss_reason", "updated", "responsible"] };
+  function addPresetReport(kind: "finance" | "pipeline" | "team" | "refusals" | "products") {
+    const preset =
+      kind === "finance"
+        ? { id: `${Date.now()}-finance`, name: "Финансы по сделкам", source: "deals" as const, columns: ["title", "budget", "turnover", "current_score", "responsible"] }
+        : kind === "pipeline"
+        ? { id: `${Date.now()}-pipeline`, name: "Состояние воронки", source: "deals" as const, columns: ["title", "stage_name", "current_score", "updated"] }
+        : kind === "team"
+        ? { id: `${Date.now()}-team`, name: "Нагрузка по менеджерам", source: "deals" as const, columns: ["responsible", "title", "budget", "updated"] }
+        : kind === "products"
+        ? {
+            id: `${Date.now()}-products`,
+            name: "Продукты и пилот",
+            source: "deals" as const,
+            columns: ["title", "company", "product_name", "presale", "stage_name", "responsible", "updated"],
+            dateBasis: "updated" as const,
+            rangeDays: 90,
+          }
+        : { id: `${Date.now()}-refusals`, name: "Отказы", source: "deals" as const, columns: ["title", "stage_name", "loss_reason", "updated", "responsible"] };
     const next = [preset, ...customReports].slice(0, 30);
     setCustomReports(next);
     localStorage.setItem("nwlvl_dashboard_custom_reports", JSON.stringify(next));
@@ -1642,6 +1688,7 @@ export function DashboardPage() {
             <Button small variant="secondary" onClick={() => addPresetReport("pipeline")}>Пресет: Воронка</Button>
             <Button small variant="secondary" onClick={() => addPresetReport("team")}>Пресет: Команда</Button>
             <Button small variant="secondary" onClick={() => addPresetReport("refusals")}>Пресет: Отказы</Button>
+            <Button small variant="secondary" onClick={() => addPresetReport("products")}>Пресет: Продукты / пилот</Button>
             <Button small onClick={() => { addCustomReport(); setCustomBuilderOpen(false); }} disabled={!customName.trim() || !customColumns.length}>Добавить отчет в блок отчетов</Button>
           </div>
         </div>

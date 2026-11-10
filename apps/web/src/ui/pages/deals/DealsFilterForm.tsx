@@ -40,6 +40,7 @@ export function DealsFilterForm({
   const [stage, setStage] = React.useState<ComboOption | null>(null);
   const [owner, setOwner] = React.useState<ComboOption | null>(null);
   const [company, setCompany] = React.useState<ComboOption | null>(null);
+  const [product, setProduct] = React.useState<ComboOption | null>(null);
 
   const loadStages = React.useCallback(async (q: string) => {
     const filter = q?.trim() ? `stage_name~"${safeText(q)}"` : "";
@@ -68,6 +69,20 @@ export function DealsFilterForm({
     });
   }, []);
 
+  const loadProducts = React.useCallback(async (q: string) => {
+    const res = await pb.collection("semantic_packs").getList(1, 50, {
+      filter: 'model="product_profile_v1"',
+      sort: "-updated",
+    }).catch(() => ({ items: [] as Array<{ id: string; variants?: { name?: string } | null }> }));
+    const qn = q.trim().toLowerCase();
+    return res.items
+      .map((p) => {
+        const name = String((p.variants as { name?: string } | null)?.name || "Продукт");
+        return { value: p.id, label: name };
+      })
+      .filter((o) => !qn || o.label.toLowerCase().includes(qn));
+  }, []);
+
   React.useEffect(() => {
     (async () => {
       if (values.stage) {
@@ -82,8 +97,12 @@ export function DealsFilterForm({
         const c = (await pb.collection("companies").getOne(values.company).catch(() => null)) as { id: string; name?: string } | null;
         setCompany(c ? { value: c.id, label: c.name || "Компания" } : null);
       } else setCompany(null);
+      if (values.product) {
+        const p = (await pb.collection("semantic_packs").getOne(values.product).catch(() => null)) as { id: string; variants?: { name?: string } | null } | null;
+        setProduct(p ? { value: p.id, label: String(p.variants?.name || "Продукт") } : null);
+      } else setProduct(null);
     })();
-  }, [values.stage, values.owner, values.company]);
+  }, [values.stage, values.owner, values.company, values.product]);
 
   return (
     <div className="grid gap-3 max-h-[min(70vh,640px)] overflow-y-auto crm-scrollbar pr-2">
@@ -99,6 +118,9 @@ export function DealsFilterForm({
         </Field>
         <Field label="Ответственный">
           <Combobox value={owner} onChange={(o) => { setOwner(o); set("owner", o?.value ?? ""); }} placeholder="Любой" loadOptions={loadUsers} />
+        </Field>
+        <Field label="Продукт">
+          <Combobox value={product} onChange={(o) => { setProduct(o); set("product", o?.value ?? ""); }} placeholder="Любой" loadOptions={loadProducts} />
         </Field>
       </Section>
 
